@@ -310,7 +310,7 @@ export function privateTeamYawAtReturn(startYaw, progress) {
 /** 夜間全域與檯燈強度（供單測） */
 export function privateTeamSceneLighting() {
   return {
-    amb: 0.24,
+    amb: 0.31,
     dir: 0.36,
     point: 1.05,
     spot: 5.4,
@@ -768,45 +768,86 @@ function makeWindowMoonlightFloorTexture() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const cols = 3;
   const rows = 2;
-  const padX = 18;
-  const padY = 14;
-  const cellW = (canvas.width - padX * 2) / cols;
-  const cellH = (canvas.height - padY * 2) / rows;
+  const padX = 14;
+  const padY = 10;
+  const muntin = 11;
+  const innerW = canvas.width - padX * 2;
+  const innerH = canvas.height - padY * 2;
+  const paneW = (innerW - muntin * (cols - 1)) / cols;
+  const paneH = (innerH - muntin * (rows - 1)) / rows;
+  const cornerR = 7;
+
+  function strokeRoundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function fillRoundRect(x, y, w, h, r) {
+    strokeRoundRect(x, y, w, h, r);
+    ctx.fill();
+  }
+
+  ctx.save();
+  ctx.transform(1, 0, 0.2, 1, 18, 4);
   for (let row = 0; row < rows; row++) {
     for (let col = 0; col < cols; col++) {
-      const cx = padX + col * cellW + cellW / 2;
-      const cy = padY + row * cellH + cellH / 2;
-      const rw = cellW * 0.42;
-      const rh = cellH * 0.38;
-      const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, Math.max(rw, rh));
-      g.addColorStop(0, 'rgba(220,230,255,0.92)');
-      g.addColorStop(0.45, 'rgba(150,170,245,0.48)');
-      g.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
-      ctx.fill();
+      const x = padX + col * (paneW + muntin);
+      const y = padY + row * (paneH + muntin);
+      const fade = 0.78 + ((cols - 1 - col) / (cols - 1)) * 0.22;
+      const lg = ctx.createLinearGradient(x, y, x + paneW, y + paneH);
+      lg.addColorStop(0, 'rgba(185,202,255,' + (0.42 * fade) + ')');
+      lg.addColorStop(0.4, 'rgba(155,180,252,' + (0.78 * fade) + ')');
+      lg.addColorStop(0.75, 'rgba(130,160,245,' + (0.62 * fade) + ')');
+      lg.addColorStop(1, 'rgba(95,125,225,' + (0.28 * fade) + ')');
+      ctx.fillStyle = lg;
+      fillRoundRect(x, y, paneW, paneH, cornerR);
+      const cx = x + paneW * 0.38;
+      const cy = y + paneH * 0.36;
+      const edge = Math.max(paneW, paneH) * 0.58;
+      const pg = ctx.createRadialGradient(cx, cy, 1, cx, cy, edge);
+      pg.addColorStop(0, 'rgba(225,235,255,' + (0.55 * fade) + ')');
+      pg.addColorStop(0.55, 'rgba(165,188,252,' + (0.32 * fade) + ')');
+      pg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = pg;
+      fillRoundRect(x + 2, y + 2, paneW - 4, paneH - 4, Math.max(2, cornerR - 2));
     }
   }
   ctx.strokeStyle = 'rgba(16,22,52,0.88)';
-  ctx.lineWidth = 10;
+  ctx.lineWidth = muntin;
+  ctx.lineCap = 'square';
   for (let col = 1; col < cols; col++) {
-    const lx = padX + col * cellW;
+    const lx = padX + col * paneW + (col - 0.5) * muntin;
     ctx.beginPath();
-    ctx.moveTo(lx, padY - 4);
-    ctx.lineTo(lx, canvas.height - padY + 4);
+    ctx.moveTo(lx, padY - 3);
+    ctx.lineTo(lx, padY + rows * paneH + (rows - 1) * muntin + 3);
     ctx.stroke();
   }
   for (let row = 1; row < rows; row++) {
-    const ly = padY + row * cellH;
+    const ly = padY + row * paneH + (row - 0.5) * muntin;
     ctx.beginPath();
-    ctx.moveTo(padX - 4, ly);
-    ctx.lineTo(canvas.width - padX + 4, ly);
+    ctx.moveTo(padX - 3, ly);
+    ctx.lineTo(padX + cols * paneW + (cols - 1) * muntin + 3, ly);
     ctx.stroke();
   }
+  ctx.restore();
   ctx.strokeStyle = 'rgba(28,36,68,0.48)';
   ctx.lineWidth = 3;
-  ctx.strokeRect(padX + 1, padY + 1, canvas.width - padX * 2 - 2, canvas.height - padY * 2 - 2);
+  ctx.strokeRect(padX + 1, padY + 1, innerW - 2, innerH - 2);
+  const wash = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  wash.addColorStop(0, 'rgba(140,165,248,0.12)');
+  wash.addColorStop(0.55, 'rgba(0,0,0,0)');
+  wash.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = wash;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -1610,7 +1651,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const moonFloorMat = new THREE.MeshBasicMaterial({
     map: moonTex,
     transparent: true,
-    opacity: 0.96,
+    opacity: 0.9,
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
@@ -1634,7 +1675,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     new THREE.MeshBasicMaterial({
       map: moonTex,
       transparent: true,
-      opacity: 0.14,
+      opacity: 0.27,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
