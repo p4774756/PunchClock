@@ -131,6 +131,18 @@ public class PeerChatTranscriptTest {
     }
 
     @Test
+    public void shortOwnMessageShowsFullText() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            PeerChatStore store = new PeerChatStore();
+            PeerChatTranscript t = new PeerChatTranscript("alice", "SansSerif", 13);
+            t.setSize(480, 320);
+            t.append(store.addMessage("alice", true, "行程", "", System.currentTimeMillis()));
+            assertEquals("行程", t.bodyOf("行程"));
+            assertFalse(hasCopyButton(t));
+        });
+    }
+
+    @Test
     public void clearEmptiesTranscript() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             PeerChatStore store = new PeerChatStore();
@@ -146,9 +158,9 @@ public class PeerChatTranscriptTest {
     public void formatsTodayAsTimeOnlyAndOtherDaysWithDate() {
         ZoneId zone = ZoneOffset.UTC;
         long now = System.currentTimeMillis();
-        assertTrue(PeerChatTranscript.formatTime(now, zone).matches("\\d{2}:\\d{2}:\\d{2}"));
+        assertTrue(PeerChatTranscript.formatTime(now, zone).matches("\\d{2}:\\d{2}"));
         long longAgo = 86_400_000L * 400;
-        assertTrue(PeerChatTranscript.formatTime(longAgo, zone).matches("\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"));
+        assertTrue(PeerChatTranscript.formatTime(longAgo, zone).matches("\\d{2}-\\d{2} \\d{2}:\\d{2}"));
     }
 
     private static PeerChatStore.Entry legacyPokeEntry(String peerId, boolean outgoing, long timeMs)
@@ -158,6 +170,23 @@ public class PeerChatTranscriptTest {
                 String.class, String.class, long.class);
         ctor.setAccessible(true);
         return ctor.newInstance(peerId, outgoing, PeerChatStore.Kind.POKE, "", "", timeMs);
+    }
+
+    private static boolean hasCopyButton(Component component) {
+        if (component instanceof javax.swing.JButton) {
+            String text = ((javax.swing.JButton) component).getText();
+            if (text != null && text.startsWith("複製")) {
+                return true;
+            }
+        }
+        if (component instanceof Container) {
+            for (Component child : ((Container) component).getComponents()) {
+                if (hasCopyButton(child)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static boolean hasIcon(Component component) {

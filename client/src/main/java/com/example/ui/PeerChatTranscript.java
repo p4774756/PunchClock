@@ -5,7 +5,6 @@ import com.example.service.PeerChatStore;
 import com.example.service.PeerImage;
 
 import javax.swing.ImageIcon;
-import javax.swing.JButton;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -20,11 +19,7 @@ import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.Rectangle;
-import java.awt.Toolkit;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
@@ -45,8 +40,6 @@ import java.util.function.Consumer;
 public class PeerChatTranscript extends JPanel implements Scrollable {
 
     static final int THUMB_EDGE = 220;
-
-    private static final Color MSG_FILL = Color.WHITE;
 
     private final String peerId;
     private final Font bodyFont;
@@ -265,9 +258,9 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             return;
         }
         laidWidth = width;
-        int bubble = Math.max(200, (int) (width * 0.72));
+        int content = Math.max(120, width - 16);
         for (MessageView view : views) {
-            view.fit(bubble);
+            view.fit(content);
         }
     }
 
@@ -304,7 +297,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
     static String formatTime(long epochMs, ZoneId zone) {
         java.time.ZonedDateTime time = Instant.ofEpochMilli(epochMs).atZone(zone);
         boolean today = time.toLocalDate().equals(LocalDate.now(zone));
-        return time.format(DateTimeFormatter.ofPattern(today ? "HH:mm:ss" : "MM-dd HH:mm:ss"));
+        return time.format(DateTimeFormatter.ofPattern(today ? "HH:mm" : "MM-dd HH:mm"));
     }
 
     private final class MessageView {
@@ -357,21 +350,19 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             return body == null ? "" : body.getText();
         }
 
-        private void fit(int bubbleWidth) {
+        private void fit(int contentWidth) {
             if (body == null) {
                 lock(row);
                 return;
             }
-            int inner = Math.max(120, bubbleWidth - 28);
             if (preserved) {
-                bodyScroll.setPreferredSize(new Dimension(inner, blockHeight(body)));
-                bodyScroll.setMaximumSize(new Dimension(inner, blockHeight(body)));
+                bodyScroll.setPreferredSize(new Dimension(contentWidth, blockHeight(body)));
+                bodyScroll.setMaximumSize(new Dimension(contentWidth, blockHeight(body)));
             } else {
-                body.setSize(new Dimension(inner, Short.MAX_VALUE));
+                body.setSize(new Dimension(contentWidth, Short.MAX_VALUE));
                 Dimension pref = body.getPreferredSize();
-                int width = Math.min(inner, Math.max(pref.width, 40));
-                body.setPreferredSize(new Dimension(width, pref.height));
-                body.setMaximumSize(new Dimension(inner, pref.height));
+                body.setPreferredSize(new Dimension(contentWidth, pref.height));
+                body.setMaximumSize(new Dimension(contentWidth, pref.height));
             }
             lock(row);
         }
@@ -381,20 +372,22 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             line.setOpaque(false);
             line.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
             line.setAlignmentX(Component.LEFT_ALIGNMENT);
-            JComponent bubble = bubble();
+            JComponent block = messageBlock();
             if ("left".equals(side)) {
-                line.add(bubble, BorderLayout.WEST);
+                line.add(block, BorderLayout.WEST);
             }
             return line;
         }
 
-        private JComponent bubble() {
-            Color fill = MSG_FILL;
-            Bubble panel = new Bubble(fill);
+        private JComponent messageBlock() {
+            JPanel panel = new JPanel(new BorderLayout(0, 2));
+            panel.setOpaque(false);
+            panel.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
+            panel.setBorder(new EmptyBorder(0, 0, 6, 0));
             panel.add(header(), BorderLayout.NORTH);
             FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
             if (entry.kind == PeerChatStore.Kind.POKE) {
-                panel.add(plainLabel(pokePhrase(), bodyFont, CandyTheme.PINK_HI),
+                panel.add(plainLabel(pokePhrase(), bodyFont, CandyTheme.MUTED),
                         BorderLayout.CENTER);
             } else if (file != null) {
                 panel.add(fileCard(file), BorderLayout.CENTER);
@@ -410,28 +403,14 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         }
 
         private JComponent header() {
-            JPanel header = new JPanel(new BorderLayout(6, 0));
+            JPanel header = new JPanel(new BorderLayout());
             header.setOpaque(false);
             header.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
             String source = sourceLabel(entry, peerId);
             String when = formatTime(entry.timeMs, ZoneId.systemDefault());
             String title = source.isEmpty() ? when + ":" : source + " (" + when + "):";
             JLabel label = plainLabel(title, bodyFont.deriveFont(Font.BOLD), CandyTheme.INK);
-            header.add(label, BorderLayout.CENTER);
-            FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
-            boolean canCopy = file != null
-                    || (entry.kind == PeerChatStore.Kind.MESSAGE && entry.text != null && !entry.text.isEmpty());
-            if (canCopy) {
-                JButton copy = new CandyButton("複製", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
-                copy.setFont(bodyFont.deriveFont((float) Math.max(11, fontSize - 1)));
-                String payload = file != null ? file.name : copyPayload(entry);
-                copy.setText(file != null ? "複製檔名" : preserved ? "複製程式碼" : "複製");
-                copy.setToolTipText(file != null
-                        ? "複製檔名"
-                        : preserved ? "複製這段程式碼，縮排與換行都會留下" : "複製這則訊息");
-                copy.addActionListener(e -> copyToClipboard(payload, copy));
-                header.add(copy, BorderLayout.EAST);
-            }
+            header.add(label, BorderLayout.WEST);
             return header;
         }
 
@@ -558,18 +537,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         row.setAlignmentX(Component.LEFT_ALIGNMENT);
     }
 
-    private static void copyToClipboard(String text, JButton button) {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
-        Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);
-        String previous = button.getText();
-        button.setText("已複製");
-        javax.swing.Timer timer = new javax.swing.Timer(900, e -> button.setText(previous));
-        timer.setRepeats(false);
-        timer.start();
-    }
-
     static final class FileNotice {
         final String name;
         final String size;
@@ -579,24 +546,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             this.name = name;
             this.size = size;
             this.status = status;
-        }
-    }
-
-    private static final class Bubble extends JPanel {
-        private final Color fill;
-
-        private Bubble(Color fill) {
-            super(new BorderLayout(0, 4));
-            this.fill = fill;
-            setOpaque(false);
-            putClientProperty(CandyPanel.MARK, Boolean.TRUE);
-            setBorder(new EmptyBorder(8, 10, 8, 10));
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            ClassicBevel.fillSunken((Graphics2D) g, 0, 0, getWidth(), getHeight(), fill);
-            super.paintComponent(g);
         }
     }
 }
