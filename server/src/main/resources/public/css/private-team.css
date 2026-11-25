@@ -96,7 +96,6 @@
 
 .lab-office-stage.pt-roadmap-open .private-team-hud,
 .lab-office-stage.pt-roadmap-open .private-team-canvas,
-.lab-office-stage.pt-roadmap-open .pt-prog-hit,
 .lab-office-stage.pt-roadmap-open .pt-status-backdrop {
   visibility: hidden;
   pointer-events: none;
@@ -143,7 +142,6 @@
 .lab-office-stage.pt-login-open .private-team-hud,
 .lab-office-stage.pt-login-open .private-team-hud > *,
 .lab-office-stage.pt-login-open .private-team-canvas,
-.lab-office-stage.pt-login-open .pt-prog-hit,
 .lab-office-stage.pt-login-open .pt-status-backdrop {
   pointer-events: none;
 }
@@ -152,46 +150,6 @@
 .lab-office-stage.pt-login-open .pt-hud-deploy-ver {
   visibility: hidden;
   pointer-events: none;
-}
-
-.pt-prog-hit {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 0;
-  height: 0;
-  z-index: 4;
-  margin: 0;
-  padding: 0;
-  border: 1px dashed transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: transparent;
-  font-size: 1px;
-  line-height: 1;
-  overflow: hidden;
-  cursor: pointer;
-  box-sizing: border-box;
-  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.pt-prog-hit.is-flash {
-  background: rgba(236, 196, 64, 0.2);
-  border-color: rgba(236, 196, 64, 0.72);
-  box-shadow: 0 0 0 2px rgba(236, 196, 64, 0.15);
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .pt-prog-hit:hover {
-    background: rgba(236, 196, 64, 0.2);
-    border-color: rgba(236, 196, 64, 0.72);
-    box-shadow: 0 0 0 2px rgba(236, 196, 64, 0.15);
-  }
-}
-
-.pt-prog-hit:focus-visible {
-  outline: 3px solid var(--maple-gold, #ecc440);
-  outline-offset: 2px;
 }
 
 .private-team-hud {

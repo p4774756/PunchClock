@@ -61,13 +61,11 @@ test('bronzeFigureNativeHeightFromModel 略過 pedestal', () => {
   assert.equal(isBronzePedestalMesh('bronze_body', 'bronze_body'), false);
 });
 
-test('beginAtlasBronzeLoad 以人像高度算 scale、標籤跟整件高度', () => {
+test('首頁場景不再掛銅人展示', () => {
   const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
-  const block = src.slice(src.indexOf('function beginAtlasBronzeLoad'), src.indexOf('beginAtlasBronzeLoad();'));
-  assert.match(block, /bronzeFigureNativeHeightFromModel\(model\)/);
-  assert.match(block, /bronzeScaleForFigureHeight\(figureHeight\)/);
-  assert.doesNotMatch(block, /BRONZE_NATIVE_HEIGHT/);
-  assert.match(block, /atlasNameplate\.position\.y = bounds\.max\.y \+ BRONZE_NAMEPLATE_OFFSET_Y/);
+  assert.doesNotMatch(src, /beginAtlasBronzeLoad\(\)/);
+  assert.doesNotMatch(src, /atlasBronzeDisplay/);
+  assert.doesNotMatch(src, /pickRole = 'atlas'/);
   assert.ok(BRONZE_ASSEMBLY_NATIVE_HEIGHT > BRONZE_FIGURE_NATIVE_HEIGHT);
 });
 
@@ -108,19 +106,9 @@ test('coerceBronzeHumanMaterials 頭髮改拋光金銅', () => {
   assert.equal(meridian.color.getHex(), 0x111111);
 });
 
-test('場景不再寫死 62% 進度條', () => {
+test('首頁場景不再掛牆上施工進度板', () => {
   const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
   assert.doesNotMatch(src, /progressTexture\(0\.62\)/);
-  assert.match(src, /makeProgressBoardDrawer/);
-  assert.match(src, /setProgressBoard/);
-  assert.match(src, /施工進度/);
-});
-
-test('施工進度板 meta／今日工作量字級與高對比色（小螢幕可讀）', () => {
-  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
-  const drawer = src.slice(src.indexOf('function makeProgressBoardDrawer'), src.indexOf('function makeBubbleDrawer'));
-  assert.doesNotMatch(drawer, /#a8b4c8/);
-  assert.doesNotMatch(drawer, /#c9b878/);
-  assert.match(drawer, /bold 20px sans-serif[\s\S]*#e2eaf6/);
-  assert.match(drawer, /#f5e6a8/);
+  assert.doesNotMatch(src, /progMesh\.name = 'progressBoard'/);
+  assert.doesNotMatch(src, /pickRole = 'progress'/);
 });

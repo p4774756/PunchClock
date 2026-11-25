@@ -90,7 +90,8 @@ public class PublicOfficeAuthTest {
         assertEquals(200, response.statusCode());
         assertTrue(response.body().contains("lab-office-page"));
         assertTrue(response.body().contains("office-page.js"));
-        assertTrue(response.body().contains("roadmapBoard"));
+        assertFalse(response.body().contains("id=\"roadmapBoard\""));
+        assertFalse(response.body().contains("id=\"newsBoard\""));
         assertTrue(response.body().contains("loginBoard"));
         assertTrue(response.body().contains("data-login-form"));
         assertTrue(response.body().contains("roadmap.css"));

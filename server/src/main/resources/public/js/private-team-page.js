@@ -8,7 +8,6 @@ import {
   syncStatusBodyScroll,
   hasNewCompletedToday,
   secretarySpriteUrlForStatus,
-  progressBoardViewFromTiger,
   taskProgressFromTiger,
   tigerFromPublic
 } from './private-team-office.js';
@@ -27,14 +26,7 @@ export function deployVersionLabel(win, opts) {
     const short = /^(\d{4})-(\d{2}-\d{2})(\s+\d{2}:\d{2}(?:\s|$).*)/.exec(bt);
     if (short) bt = short[2] + short[3];
   }
-  let label = '網站 v' + ver + ' · ' + bt;
-  const appVer = win && typeof win.PUNCHCLOCK_CLIENT_VERSION === 'string'
-    ? win.PUNCHCLOCK_CLIENT_VERSION.trim()
-    : '';
-  if (appVer && !appVer.includes('{{')) {
-    label += ' · App v' + appVer;
-  }
-  return label;
+  return '網站 v' + ver + ' · ' + bt;
 }
 
 function mountDeployVersion(hud, win, doc) {
@@ -96,31 +88,6 @@ function taskHudMarkup() {
   );
 }
 
-function identityHudMarkup(authed) {
-  const idBody =
-    '<span class="pt-a-id-gem" aria-hidden="true"></span>' +
-    '<span class="pt-a-id-text">' +
-    '<span class="pt-a-id-role">' + (authed ? '已登入' : '訪客') + '</span>' +
-    '<span class="pt-a-id-sub">' + (authed ? '線上' : '登入') + '</span>' +
-    '</span>';
-  if (authed) {
-    return (
-      '<div class="pt-hud-id-wrap">' +
-      '<button type="button" class="pt-hud-id-plate" data-pt-identity-toggle aria-label="帳號" aria-expanded="false">' +
-      idBody +
-      '</button>' +
-      '<div class="pt-hud-id-menu maple-window" data-pt-identity-menu hidden role="menu">' +
-      '<a href="/logout" class="pt-hud-id-logout" role="menuitem">登出</a>' +
-      '</div></div>'
-    );
-  }
-  return (
-    '<button type="button" class="pt-hud-id-plate is-guest" data-pt-open-login aria-label="帳號">' +
-    idBody +
-    '</button>'
-  );
-}
-
 export function mountPrivateTeamPage(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
   const win = (opts && opts.win) || globalThis;
@@ -131,15 +98,12 @@ export function mountPrivateTeamPage(opts) {
   let sessionAuthed = !!(win.PUNCHCLOCK_AUTHENTICATED);
   const pageHooks = (opts && opts.hooks) || {};
   const officeModal = opts && opts.officeModal;
-  const openRoadmap =
-    typeof pageHooks.openRoadmap === 'function' ? pageHooks.openRoadmap : null;
   const openTasks = typeof pageHooks.openTasks === 'function' ? pageHooks.openTasks : null;
   const closeTasks = typeof pageHooks.closeTasks === 'function' ? pageHooks.closeTasks : null;
   const openDownload =
     typeof pageHooks.openDownload === 'function' ? pageHooks.openDownload : null;
   const closeDownload =
     typeof pageHooks.closeDownload === 'function' ? pageHooks.closeDownload : null;
-  const openNews = typeof pageHooks.openNews === 'function' ? pageHooks.openNews : null;
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -168,7 +132,6 @@ export function mountPrivateTeamPage(opts) {
       '</div>' +
       '<button type="button" class="pt-hud-task-hint-login" data-pt-open-login>登入</button>' +
       '</div></div>' +
-      '<div class="pt-hud-tr" data-pt-hud-tr>' + identityHudMarkup(sessionAuthed) + '</div>' +
       '<div class="pt-hud-br">' +
       '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App">' + DL_SVG +
       '<span class="pt-hud-dl-label">下載 App</span></button></div>' +
@@ -176,17 +139,6 @@ export function mountPrivateTeamPage(opts) {
     stage.appendChild(hud);
   }
   mountDeployVersion(hud, win, doc);
-
-  let progHit = stage.querySelector('[data-pt-prog-hit]');
-  if (!progHit) {
-    progHit = doc.createElement('button');
-    progHit.type = 'button';
-    progHit.className = 'pt-prog-hit';
-    progHit.setAttribute('data-pt-prog-hit', '');
-    progHit.setAttribute('aria-label', '進度看板，開啟施工進度');
-    progHit.textContent = '進度';
-    stage.appendChild(progHit);
-  }
 
   let cardBackdrop = stage.querySelector('[data-pt-status-card]');
   let cardBody = null;
@@ -223,9 +175,6 @@ export function mountPrivateTeamPage(opts) {
 
   const taskBtn = hud.querySelector('[data-pt-task-btn]');
   const taskHint = hud.querySelector('[data-pt-task-hint]');
-  let identityTr = hud.querySelector('[data-pt-hud-tr]');
-  let identityBtn = hud.querySelector('[data-pt-identity-toggle]');
-  let identityMenu = hud.querySelector('[data-pt-identity-menu]');
   const taskBarRow = hud.querySelector('[data-pt-task-bar]');
   const taskBarFill = hud.querySelector('[data-pt-task-bar-fill]');
   const taskBarCount = hud.querySelector('[data-pt-task-bar-count]');
@@ -236,10 +185,8 @@ export function mountPrivateTeamPage(opts) {
   const statusUi = { doneExpanded: false, queueExpanded: false };
   let cardOpen = false;
   let taskHintOpen = false;
-  let identityMenuOpen = false;
   let loginOpen = false;
   let pendingOpenTasksAfterLogin = false;
-  let pendingOpenAtlasAfterLogin = false;
   let lastFocus = null;
 
   function bindOpenLoginHandlers(root) {
@@ -253,7 +200,6 @@ export function mountPrivateTeamPage(opts) {
         ev.preventDefault();
         ev.stopPropagation();
         closeTaskHint();
-        closeIdentityMenu();
         closeStatusCard();
         if (node.closest('[data-pt-task-hint]')) {
           pendingOpenTasksAfterLogin = true;
@@ -263,18 +209,6 @@ export function mountPrivateTeamPage(opts) {
     }
   }
 
-  function mountIdentitySection() {
-    identityBtn = hud.querySelector('[data-pt-identity-toggle]');
-    identityMenu = hud.querySelector('[data-pt-identity-menu]');
-    if (identityBtn) {
-      identityBtn.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        toggleIdentityMenu();
-      });
-    }
-    bindOpenLoginHandlers(hud);
-  }
-
   function applySessionAuthed() {
     sessionAuthed = true;
     win.PUNCHCLOCK_AUTHENTICATED = true;
@@ -282,22 +216,10 @@ export function mountPrivateTeamPage(opts) {
       doc.body.classList.remove('is-guest');
       doc.body.classList.add('is-authenticated');
     }
-    if (identityTr) {
-      identityTr.innerHTML = identityHudMarkup(true);
-      identityMenuOpen = false;
-      mountIdentitySection();
-    }
     closeTaskHint();
-    if (typeof scene.setAtlasNameplateText === 'function') {
-      scene.setAtlasNameplateText('經絡研習室');
-    }
     if (pendingOpenTasksAfterLogin) {
       pendingOpenTasksAfterLogin = false;
       if (openTasks) openTasks();
-    }
-    if (pendingOpenAtlasAfterLogin) {
-      pendingOpenAtlasAfterLogin = false;
-      openAtlasRoom();
     }
   }
 
@@ -368,91 +290,17 @@ export function mountPrivateTeamPage(opts) {
     if (closeBtn) closeBtn.focus({ preventScroll: true });
   }
 
-  function openAtlasRoom() {
-    win.location.assign('/atlas/tcm-3d/');
-  }
-
-  function openLoginForAtlas() {
-    if (sessionAuthed) {
-      openAtlasRoom();
-      return;
-    }
-    pendingOpenAtlasAfterLogin = true;
-    closeTaskHint();
-    closeIdentityMenu();
-    closeStatusCard();
-    loginModal.open();
-  }
-
-  function onSceneActivate(role) {
-    if (role === 'atlas') {
-      if (sessionAuthed) {
-        openAtlasRoom();
-      } else {
-        openLoginForAtlas();
-      }
-      return;
-    }
+  function onSceneActivate() {
     openStatusCard();
   }
 
-  function openRoadmapFromBoard() {
-    if (!openRoadmap) return;
-    closeStatusCard();
-    closeIdentityMenu();
-    closeTaskHint();
-    loginModal.close();
-    openRoadmap();
-  }
-
-  function openNewsFromTv() {
-    if (!openNews) return;
-    closeStatusCard();
-    closeIdentityMenu();
-    closeTaskHint();
-    loginModal.close();
-    openNews();
-  }
-
-  let roadmapOpen = false;
   let tasksOpen = false;
   let downloadOpen = false;
-  let newsOpen = false;
 
   function syncSceneOverlay() {
-    const sceneBlocked = roadmapOpen || tasksOpen || downloadOpen || newsOpen;
+    const sceneBlocked = tasksOpen || downloadOpen;
     stage.classList.toggle('pt-roadmap-open', sceneBlocked);
     scene.setSceneInputEnabled(!sceneBlocked && !loginOpen);
-  }
-
-  function placeProgHit(rect) {
-    if (!progHit || !rect) return;
-    const left = Number(rect.left);
-    const top = Number(rect.top);
-    const width = Number(rect.width);
-    const height = Number(rect.height);
-    if (![left, top, width, height].every(Number.isFinite) || width < 1 || height < 1) return;
-    progHit.style.left = left.toFixed(1) + 'px';
-    progHit.style.top = top.toFixed(1) + 'px';
-    progHit.style.width = width.toFixed(1) + 'px';
-    progHit.style.height = height.toFixed(1) + 'px';
-  }
-
-  function setRoadmapOpen(open) {
-    roadmapOpen = !!open;
-    syncSceneOverlay();
-    if (roadmapOpen) {
-      closeStatusCard();
-      closeIdentityMenu();
-      closeTaskHint();
-      loginModal.close({ fromManager: true, silent: true });
-      if (tasksOpen && closeTasks) closeTasks();
-      if (closeDownload) closeDownload();
-      if (newsOpen) {
-        newsOpen = false;
-        syncSceneOverlay();
-      }
-    }
   }
 
   function setTasksOpen(open) {
@@ -460,18 +308,9 @@ export function mountPrivateTeamPage(opts) {
     syncSceneOverlay();
     if (tasksOpen) {
       closeStatusCard();
-      closeIdentityMenu();
       closeTaskHint();
       loginModal.close({ fromManager: true, silent: true });
-      if (roadmapOpen) {
-        roadmapOpen = false;
-        syncSceneOverlay();
-      }
       if (closeDownload) closeDownload();
-      if (newsOpen) {
-        newsOpen = false;
-        syncSceneOverlay();
-      }
     }
   }
 
@@ -480,45 +319,16 @@ export function mountPrivateTeamPage(opts) {
     syncSceneOverlay();
     if (downloadOpen) {
       closeStatusCard();
-      closeIdentityMenu();
       closeTaskHint();
       loginModal.close({ fromManager: true, silent: true });
       if (tasksOpen && closeTasks) closeTasks();
-      if (roadmapOpen) {
-        roadmapOpen = false;
-        syncSceneOverlay();
-      }
-      if (newsOpen) {
-        newsOpen = false;
-        syncSceneOverlay();
-      }
-    }
-  }
-
-  function setNewsOpen(open) {
-    newsOpen = !!open;
-    syncSceneOverlay();
-    if (newsOpen) {
-      closeStatusCard();
-      closeIdentityMenu();
-      closeTaskHint();
-      loginModal.close({ fromManager: true, silent: true });
-      if (tasksOpen && closeTasks) closeTasks();
-      if (closeDownload) closeDownload();
-      if (roadmapOpen) {
-        roadmapOpen = false;
-        syncSceneOverlay();
-      }
     }
   }
 
   const scene = mountPrivateTeamScene(canvas, {
     win,
     doc,
-    onActivate: onSceneActivate,
-    onOpenProgress: openRoadmapFromBoard,
-    onOpenNews: openNewsFromTv,
-    onProgressBoardRect: placeProgHit
+    onActivate: onSceneActivate
   });
 
   scene.setBubbleText(bubbleLabel());
@@ -533,10 +343,9 @@ export function mountPrivateTeamPage(opts) {
     onOpenChange: (open) => {
       loginOpen = !!open;
       stage.classList.toggle('pt-login-open', loginOpen);
-      scene.setSceneInputEnabled(!loginOpen && !roadmapOpen && !tasksOpen && !newsOpen);
+      scene.setSceneInputEnabled(!loginOpen && !tasksOpen && !downloadOpen);
       if (loginOpen) {
         closeStatusCard();
-        closeIdentityMenu();
         closeTaskHint();
       }
     }
@@ -550,27 +359,11 @@ export function mountPrivateTeamPage(opts) {
 
   function openTaskHint() {
     if (!taskHint || taskHintOpen) return;
-    closeIdentityMenu();
     taskHintOpen = true;
     taskHint.hidden = false;
   }
 
-  function closeIdentityMenu() {
-    if (!identityMenu || !identityBtn) return;
-    if (!identityMenuOpen) return;
-    identityMenuOpen = false;
-    identityMenu.hidden = true;
-    identityBtn.setAttribute('aria-expanded', 'false');
-  }
-
-  function toggleIdentityMenu() {
-    if (!identityMenu || !identityBtn) return;
-    closeTaskHint();
-    const open = identityMenu.hidden;
-    identityMenu.hidden = !open;
-    identityMenuOpen = open;
-    identityBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
+  bindOpenLoginHandlers(hud);
 
   if (taskBtn) {
     taskBtn.addEventListener('click', (ev) => {
@@ -597,64 +390,18 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
-  mountIdentitySection();
-
   const downloadBtn = hud.querySelector('[data-pt-open-download]');
   if (downloadBtn && openDownload) {
     downloadBtn.addEventListener('click', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
       closeStatusCard();
-      closeIdentityMenu();
       closeTaskHint();
       openDownload(downloadBtn);
     });
   }
 
-  const PROG_HIT_FLASH_MS = 600;
-  let progHitFlashTimer = null;
-
-  function clearProgHitFlash() {
-    if (progHitFlashTimer != null) {
-      win.clearTimeout(progHitFlashTimer);
-      progHitFlashTimer = null;
-    }
-    if (progHit) progHit.classList.remove('is-flash');
-  }
-
-  function progHitTouchFlashBeforeOpen(ev) {
-    if (ev.pointerType === 'mouse' || ev.pointerType === 'pen') return false;
-    if (ev.pointerType === 'touch') return true;
-    if (ev.detail === 0) return false;
-    return (
-      typeof win.matchMedia === 'function' &&
-      win.matchMedia('(pointer: coarse)').matches
-    );
-  }
-
-  if (progHit) {
-    progHit.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      clearProgHitFlash();
-      if (progHitTouchFlashBeforeOpen(ev)) {
-        progHit.classList.add('is-flash');
-        progHitFlashTimer = win.setTimeout(() => {
-          progHitFlashTimer = null;
-          progHit.classList.remove('is-flash');
-          openRoadmapFromBoard();
-        }, PROG_HIT_FLASH_MS);
-        return;
-      }
-      openRoadmapFromBoard();
-    });
-  }
-
   doc.addEventListener('click', (ev) => {
-    if (identityMenu && identityMenuOpen) {
-      if (!identityMenu.contains(ev.target) && !identityBtn.contains(ev.target)) {
-        closeIdentityMenu();
-      }
-    }
     if (taskHint && taskHintOpen) {
       if (!taskHint.contains(ev.target) && !(taskBtn && taskBtn.contains(ev.target))) {
         closeTaskHint();
@@ -691,11 +438,6 @@ export function mountPrivateTeamPage(opts) {
         closeStatusCard();
         return;
       }
-      if (identityMenuOpen) {
-        ev.preventDefault();
-        closeIdentityMenu();
-        return;
-      }
       if (taskHintOpen) {
         ev.preventDefault();
         closeTaskHint();
@@ -703,8 +445,8 @@ export function mountPrivateTeamPage(opts) {
       }
     }
     if (
-      !roadmapOpen &&
       !tasksOpen &&
+      !downloadOpen &&
       !cardOpen &&
       (ev.key === 'Enter' || ev.key === ' ') &&
       ev.target === canvas
@@ -752,7 +494,6 @@ export function mountPrivateTeamPage(opts) {
     scene.setBubbleText(bubbleLabel());
     refreshCanvasA11y();
     applyTaskBar(tiger);
-    scene.setProgressBoard(progressBoardViewFromTiger(tiger, devQueue.length));
     if (cardOpen) paintStatusCard();
   }
 
@@ -760,7 +501,6 @@ export function mountPrivateTeamPage(opts) {
     if (!fetchFn) return;
     fetchSecretaryDevQueue(fetchFn).then((rows) => {
       devQueue = rows;
-      scene.setProgressBoard(progressBoardViewFromTiger(tigerView, devQueue.length));
       if (cardOpen) paintStatusCard();
     });
   }
@@ -776,32 +516,16 @@ export function mountPrivateTeamPage(opts) {
       });
   }
 
-  function refreshNewsFeed() {
-    if (!fetchFn) return;
-    fetchFn('/api/news')
-      .then((r) => (r && r.ok ? r.json() : null))
-      .catch(() => null)
-      .then((body) => {
-        const items = body && body.items ? body.items : [];
-        scene.setNewsFeed(items);
-      });
-  }
-
   refreshOfficePublic();
   refreshDevQueue();
-  refreshNewsFeed();
   const poll = win.setInterval(() => {
     refreshOfficePublic();
     refreshDevQueue();
   }, 60_000);
-  const newsPoll = win.setInterval(refreshNewsFeed, 15 * 60 * 1000);
 
   return {
-    setRoadmapOpen,
     setTasksOpen,
     setDownloadOpen,
-    setNewsOpen,
-    openLoginForAtlas,
     getLoginModal() {
       return loginModal;
     },
@@ -810,15 +534,11 @@ export function mountPrivateTeamPage(opts) {
     },
     destroy() {
       win.clearInterval(poll);
-      win.clearInterval(newsPoll);
       doc.removeEventListener('keydown', onKeyDown);
       loginModal.destroy();
-      closeIdentityMenu();
       closeTaskHint();
       closeStatusCard();
-      setRoadmapOpen(false);
       setTasksOpen(false);
-      setNewsOpen(false);
       if (closeTasks) closeTasks();
       scene.destroy();
     }

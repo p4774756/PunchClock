@@ -1,16 +1,9 @@
 // 首頁「私人秘書」3D 一角。
 
-import { createRoadmapController } from './roadmap-panel.js';
-import { createNewsController } from './news-panel.js';
 import { createHomeTasksController } from './home-tasks-panel.js';
 import { createHomeDownloadController } from './home-download-panel.js';
 import { createOfficeModalManager } from './office-modal.js';
-import {
-  applyAtlasLoginOpenParam,
-  applyDownloadOpenParam,
-  applyRoadmapOpenParam,
-  applyTasksOpenParam
-} from './dev-machines-format.js';
+import { applyDownloadOpenParam, applyTasksOpenParam } from './dev-machines-format.js';
 import { mountPrivateTeamPage } from './private-team-page.js';
 
 let privateTeam = null;
@@ -24,48 +17,15 @@ const modalMgr = createOfficeModalManager({
     }
   },
   openByToken: (token) => {
-    if (token === 'roadmap') roadmap.open();
-    else if (token === 'tasks') {
+    if (token === 'tasks') {
       if (window.PUNCHCLOCK_AUTHENTICATED) openTasksFromHud();
     } else if (token === 'download') download.open();
-    else if (token === 'news') news.open();
-    else if (token === 'atlas-login') {
-      applyAtlasLoginOpenParam(window, {
-        isAuthed: () => !!window.PUNCHCLOCK_AUTHENTICATED,
-        openAtlas: () => window.location.assign('/atlas/tcm-3d/'),
-        openLoginForAtlas: () => privateTeam.openLoginForAtlas()
-      });
-    }
   }
 });
 
 function openExclusive(id, opener) {
   modalMgr.openExclusive(id, opener);
 }
-
-const roadmap = createRoadmapController({
-  officeModal: modalMgr,
-  hooks: {
-    onChange: (state) => {
-      if (state.open && privateTeam && typeof privateTeam.setRoadmapOpen === 'function') {
-        privateTeam.setRoadmapOpen(true);
-      } else if (!state.open && privateTeam) {
-        privateTeam.setRoadmapOpen(false);
-      }
-    }
-  }
-});
-
-const news = createNewsController({
-  officeModal: modalMgr,
-  hooks: {
-    onChange: (state) => {
-      if (privateTeam && typeof privateTeam.setNewsOpen === 'function') {
-        privateTeam.setNewsOpen(state.open);
-      }
-    }
-  }
-});
 
 const download = createHomeDownloadController({
   officeModal: modalMgr,
@@ -78,7 +38,7 @@ const download = createHomeDownloadController({
   }
 });
 
-let tasks = createHomeTasksController({
+const tasks = createHomeTasksController({
   officeModal: modalMgr,
   hooks: {
     onChange: (state) => {
@@ -91,18 +51,8 @@ let tasks = createHomeTasksController({
   }
 });
 
-modalMgr.register('roadmap', roadmap);
-modalMgr.register('news', news);
 modalMgr.register('tasks', tasks);
 modalMgr.register('download', download);
-
-function openNewsFromHud() {
-  openExclusive('news', () => news.open());
-}
-
-function openRoadmapFromHud() {
-  openExclusive('roadmap', () => roadmap.open());
-}
 
 function openDownloadFromHud(trigger) {
   openExclusive('download', () => download.open({ trigger }));
@@ -117,8 +67,6 @@ privateTeam = mountPrivateTeamPage({
   win: window,
   officeModal: modalMgr,
   hooks: {
-    openRoadmap: () => openRoadmapFromHud(),
-    openNews: () => openNewsFromHud(),
     openTasks: () => openTasksFromHud(),
     closeTasks: () => tasks.close({ fromManager: true }),
     closeDownload: () => download.close({ fromManager: true, silent: true }),
@@ -128,17 +76,7 @@ privateTeam = mountPrivateTeamPage({
 
 modalMgr.register('login', privateTeam.getLoginModal());
 
-applyRoadmapOpenParam(window, () => openRoadmapFromHud());
 applyTasksOpenParam(window, () => {
   if (window.PUNCHCLOCK_AUTHENTICATED) openTasksFromHud();
 });
 applyDownloadOpenParam(window, () => openDownloadFromHud());
-applyAtlasLoginOpenParam(window, {
-  isAuthed: () => !!window.PUNCHCLOCK_AUTHENTICATED,
-  openAtlas: () => {
-    window.location.assign('/atlas/tcm-3d/');
-  },
-  openLoginForAtlas: () => privateTeam.openLoginForAtlas()
-});
-roadmap.refresh();
-news.refresh();
