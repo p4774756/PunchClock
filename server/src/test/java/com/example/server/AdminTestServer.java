@@ -3,7 +3,6 @@ package com.example.server;
 import com.example.server.auth.AuthConfig;
 import com.example.server.auth.AuthService;
 import com.example.server.store.DevStatusService;
-import com.example.server.store.NewsService;
 import com.example.server.store.RoadmapService;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
@@ -115,7 +114,6 @@ public final class AdminTestServer {
         private ClientRelease clientRelease = ClientRelease.NONE;
         private DevStatusService devStatusService;
         private RoadmapService roadmapService;
-        private NewsService newsService;
         private String heartbeatSecret = DEFAULT_HEARTBEAT_SECRET;
         private String fixedAdminPassword;
 
@@ -131,11 +129,6 @@ public final class AdminTestServer {
 
         public Builder roadmapService(RoadmapService roadmapService) {
             this.roadmapService = roadmapService;
-            return this;
-        }
-
-        public Builder newsService(NewsService newsService) {
-            this.newsService = newsService;
             return this;
         }
 
@@ -156,7 +149,7 @@ public final class AdminTestServer {
             env.put("ADMIN_PASSWORD", password);
             env.put("HEARTBEAT_SECRET", heartbeatSecret);
             AuthService auth = new AuthService(AuthConfig.from(env));
-            ServerApp serverApp = new ServerApp(clientRelease, devStatusService, roadmapService, newsService, auth);
+            ServerApp serverApp = new ServerApp(clientRelease, devStatusService, roadmapService, auth);
             Javalin javalin = serverApp.start(0);
             String base = "http://127.0.0.1:" + javalin.port();
             return new AdminTestServer(password, auth, javalin, base);

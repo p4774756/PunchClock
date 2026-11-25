@@ -12,8 +12,6 @@ import com.example.server.store.DevStatusService;
 import com.example.server.store.GithubDevStatusClient;
 import com.example.server.store.GithubMilestoneClient;
 import com.example.server.store.GraffitiStore;
-import com.example.server.store.GoogleNewsRssClient;
-import com.example.server.store.NewsService;
 import com.example.server.store.RoadmapService;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
@@ -28,7 +26,6 @@ import com.example.server.web.RelayRoutes;
 import com.example.server.web.DevMachineRoutes;
 import com.example.server.web.DevStatusRoutes;
 import com.example.server.store.DevMachineStore;
-import com.example.server.web.NewsRoutes;
 import com.example.server.web.RoadmapRoutes;
 import com.example.server.web.RouteSupport;
 import com.example.server.web.LoginNextPath;
@@ -69,7 +66,6 @@ public final class ServerApp {
     private final GraffitiStore graffitiStore;
     private final GraffitiRoutes graffitiRoutes;
     private final RoadmapRoutes roadmapRoutes;
-    private final NewsRoutes newsRoutes;
     private final DevStatusRoutes devStatusRoutes;
     private final OfficePublicRoutes officePublicRoutes;
     private final DevMachineStore devMachineStore;
@@ -78,37 +74,31 @@ public final class ServerApp {
     private final ClientReleaseService clientReleaseService;
 
     public ServerApp() {
-        this(ClientReleaseService.live(), null, null, null, null);
+        this(ClientReleaseService.live(), null, null, null);
     }
 
     ServerApp(ClientRelease clientRelease) {
-        this(ClientReleaseService.fixed(clientRelease), null, null, null, null);
+        this(ClientReleaseService.fixed(clientRelease), null, null, null);
     }
 
     /** 測試可注入假的 DevStatusService，避免打真實 GitHub。 */
     public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService) {
-        this(ClientReleaseService.fixed(clientRelease), devStatusService, null, null, null);
+        this(ClientReleaseService.fixed(clientRelease), devStatusService, null, null);
     }
 
     /** 測試可注入假的 DevStatusService／RoadmapService，避免打真實 GitHub。 */
     public ServerApp(ClientRelease clientRelease, DevStatusService devStatusService, RoadmapService roadmapService) {
-        this(ClientReleaseService.fixed(clientRelease), devStatusService, roadmapService, null, null);
+        this(ClientReleaseService.fixed(clientRelease), devStatusService, roadmapService, null);
     }
 
     /** 測試可注入 {@link AuthService}（例如隔離的 {@link AuthConfig}）。 */
     ServerApp(ClientRelease clientRelease, DevStatusService devStatusService, RoadmapService roadmapService,
               AuthService authService) {
-        this(ClientReleaseService.fixed(clientRelease), devStatusService, roadmapService, null, authService);
-    }
-
-    /** 測試可注入假的 DevStatusService／RoadmapService／NewsService，避免打外網。 */
-    ServerApp(ClientRelease clientRelease, DevStatusService devStatusService, RoadmapService roadmapService,
-              NewsService newsService, AuthService authService) {
-        this(ClientReleaseService.fixed(clientRelease), devStatusService, roadmapService, newsService, authService);
+        this(ClientReleaseService.fixed(clientRelease), devStatusService, roadmapService, authService);
     }
 
     ServerApp(ClientReleaseService clientReleaseService, DevStatusService devStatusService, RoadmapService roadmapService,
-              NewsService newsService, AuthService authService) {
+              AuthService authService) {
         this.clientReleaseService = clientReleaseService != null
                 ? clientReleaseService
                 : ClientReleaseService.fixed(ClientRelease.NONE);
@@ -134,9 +124,6 @@ public final class ServerApp {
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
                 ? roadmapService
                 : defaultRoadmapService());
-        this.newsRoutes = new NewsRoutes(newsService != null
-                ? newsService
-                : defaultNewsService());
     }
 
     private static RoadmapService defaultRoadmapService() {
@@ -146,15 +133,6 @@ public final class ServerApp {
             });
         }
         return new RoadmapService(new GithubMilestoneClient());
-    }
-
-    private static NewsService defaultNewsService() {
-        if (Boolean.getBoolean("punchclock.offline")) {
-            return new NewsService(() -> {
-                throw new IOException("offline");
-            });
-        }
-        return new NewsService(new GoogleNewsRssClient());
     }
 
     public static void main(String[] args) {
@@ -241,7 +219,6 @@ public final class ServerApp {
         officePublicRoutes.register(app);
         new PublicDownloadRoutes(clientReleaseService).register(app);
         roadmapRoutes.register(app);
-        newsRoutes.register(app);
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
         atlasRoutes.register(app);
