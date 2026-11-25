@@ -491,6 +491,9 @@ public final class OfficePublicRoutes {
             if (minutes > 0) {
                 row.put("minutes", minutes);
             }
+            if (tiger.stageStartedAt != null) {
+                row.put("stageStartedAt", tiger.stageStartedAt);
+            }
             if (tiger.model != null && !tiger.model.isEmpty()) {
                 row.put("model", tiger.model);
             }
