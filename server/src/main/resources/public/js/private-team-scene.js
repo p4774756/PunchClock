@@ -310,14 +310,33 @@ export function privateTeamYawAtReturn(startYaw, progress) {
 /** 夜間全域與檯燈強度（供單測） */
 export function privateTeamSceneLighting() {
   return {
-    amb: 0.26,
-    dir: 0.32,
-    point: 1.35,
-    spot: 8,
-    bulbOpacity: 0.9,
-    haloOpacity: 0.62,
-    shadeEmissive: 0.72
+    amb: 0.24,
+    dir: 0.36,
+    point: 1.05,
+    spot: 5.4,
+    spotDistance: 7.8,
+    spotPenumbra: 0.72,
+    spotDecay: 1.25,
+    pointDistance: 4.6,
+    bulbOpacity: 0.84,
+    haloOpacity: 0.5,
+    shadeEmissive: 0.58
   };
+}
+
+/** 蠟燭點光閃爍倍率（供單測）；lowMotion 為窄螢或粗指標時較緩。 */
+export function privateTeamCandleFlickerMultiplier(elapsedSec, reducedMotion, lowMotion) {
+  if (reducedMotion) return 0.7;
+  const t = Number(elapsedSec);
+  if (!Number.isFinite(t)) return 0.85;
+  if (lowMotion) {
+    return 0.8 + ((Math.sin(t * 1.6) + 1) / 2) * 0.1;
+  }
+  return (
+    0.76 +
+    ((Math.sin(t * 4.8) + 1) / 2) * 0.16 +
+    ((Math.sin(t * 10.5 + 0.7) + 1) / 2) * 0.08
+  );
 }
 
 function box(w, h, d, color, basic) {
@@ -491,10 +510,10 @@ export function makeNightWindowSkyTexture() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const moonX = canvas.width * 0.76;
   const moonY = canvas.height * 0.2;
-  const moonG = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 34);
-  moonG.addColorStop(0, 'rgba(236,240,248,0.5)');
-  moonG.addColorStop(0.4, 'rgba(210,220,238,0.16)');
-  moonG.addColorStop(0.55, 'rgba(190,200,220,0.07)');
+  const moonG = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 38);
+  moonG.addColorStop(0, 'rgba(210,218,255,0.55)');
+  moonG.addColorStop(0.35, 'rgba(165,175,245,0.22)');
+  moonG.addColorStop(0.55, 'rgba(120,135,210,0.09)');
   moonG.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = moonG;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -760,8 +779,8 @@ function makeWindowMoonlightFloorTexture() {
       const rw = cellW * 0.42;
       const rh = cellH * 0.38;
       const g = ctx.createRadialGradient(cx, cy, 2, cx, cy, Math.max(rw, rh));
-      g.addColorStop(0, 'rgba(185,205,235,0.42)');
-      g.addColorStop(0.55, 'rgba(120,150,195,0.16)');
+      g.addColorStop(0, 'rgba(175,188,255,0.46)');
+      g.addColorStop(0.55, 'rgba(105,125,210,0.2)');
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -769,9 +788,82 @@ function makeWindowMoonlightFloorTexture() {
       ctx.fill();
     }
   }
+  ctx.strokeStyle = 'rgba(38,48,88,0.62)';
+  ctx.lineWidth = 6;
+  for (let col = 1; col < cols; col++) {
+    const lx = padX + col * cellW;
+    ctx.beginPath();
+    ctx.moveTo(lx, padY - 4);
+    ctx.lineTo(lx, canvas.height - padY + 4);
+    ctx.stroke();
+  }
+  for (let row = 1; row < rows; row++) {
+    const ly = padY + row * cellH;
+    ctx.beginPath();
+    ctx.moveTo(padX - 4, ly);
+    ctx.lineTo(canvas.width - padX + 4, ly);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(28,36,68,0.48)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(padX + 1, padY + 1, canvas.width - padX * 2 - 2, canvas.height - padY * 2 - 2);
   const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
+}
+
+function makeBathtubCausticsTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, 128, 128);
+  const rand = privateTeamSeededRand(617);
+  for (let i = 0; i < 18; i++) {
+    const cx = 16 + rand() * 96;
+    const cy = 16 + rand() * 96;
+    const rw = 6 + rand() * 14;
+    const rh = 5 + rand() * 12;
+    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, Math.max(rw, rh));
+    g.addColorStop(0, 'rgba(200,230,255,0.55)');
+    g.addColorStop(0.5, 'rgba(140,190,235,0.22)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rw, rh, rand() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.repeat.set(1.4, 1.1);
+  return tex;
+}
+
+function addRomanceCandle(parent, x, y, z, name) {
+  const group = new THREE.Group();
+  group.name = name;
+  group.position.set(x, y, z);
+  const wax = cyl(0.011, 0.013, 0.055, 8, 0xe6ddd4);
+  wax.position.y = 0.028;
+  group.add(wax);
+  const flameMat = new THREE.MeshBasicMaterial({
+    color: 0xffcc66,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false
+  });
+  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 5), flameMat);
+  flame.position.y = 0.06;
+  flame.scale.set(0.65, 1.15, 0.65);
+  flame.name = 'candleFlame';
+  group.add(flame);
+  const glow = new THREE.PointLight(0xffb848, 0.32, 2.4, 2);
+  glow.position.y = 0.058;
+  group.add(glow);
+  parent.add(group);
+  return { flameMat, glow, baseIntensity: 0.32 };
 }
 
 function stepSkylineFlickerLights(flicker) {
@@ -1100,9 +1192,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   applyCameraView();
 
   const lighting = privateTeamSceneLighting();
-  const amb = new THREE.AmbientLight(0xe8eeff, lighting.amb);
-  const dir = new THREE.DirectionalLight(0xb0c0f0, lighting.dir);
-  dir.position.set(3.5, 7, 4);
+  const amb = new THREE.AmbientLight(0xc8d4ff, lighting.amb);
+  const dir = new THREE.DirectionalLight(0x8898f8, lighting.dir);
+  dir.position.set(1.4, 6.2, -7.5);
   scene.add(amb, dir);
 
   const texLoader = new THREE.TextureLoader();
@@ -1211,6 +1303,27 @@ export function mountPrivateTeamScene(canvas, opts) {
   waterRipple.renderOrder = 1;
   root.add(waterRipple);
 
+  const causticsTex = makeBathtubCausticsTexture();
+  const causticsMat = new THREE.MeshBasicMaterial({
+    map: causticsTex,
+    color: 0xb0dcff,
+    transparent: true,
+    opacity: 0.36,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  const bathtubCaustics = new THREE.Mesh(new THREE.PlaneGeometry(1.42, 0.9), causticsMat);
+  bathtubCaustics.rotation.x = -Math.PI / 2;
+  bathtubCaustics.position.set(TUB_CX, 0.021, TUB_CZ + 0.52);
+  bathtubCaustics.name = 'bathtubCaustics';
+  root.add(bathtubCaustics);
+  const tubFloorCaustics = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.38), causticsMat.clone());
+  tubFloorCaustics.rotation.x = -Math.PI / 2;
+  tubFloorCaustics.position.set(TUB_CX, WATER_Y + 0.006, TUB_CZ);
+  tubFloorCaustics.name = 'bathtubWaterCaustics';
+  tubFloorCaustics.renderOrder = 2;
+  root.add(tubFloorCaustics);
+
   const trayMat = new THREE.MeshLambertMaterial({ map: deskTex, color: COL.desk });
   const tray = extrudedRoundedPlate(0.54, 0.26, TRAY_THICK, 0.04, trayMat);
   tray.position.set(0, TRAY_TOP_Y - TRAY_THICK, trayZ);
@@ -1259,6 +1372,34 @@ export function mountPrivateTeamScene(canvas, opts) {
   wallSlab(winW, wallH - winTop, 0, winTop + (wallH - winTop) / 2 - 0.02, backZ - WALL_THICK / 2);
   wallSlab(winW, winBottom, 0, winBottom / 2, backZ - WALL_THICK / 2);
   wallSlab(WALL_THICK, wallH, leftX + WALL_THICK / 2, wallY, 0, FLOOR_SIZE);
+
+  const tubBackWarmWash = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.05, 0.07),
+    new THREE.MeshBasicMaterial({
+      color: 0xffc890,
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  tubBackWarmWash.position.set(TUB_CX, wallY + wallH / 2 - 0.14, backZTub - WALL_THICK / 2 - 0.01);
+  tubBackWarmWash.name = 'tubBackWarmWash';
+  root.add(tubBackWarmWash);
+  const ceilingWarmWash = new THREE.Mesh(
+    new THREE.PlaneGeometry(3.6, 0.05),
+    new THREE.MeshBasicMaterial({
+      color: 0xffb878,
+      transparent: true,
+      opacity: 0.22,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  ceilingWarmWash.rotation.x = -Math.PI / 2;
+  ceilingWarmWash.position.set(0, wallY + wallH / 2 - 0.02, backZ - 0.18);
+  ceilingWarmWash.name = 'ceilingWarmWash';
+  root.add(ceilingWarmWash);
 
   const skyTex = makeNightWindowSkyTexture();
   const windowSky = new THREE.Mesh(
@@ -1477,12 +1618,13 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(windowSillMugSteam);
 
   const moonTex = makeWindowMoonlightFloorTexture();
+  moonTex.repeat.set(1.1, 1);
   const windowMoonlight = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.55, 0.92),
+    new THREE.PlaneGeometry(2.62, 0.98),
     new THREE.MeshBasicMaterial({
       map: moonTex,
       transparent: true,
-      opacity: 0.82,
+      opacity: 0.88,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
@@ -1491,6 +1633,27 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlight.position.set(0, 0.022, -1.02);
   windowMoonlight.name = 'windowMoonlight';
   root.add(windowMoonlight);
+  const windowMoonlightWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(2.45, 1.05),
+    new THREE.MeshBasicMaterial({
+      map: moonTex,
+      transparent: true,
+      opacity: 0.18,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  windowMoonlightWall.position.set(0, winBottom + 0.48, backZ - WALL_THICK / 2 + 0.01);
+  windowMoonlightWall.name = 'windowMoonlightWall';
+  root.add(windowMoonlightWall);
+
+  const romanceCandles = [];
+  romanceCandles.push(
+    addRomanceCandle(root, -0.14, sillY + 0.1, sillZ + 0.1, 'windowSillCandle')
+  );
+  romanceCandles.push(
+    addRomanceCandle(root, TUB_CX - 0.58, RIM_TOP_Y + 0.02, TUB_CZ + 0.34, 'bathtubEdgeCandle')
+  );
 
   const monitorLook = new THREE.Vector3(0.02, 1.02, 0.72);
   const monitors = [addMonitor(root, monitorLook, -0.96, 0.94, 0.98, 0.02)];
@@ -1541,10 +1704,17 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(lampGroup);
 
   const lampLightLocal = new THREE.Vector3(0.16, 0.17, 0);
-  const lampPoint = new THREE.PointLight(0xffc888, lighting.point, 5.2, 1.6);
+  const lampPoint = new THREE.PointLight(0xffc888, lighting.point, lighting.pointDistance, 1.65);
   lampPoint.position.copy(lampLightLocal);
   lampGroup.add(lampPoint);
-  const lampSpot = new THREE.SpotLight(0xffc888, lighting.spot, 9, Math.PI / 2.8, 0.5, 1);
+  const lampSpot = new THREE.SpotLight(
+    0xffc888,
+    lighting.spot,
+    lighting.spotDistance,
+    Math.PI / 2.55,
+    lighting.spotPenumbra,
+    lighting.spotDecay
+  );
   lampSpot.position.copy(lampLightLocal);
   const lampTarget = new THREE.Object3D();
   lampGroup.add(lampTarget);
@@ -2228,6 +2398,8 @@ export function mountPrivateTeamScene(canvas, opts) {
         steamPuffs[si].material.opacity = 0;
       }
       rippleMat.opacity = 0.16;
+      causticsMat.opacity = 0.28;
+      tubFloorCaustics.material.opacity = 0.2;
       for (let mi = 0; mi < windowSillMugSteamPuffs.length; mi++) {
         windowSillMugSteamPuffs[mi].material.opacity = 0.045 + mi * 0.018;
         windowSillMugSteamPuffs[mi].position.y = mi * 0.032 + 0.018;
@@ -2246,6 +2418,19 @@ export function mountPrivateTeamScene(canvas, opts) {
       waterRippleTex.offset.x = (elapsed * 0.03) % 1;
       waterRippleTex.offset.y = (elapsed * 0.045) % 1;
       rippleMat.opacity = 0.2 + ((Math.sin(elapsed * 1.1) + 1) / 2) * 0.12;
+      const causticsRate = coarsePointer || narrowWin ? 0.012 : 0.028;
+      causticsTex.offset.x = (elapsed * causticsRate) % 1;
+      causticsTex.offset.y = (elapsed * causticsRate * 0.82) % 1;
+      causticsMat.opacity = 0.3 + ((Math.sin(elapsed * 0.95) + 1) / 2) * 0.1;
+      tubFloorCaustics.material.opacity = 0.22 + ((Math.sin(elapsed * 1.25) + 1) / 2) * 0.12;
+    }
+
+    const candleLowMotion = coarsePointer || narrowWin;
+    for (let ci = 0; ci < romanceCandles.length; ci++) {
+      const c = romanceCandles[ci];
+      const flick = privateTeamCandleFlickerMultiplier(elapsed + ci * 0.37, reducedMotion, candleLowMotion);
+      c.glow.intensity = c.baseIntensity * flick;
+      c.flameMat.opacity = reducedMotion ? 0.75 : 0.82 + (flick - 0.76) * 0.35;
     }
 
     if (lampPointBase > 0) {
