@@ -59,11 +59,7 @@ public final class CandyScrollBar {
 
         @Override
         protected void paintTrack(Graphics g, JComponent c, Rectangle track) {
-            Graphics2D g2 = CandyDraw.quality((Graphics2D) g);
-            g2.setColor(new java.awt.Color(0x24, 0x18, 0x3F, 120));
-            int arc = Math.min(CandyTheme.RADIUS_SCROLL, Math.min(track.width, track.height));
-            g2.fillRoundRect(track.x, track.y, track.width, track.height, arc, arc);
-            g2.dispose();
+            ClassicBevel.fillSunken((Graphics2D) g, track.x, track.y, track.width, track.height, ClassicBevel.FACE);
         }
 
         @Override
@@ -71,18 +67,8 @@ public final class CandyScrollBar {
             if (thumb.isEmpty() || !scrollbar.isEnabled()) {
                 return;
             }
-            Graphics2D g2 = CandyDraw.quality((Graphics2D) g);
-            boolean hot = isDragging || isThumbRollover();
-            java.awt.Color top = hot ? CandyTheme.PINK_HI : CandyTheme.LAVENDER;
-            java.awt.Color bottom = hot ? CandyTheme.PINK : CandyTheme.PINK_DEEP;
-            int x = thumb.x + 2;
-            int y = thumb.y + 2;
-            int w = Math.max(1, thumb.width - 4);
-            int h = Math.max(1, thumb.height - 4);
-            g2.setPaint(new GradientPaint(x, y, top, x, y + h, bottom));
-            int arc = Math.min(CandyTheme.RADIUS_SCROLL, Math.min(w, h));
-            g2.fillRoundRect(x, y, w, h, arc, arc);
-            g2.dispose();
+            ClassicBevel.fillRaised((Graphics2D) g, thumb.x + 1, thumb.y + 1,
+                    Math.max(1, thumb.width - 2), Math.max(1, thumb.height - 2), ClassicBevel.FACE);
         }
 
         private static JButton empty() {

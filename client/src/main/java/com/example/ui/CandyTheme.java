@@ -10,38 +10,38 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
 /**
- * 排程頁糖果元件共用的顏色、圓角與短動畫。按鈕本體的配色仍留在 {@link CandyButton}，避免已定稿的立體鈕被改掉。
+ * 桌面端 Win95 復古元件共用色與邊框半徑（0＝直角斜角）。
  */
 public final class CandyTheme {
 
-    public static final Color NIGHT = new Color(0x24, 0x18, 0x3F);
-    public static final Color PANEL = new Color(0x38, 0x29, 0x5F);
-    public static final Color FIELD = new Color(0x2C, 0x20, 0x4C);
-    public static final Color FIELD_TOP = new Color(0x3A, 0x2C, 0x62);
-    public static final Color HEADER = new Color(0x46, 0x35, 0x6E);
-    public static final Color HEADER_HOT = new Color(0x54, 0x40, 0x80);
-    public static final Color EDGE = new Color(0x92, 0x75, 0xBD);
-    public static final Color EDGE_HOT = new Color(0xB7, 0x9A, 0xEF);
-    public static final Color PINK = new Color(0xFF, 0x78, 0xB5);
-    public static final Color PINK_DEEP = new Color(0xE5, 0x58, 0x9C);
-    public static final Color PINK_HI = new Color(0xFF, 0xC0, 0xDE);
-    public static final Color LAVENDER = new Color(0xB7, 0x9A, 0xEF);
-    public static final Color INK = new Color(0xF8, 0xF1, 0xFF);
-    public static final Color PINK_INK = new Color(0x3A, 0x18, 0x28);
-    public static final Color MUTED = new Color(0xC8, 0xB8, 0xE4);
-    public static final Color DISABLED = new Color(0x84, 0x7C, 0x96);
-    public static final Color ROW = new Color(0x32, 0x24, 0x58);
-    public static final Color ROW_ALT = new Color(0x3C, 0x2C, 0x66);
-    public static final Color ROW_HOT = new Color(0x4A, 0x38, 0x78);
-    public static final Color ROW_SELECT = new Color(0x8A, 0x5A, 0x98);
-    public static final Color ROW_LATEST = new Color(0x42, 0x30, 0x72);
+    public static final Color NIGHT = ClassicBevel.FACE;
+    public static final Color PANEL = ClassicBevel.FACE;
+    public static final Color FIELD = Color.WHITE;
+    public static final Color FIELD_TOP = Color.WHITE;
+    public static final Color HEADER = ClassicBevel.FACE;
+    public static final Color HEADER_HOT = new Color(0xD4, 0xD4, 0xD4);
+    public static final Color EDGE = ClassicBevel.LO;
+    public static final Color EDGE_HOT = ClassicBevel.DARK;
+    public static final Color PINK = new Color(0, 0, 128);
+    public static final Color PINK_DEEP = new Color(0, 0, 104);
+    public static final Color PINK_HI = new Color(0, 0, 160);
+    public static final Color LAVENDER = new Color(0, 0, 128);
+    public static final Color INK = Color.BLACK;
+    public static final Color PINK_INK = Color.WHITE;
+    public static final Color MUTED = new Color(64, 64, 64);
+    public static final Color DISABLED = ClassicBevel.LO;
+    public static final Color ROW = Color.WHITE;
+    public static final Color ROW_ALT = new Color(248, 248, 248);
+    public static final Color ROW_HOT = new Color(0, 0, 128);
+    public static final Color ROW_SELECT = new Color(0, 0, 128);
+    public static final Color ROW_LATEST = new Color(248, 248, 248);
 
-    public static final int RADIUS_FIELD = 8;
-    public static final int RADIUS_CHECK = 6;
-    public static final int RADIUS_PANEL = 12;
-    public static final int RADIUS_SCROLL = 8;
-    public static final int ANIM_MS = 150;
-    public static final int SCROLL_WIDTH = 12;
+    public static final int RADIUS_FIELD = 0;
+    public static final int RADIUS_CHECK = 0;
+    public static final int RADIUS_PANEL = 0;
+    public static final int RADIUS_SCROLL = 0;
+    public static final int ANIM_MS = 80;
+    public static final int SCROLL_WIDTH = 16;
 
     private static final String MOTION = "candy.motion";
     private static final String WATCH = "candy.watch";
@@ -81,7 +81,6 @@ public final class CandyTheme {
         return text.substring(0, Math.max(0, end)) + dots;
     }
 
-    /** 滑入滑出約 150ms，停在定點後不再重繪。 */
     public static void watch(JComponent host) {
         watch(host, host);
     }

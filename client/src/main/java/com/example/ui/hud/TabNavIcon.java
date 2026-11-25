@@ -86,7 +86,9 @@ final class TabNavIcon {
             return;
         }
         Object aa = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        Object interp = g.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         AffineTransform previous = g.getTransform();
         Composite composite = g.getComposite();
         Stroke stroke = g.getStroke();
@@ -101,6 +103,9 @@ final class TabNavIcon {
         g.setComposite(composite);
         g.setTransform(previous);
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
+        if (interp != null) {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, interp);
+        }
     }
 
     private static TabNavIcon read(String id, boolean active) {

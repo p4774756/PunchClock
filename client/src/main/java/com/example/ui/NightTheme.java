@@ -35,20 +35,18 @@ import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
-/**
- * 跟首頁同一套深紫色。只改顏色與可讀性，不改元件做的事。
- */
+/** 與主視窗同一套 Win95 灰底配色。只改顏色與可讀性。 */
 public final class NightTheme {
 
-    public static final Color INK = new Color(255, 252, 255);
-    public static final Color MUTED = new Color(214, 204, 236);
-    public static final Color PINK = new Color(255, 122, 168);
-    public static final Color PINK_INK = new Color(48, 18, 36);
-    public static final Color PANEL = new Color(36, 26, 64);
-    public static final Color FIELD = new Color(58, 46, 102);
-    public static final Color HEADER = new Color(48, 36, 86);
-    public static final Color EDGE = new Color(150, 128, 198);
-    public static final Color SELECT = new Color(255, 122, 168);
+    public static final Color INK = CandyTheme.INK;
+    public static final Color MUTED = CandyTheme.MUTED;
+    public static final Color PINK = CandyTheme.PINK;
+    public static final Color PINK_INK = CandyTheme.PINK_INK;
+    public static final Color PANEL = CandyTheme.PANEL;
+    public static final Color FIELD = CandyTheme.FIELD;
+    public static final Color HEADER = CandyTheme.HEADER;
+    public static final Color EDGE = CandyTheme.EDGE;
+    public static final Color SELECT = new Color(0, 0, 128);
 
     private NightTheme() {
     }

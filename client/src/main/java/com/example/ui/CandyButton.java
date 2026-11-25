@@ -20,18 +20,13 @@ import java.awt.event.ActionListener;
 import java.awt.geom.RoundRectangle2D;
 
 /**
- * 日系糖果按鈕。漸層、上緣高光和底部厚度都畫在元件自己的範圍裡，陰影不會被父層裁掉。
- * 主畫面的按鈕都用這個類別。顏色維持這一組，不要再改。
- */
+/** Win95 灰斜角按鈕；主畫面按鈕皆用此類。 */
 public final class CandyButton extends JButton {
 
     public enum Variant {
-        PRIMARY(new Color(0xFF, 0xB0, 0xD5), new Color(0xFF, 0x68, 0xAC), new Color(0xB8, 0x44, 0x82),
-                new Color(0x3A, 0x18, 0x28)),
-        SECONDARY(new Color(0xC9, 0xB4, 0xFF), new Color(0x97, 0x74, 0xE5), new Color(0x67, 0x50, 0x9C),
-                new Color(0x2C, 0x21, 0x50)),
-        DANGER(new Color(0xFF, 0xB5, 0xB7), new Color(0xF0, 0x78, 0x8F), new Color(0xA9, 0x50, 0x65),
-                new Color(0x4A, 0x20, 0x30));
+        PRIMARY(ClassicBevel.FACE, ClassicBevel.FACE, ClassicBevel.DARK, Color.BLACK),
+        SECONDARY(ClassicBevel.FACE, ClassicBevel.FACE, ClassicBevel.DARK, Color.BLACK),
+        DANGER(ClassicBevel.FACE, ClassicBevel.FACE, ClassicBevel.DARK, Color.BLACK);
 
         final Color top;
         final Color bottom;
@@ -171,9 +166,9 @@ public final class CandyButton extends JButton {
             if (b.getIcon() != null) {
                 icon = b.getIcon().getIconWidth() + 6;
             }
-            int width = text + icon + buttonSize.padH * 2 + SHADOW * 2;
+            int width = text + icon + buttonSize.padH * 2 + 6;
             int face = metrics.getHeight() + buttonSize.padV * 2;
-            int height = TOP + face + buttonSize.depth + PRESS + SHADOW;
+            int height = face + 8;
             return new Dimension(Math.max(width, 48), height);
         }
 
@@ -199,65 +194,22 @@ public final class CandyButton extends JButton {
             AbstractButton b = (AbstractButton) c;
             follow(b);
             Graphics2D g = (Graphics2D) graphics.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
-
             boolean enabled = b.isEnabled();
-            boolean hover = enabled && b.getModel().isRollover() && !b.getModel().isArmed();
-            Color top = variant.top;
-            Color bottom = variant.bottom;
-            Color edge = variant.lip;
-            Color ink = variant.ink;
+            Color ink = enabled ? variant.ink : CandyTheme.MUTED;
             boolean pressed = enabled && b.getModel().isPressed() && b.getModel().isArmed();
-            if (!enabled) {
-                Color mute = new Color(132, 124, 150);
-                top = mix(top, mute, 0.62f);
-                bottom = mix(bottom, mute, 0.62f);
-                edge = mix(edge, mute, 0.5f);
-                ink = new Color(206, 198, 220);
-            } else if (pressed) {
-                top = mix(top, edge, 0.12f);
-                bottom = mix(bottom, edge, 0.18f);
-            } else if (hover) {
-                top = mix(top, Color.WHITE, 0.2f);
-                bottom = mix(bottom, Color.WHITE, 0.12f);
-            }
-
-            int x = SHADOW;
-            int w = Math.max(12, c.getWidth() - SHADOW * 2);
+            int x = 2;
+            int w = Math.max(12, c.getWidth() - 4);
             int face = faceHeight(c);
-            int y = TOP + Math.round(offset);
-            int lipPx = Math.max(1, Math.round(lip));
-            int slab = face + lipPx;
-            int arc = buttonSize.arc;
-
-            float shadowAlpha = enabled ? (offset < 0 ? 0.22f : 0.4f) : 0.1f;
-            g.setComposite(AlphaComposite.SrcOver.derive(shadowAlpha));
-            g.setColor(new Color(16, 8, 28));
-            g.fillRoundRect(x + 2, y + slab, Math.max(8, w - 4), SHADOW + 1, arc, arc);
-
-            g.setComposite(AlphaComposite.SrcOver);
-            g.setColor(edge);
-            g.fillRoundRect(x, y, w, slab, arc, arc);
-
-            g.setPaint(new GradientPaint(0, y, top, 0, y + face, bottom));
-            g.fillRoundRect(x, y, w, face, arc, arc);
-
-            Graphics2D gloss = (Graphics2D) g.create();
-            gloss.setClip(new RoundRectangle2D.Float(x, y, w, face, arc, arc));
-            gloss.setComposite(AlphaComposite.SrcOver.derive(enabled ? 0.55f : 0.25f));
-            gloss.setColor(Color.WHITE);
-            int glossH = Math.max(4, face / 4);
-            gloss.fillRoundRect(x + 4, y + 2, Math.max(4, w - 8), glossH, arc, arc);
-            gloss.dispose();
-
+            int y = 2 + Math.round(offset);
+            if (pressed) {
+                ClassicBevel.fillSunken(g, x, y, w, face + 2, ClassicBevel.FACE);
+            } else {
+                ClassicBevel.fillRaised(g, x, y, w, face + 2, enabled ? ClassicBevel.FACE : CandyTheme.fade(ClassicBevel.FACE));
+            }
             paintContent(g, b, x, y, w, face, ink);
-
             if (enabled && b.isFocusOwner()) {
-                g.setStroke(new java.awt.BasicStroke(2f));
-                g.setColor(new Color(255, 255, 255));
-                g.drawRoundRect(Math.max(1, x - 2), Math.max(1, y - 2), w + 3, slab + 3, arc + 2, arc + 2);
+                g.setColor(Color.BLACK);
+                g.drawRect(0, 0, c.getWidth() - 1, c.getHeight() - 1);
             }
             g.dispose();
         }
