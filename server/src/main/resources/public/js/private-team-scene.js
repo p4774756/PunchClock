@@ -310,8 +310,8 @@ export function privateTeamYawAtReturn(startYaw, progress) {
 /** 夜間全域與檯燈強度（供單測） */
 export function privateTeamSceneLighting() {
   return {
-    amb: 0.31,
-    dir: 0.36,
+    amb: 0.35,
+    dir: 0.42,
     point: 1.05,
     spot: 5.4,
     spotDistance: 7.8,
@@ -850,6 +850,26 @@ function makeWindowMoonlightFloorTexture() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeWindowMoonlightWallTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 192;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width * 0.5;
+  const g = ctx.createRadialGradient(cx, 18, 6, cx, 48, 200);
+  g.addColorStop(0, 'rgba(210,224,255,0.92)');
+  g.addColorStop(0.28, 'rgba(160,185,252,0.62)');
+  g.addColorStop(0.62, 'rgba(120,150,240,0.28)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
@@ -1670,19 +1690,41 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlightTub.position.set(TUB_CX - 0.42, 0.056, TUB_CZ + 0.38);
   windowMoonlightTub.name = 'windowMoonlightTub';
   root.add(windowMoonlightTub);
-  const windowMoonlightWall = new THREE.Mesh(
-    new THREE.PlaneGeometry(1.65, 0.52),
-    new THREE.MeshBasicMaterial({
-      map: moonTex,
-      transparent: true,
-      opacity: 0.27,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    })
-  );
-  windowMoonlightWall.position.set(0.08, winBottom + 0.22, backZ - WALL_THICK / 2 + 0.01);
+  const moonWallTex = makeWindowMoonlightWallTexture();
+  const moonWallMat = new THREE.MeshBasicMaterial({
+    map: moonWallTex,
+    transparent: true,
+    opacity: 0.52,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  });
+  // 貼在窗下牆帶，不要蓋到窗洞（舊版中心在 winBottom+0.22，大半落在窗玻璃上所以幾乎看不見）。
+  const windowMoonlightWall = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.2, winBottom + 0.04), moonWallMat);
+  windowMoonlightWall.position.set(0, winBottom / 2 + 0.01, backZ + 0.012);
   windowMoonlightWall.name = 'windowMoonlightWall';
   root.add(windowMoonlightWall);
+  const flankW = FLOOR_HALF - winRight;
+  const flankXOff = (winRight + FLOOR_HALF) / 2;
+  const flankH = 1.55;
+  const flankY = 0.92;
+  const flankZ = backZ + 0.012;
+  const flankMat = moonWallMat.clone();
+  flankMat.opacity = 0.4;
+  const windowMoonlightWallRight = new THREE.Mesh(new THREE.PlaneGeometry(flankW, flankH), flankMat);
+  windowMoonlightWallRight.position.set(flankXOff, flankY, flankZ);
+  windowMoonlightWallRight.name = 'windowMoonlightWallRight';
+  root.add(windowMoonlightWallRight);
+  const windowMoonlightWallLeftFlank = new THREE.Mesh(new THREE.PlaneGeometry(flankW, flankH), flankMat.clone());
+  windowMoonlightWallLeftFlank.position.set(-flankXOff, flankY, flankZ);
+  windowMoonlightWallLeftFlank.name = 'windowMoonlightWallLeftFlank';
+  root.add(windowMoonlightWallLeftFlank);
+  const leftWallMat = moonWallMat.clone();
+  leftWallMat.opacity = 0.38;
+  const windowMoonlightLeftWall = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.65), leftWallMat);
+  windowMoonlightLeftWall.rotation.y = Math.PI / 2;
+  windowMoonlightLeftWall.position.set(leftX + WALL_THICK + 0.012, 1.02, -0.62);
+  windowMoonlightLeftWall.name = 'windowMoonlightLeftWall';
+  root.add(windowMoonlightLeftWall);
 
   const romanceCandles = [];
   romanceCandles.push(
