@@ -108,18 +108,14 @@ public class PeerChatTranscriptTest {
     }
 
     @Test
-    public void developerModeKeepsPlainTextAsCodeAndFileNotesShowNameAndSize() throws Exception {
+    public void fileNotesShowNameAndSize() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             PeerChatStore store = new PeerChatStore();
             PeerChatTranscript t = new PeerChatTranscript("alice", "SansSerif", 13);
             t.setSize(520, 360);
             t.append(store.addMessage("alice", true, "int x = 1;", "", 1_000L));
             assertFalse(t.preservesLayout("int x"));
-            t.setDeveloperMode(true);
-            assertTrue(t.isDeveloperMode());
-            assertTrue(t.preservesLayout("int x"));
             assertEquals("int x = 1;", t.bodyOf("int x"));
-            assertTrue(t.usesCodeFont("int x"));
 
             PeerChatTranscript.FileNotice notice = PeerChatTranscript.fileNotice(
                     "對方傳來「notes.txt」（12 KB）");

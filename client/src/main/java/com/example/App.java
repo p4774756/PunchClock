@@ -405,6 +405,7 @@ public class App extends JFrame {
                 return buildHomeBrief().paintKey();
             }
         });
+        shell.setSwapIllustrationHandler(this::cycleHomeIllustration);
         shell.setMiniModeHandler(this::applyMiniModeFrameSize);
         WindowChrome.setTitleBarMiniToggle(this, () -> {
             if (shell != null && !shell.isMiniMode()) {
@@ -1793,6 +1794,24 @@ public class App extends JFrame {
         if (persist && !suppressConfigSave) {
             saveCloudConfig();
         }
+    }
+
+    private void cycleHomeIllustration() {
+        if (slotController == null || slotController.getConfig() == null) {
+            return;
+        }
+        HomeIllustration current = HomeIllustration.fromId(slotController.getConfig().homeIllustration);
+        HomeIllustration next = current.next();
+        if (serverRefs.homeIllustrationCombo != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.homeIllustrationCombo.setSelectedItem(next.label());
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        applyHomeIllustration(next, true);
     }
 
     private void applyBackgroundFromConfig(ConfigPersistenceService.CloudConfig config) {

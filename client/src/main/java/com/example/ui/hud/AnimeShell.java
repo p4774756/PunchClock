@@ -4,14 +4,20 @@ import com.example.model.CheckInTask;
 import com.example.model.TaskStatus;
 import com.example.service.SchedulerService;
 import com.example.ui.AppBranding;
+import com.example.ui.CandyButton;
 import com.example.ui.MiniBarDrag;
 import com.example.ui.UiFonts;
 import com.example.ui.WindowChrome;
 
 import javax.imageio.ImageIO;
+
+import javax.swing.JButton;
+import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
+import javax.swing.ActionMap;
+import javax.swing.InputMap;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
@@ -87,6 +93,8 @@ public final class AnimeShell extends JPanel {
     private boolean miniDragging;
     private int friendNavUnread;
     private boolean checkInUiVisible = true;
+    private final JButton swapIllustrationButton;
+    private Runnable swapIllustrationHandler;
 
     public AnimeShell(SchedulerService scheduler, JTabbedPane tabs) {
         super(null);
@@ -96,6 +104,15 @@ public final class AnimeShell extends JPanel {
         board.setReducedMotion(reducedMotion);
         tabs.setVisible(false);
         add(tabs);
+        swapIllustrationButton = new CandyButton("換圖", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        swapIllustrationButton.setFont(UiFonts.chinesePlain(12));
+        swapIllustrationButton.setToolTipText("輪換首頁插畫");
+        swapIllustrationButton.addActionListener(e -> {
+            if (swapIllustrationHandler != null) {
+                swapIllustrationHandler.run();
+            }
+        });
+        add(swapIllustrationButton);
         MouseAdapter mouse = new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
@@ -230,6 +247,8 @@ public final class AnimeShell extends JPanel {
     public void setMiniMode(boolean miniMode) {
         this.miniMode = miniMode;
         tabs.setVisible(!miniMode && !holdingHome);
+        swapIllustrationButton.setVisible(!miniMode && holdingHome);
+        layoutSwapIllustrationButton();
         revalidate();
         repaint();
         refreshChrome();
@@ -265,6 +284,8 @@ public final class AnimeShell extends JPanel {
     public void showHome() {
         holdingHome = true;
         tabs.setVisible(false);
+        swapIllustrationButton.setVisible(!miniMode);
+        layoutSwapIllustrationButton();
         revalidate();
         repaint();
         refreshChrome();
@@ -280,6 +301,7 @@ public final class AnimeShell extends JPanel {
             tabs.setSelectedIndex(index);
         }
         tabs.setVisible(!miniMode);
+        swapIllustrationButton.setVisible(false);
         revalidate();
         repaint();
         refreshChrome();
@@ -428,7 +450,51 @@ public final class AnimeShell extends JPanel {
             @Override
             protected void paintTabArea(Graphics g, int tabPlacement, int selectedIndex) {
             }
+
+            @Override
+            public int tabForCoordinate(JTabbedPane pane, int x, int y) {
+                return pane.getSelectedIndex();
+            }
         });
+        tabs.setFocusable(false);
+        tabs.setRequestFocusEnabled(false);
+        disableTabPaneKeyboard(tabs);
+    }
+
+    static void disableTabPaneKeyboard(JTabbedPane tabs) {
+        for (int condition : new int[]{
+                JComponent.WHEN_FOCUSED,
+                JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT,
+                JComponent.WHEN_IN_FOCUSED_WINDOW
+        }) {
+            InputMap map = tabs.getInputMap(condition);
+            if (map != null) {
+                map.clear();
+            }
+            ActionMap actions = tabs.getActionMap();
+            if (actions != null && condition == JComponent.WHEN_FOCUSED) {
+                actions.clear();
+            }
+        }
+    }
+
+    public void setSwapIllustrationHandler(Runnable handler) {
+        swapIllustrationHandler = handler;
+    }
+
+    JButton swapIllustrationButtonForTests() {
+        return swapIllustrationButton;
+    }
+
+    private void layoutSwapIllustrationButton() {
+        if (!swapIllustrationButton.isVisible()) {
+            return;
+        }
+        java.awt.Dimension size = swapIllustrationButton.getPreferredSize();
+        int margin = 10;
+        int x = Math.max(margin, getWidth() - size.width - margin);
+        int y = margin;
+        swapIllustrationButton.setBounds(x, y, size.width, size.height);
     }
 
     @Override
@@ -462,6 +528,7 @@ public final class AnimeShell extends JPanel {
     public void doLayout() {
         java.awt.Rectangle content = contentBounds();
         tabs.setBounds(content);
+        layoutSwapIllustrationButton();
     }
 
     private void activate(int id) {

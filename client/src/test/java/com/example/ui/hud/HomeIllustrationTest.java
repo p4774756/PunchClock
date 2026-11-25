@@ -25,6 +25,15 @@ public class HomeIllustrationTest {
     }
 
     @Test
+    public void nextCyclesInOrder() {
+        assertEquals(HomeIllustration.POOL_C, HomeIllustration.ROOM_B.next());
+        assertEquals(HomeIllustration.CHERRY_PARK_D, HomeIllustration.POOL_C.next());
+        assertEquals(HomeIllustration.NIGHT_MARKET_E, HomeIllustration.CHERRY_PARK_D.next());
+        assertEquals(HomeIllustration.OVERTIME_F, HomeIllustration.NIGHT_MARKET_E.next());
+        assertEquals(HomeIllustration.ROOM_B, HomeIllustration.OVERTIME_F.next());
+    }
+
+    @Test
     public void fromLabel_mapsAllOptions() {
         assertEquals(HomeIllustration.ROOM_B, HomeIllustration.fromLabel("夜晚房間"));
         assertEquals(HomeIllustration.POOL_C, HomeIllustration.fromLabel("頂樓泳池"));
@@ -73,5 +82,17 @@ public class HomeIllustrationTest {
         assertNotNull(AnimeShell.renderShellPreview(340, 440, false));
         shell.setHomeIllustration(HomeIllustration.CHERRY_PARK_D);
         assertNotNull(AnimeShell.renderShellPreview(380, 520, false));
+    }
+
+    @Test
+    public void swapIllustrationButtonVisibleOnHome() {
+        AnimeShell shell = new AnimeShell(null, new javax.swing.JTabbedPane());
+        shell.setSize(380, 520);
+        shell.showHome();
+        shell.doLayout();
+        assertEquals("換圖", shell.swapIllustrationButtonForTests().getText());
+        assertTrue(shell.swapIllustrationButtonForTests().isVisible());
+        shell.openTab(0);
+        assertFalse(shell.swapIllustrationButtonForTests().isVisible());
     }
 }
