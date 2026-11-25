@@ -1374,16 +1374,17 @@ export function mountPrivateTeamScene(canvas, opts) {
   wallSlab(WALL_THICK, wallH, leftX + WALL_THICK / 2, wallY, 0, FLOOR_SIZE);
 
   const tubBackWarmWash = new THREE.Mesh(
-    new THREE.PlaneGeometry(2.05, 0.07),
+    new THREE.PlaneGeometry(1.55, 0.42),
     new THREE.MeshBasicMaterial({
       color: 0xffc890,
       transparent: true,
-      opacity: 0.32,
+      opacity: 0.22,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
   );
-  tubBackWarmWash.position.set(TUB_CX, wallY + wallH / 2 - 0.14, backZTub - WALL_THICK / 2 - 0.01);
+  // 貼在浴缸後牆，不要放在天花板高度（常用機位會看成窗上橫條）。
+  tubBackWarmWash.position.set(TUB_CX, 0.38, backZTub - WALL_THICK / 2 - 0.01);
   tubBackWarmWash.name = 'tubBackWarmWash';
   root.add(tubBackWarmWash);
   // 不再放天花板水平亮帶：從常用機位會看成窗戶上方的破圖橫條。暖色洗牆改由 tubBackWarmWash 承擔。
