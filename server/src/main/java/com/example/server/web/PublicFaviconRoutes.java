@@ -15,6 +15,9 @@ public final class PublicFaviconRoutes {
     public static void register(Javalin app) {
         app.get("/favicon.ico", ctx -> send(ctx, "/public/favicon.ico", "image/x-icon"));
         app.get("/favicon.svg", ctx -> send(ctx, "/public/favicon.svg", "image/svg+xml"));
+        app.get("/apple-touch-icon.png", ctx -> send(ctx, "/public/apple-touch-icon.png", "image/png"));
+        app.get("/icon-192.png", ctx -> send(ctx, "/public/icon-192.png", "image/png"));
+        app.get("/icon-512.png", ctx -> send(ctx, "/public/icon-512.png", "image/png"));
     }
 
     private static void send(Context ctx, String path, String contentType) {

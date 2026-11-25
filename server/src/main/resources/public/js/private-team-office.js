@@ -6,7 +6,6 @@ const FORBIDDEN = /(?:ai\/issue-|\/Users\/|worktree|battery|charging|\.log\b)/i;
 
 const DONE_PREVIEW_LIMIT = 3;
 const QUEUE_PREVIEW_LIMIT = 5;
-const ACTIVE_TITLE_MAX = 24;
 const VAGUE_PHRASES = new Set(['完成一項工作', '正在處理一項工作']);
 const STAGE_LABELS = ['開發', '審核', 'CI', '合併'];
 const STAGE_TO_SEGMENT = {
@@ -197,11 +196,19 @@ export function capsulesForActive(row) {
   return out;
 }
 
-/** 今日完成主文：只用公開 issue 標題（單行截短）。 */
+/** 今日完成主文：只用公開 issue 標題（最多兩行由 CSS 換行）。 */
 export function titleForDoneDisplay(row) {
   const item = row && typeof row === 'object' ? row : {};
   const title = item.title && isSafePublicText(item.title) ? String(item.title).trim() : '';
-  return title ? truncateActiveTitle(title) : '';
+  return title || '';
+}
+
+/** 進行中主文：優先公開 issue 標題，否則沿用 phrase 規則。 */
+export function titleForActiveDisplay(row) {
+  const item = row && typeof row === 'object' ? row : {};
+  const title = item.title && isSafePublicText(item.title) ? String(item.title).trim() : '';
+  if (title) return title;
+  return phraseForActiveDisplay(row);
 }
 
 /** @deprecated 請改 titleForDoneDisplay */
@@ -235,24 +242,6 @@ export function phraseForActiveDisplay(row) {
     if (Number.isFinite(issue) && issue > 0) return '';
   }
   return phrase || ACTIVE_DISPLAY_FALLBACK;
-}
-
-/** 進行中卡片標題截短（約 24 全形字）。 */
-export function truncateActiveTitle(text, max = ACTIVE_TITLE_MAX) {
-  const s = text == null ? '' : String(text).trim();
-  if (!s) return '';
-  let width = 0;
-  let i = 0;
-  for (; i < s.length; ) {
-    const cp = s.codePointAt(i);
-    const w = cp > 0xff ? 2 : 1;
-    if (width + w > max) {
-      return s.slice(0, i) + '…';
-    }
-    width += w;
-    i += cp > 0xffff ? 2 : 1;
-  }
-  return s;
 }
 
 export function activeStageForItem(item) {
@@ -396,7 +385,7 @@ export function renderActiveBlock(doc, item) {
       head.appendChild(el(doc, 'span', 'pt-status-stage-issue', '#' + issue));
     }
   }
-  const titleText = truncateActiveTitle(phraseForActiveDisplay(row));
+  const titleText = titleForActiveDisplay(row);
   if (titleText) {
     head.appendChild(el(doc, 'span', 'pt-status-stage-title', titleText));
   }

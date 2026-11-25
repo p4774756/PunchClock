@@ -24,7 +24,7 @@ const {
   progressSegmentsForActive,
   statusLineForActive,
   activeCiFailed,
-  truncateActiveTitle,
+  titleForActiveDisplay,
   completedTodayKeys,
   hasNewCompletedToday,
   secretarySpriteUrlForStatus,
@@ -225,11 +225,15 @@ test('progressSegmentsForActive 各階段與 CI 失敗', () => {
   assert.deepEqual(merge.map((s) => s.state), ['done', 'done', 'done', 'current']);
 });
 
-test('activeCiFailed 與標題截短', () => {
+test('activeCiFailed 與狀態卡標題完整', () => {
   assert.equal(activeCiFailed({ stage: '修正中', failed: true }), true);
   assert.equal(activeCiFailed({ stage: '開發中', verdict: 'FAIL' }), false);
-  const long = '一二三四五六七八九０一二三四五六七八九０尾';
-  assert.ok(truncateActiveTitle(long).endsWith('…'));
+  const long = '完成卡片顯示標題與耗時的長白話標題不應再被截成半句';
+  assert.equal(titleForDoneDisplay({ title: long }), long);
+  assert.equal(
+    titleForActiveDisplay({ phrase: '秘書口語', title: '夜間辦公室光影提亮' }),
+    '夜間辦公室光影提亮'
+  );
 });
 
 test('mergeSecretaryQueues 合併心跳與 GitHub 排隊', () => {

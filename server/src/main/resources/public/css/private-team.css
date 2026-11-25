@@ -883,6 +883,12 @@ button.pt-hud-id-plate {
   font-weight: 700;
   line-height: 1.35;
   color: #1e3050;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .pt-status-progress {
@@ -1137,9 +1143,13 @@ button.pt-hud-id-plate {
 .pt-status-done-phrase {
   min-width: 0;
   max-width: 100%;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.35;
 }
 
 .pt-status-done-empty {
