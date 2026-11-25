@@ -509,6 +509,52 @@ public class OfficePublicRoutesTest {
     }
 
     @Test
+    public void activeChainAndStageStartedAtMinutes() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 640);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-640");
+        run.put("startedAt", 9_000_000L - 3_600_000L);
+        run.put("stageStartedAt", 9_000_000L - 300_000L);
+        run.put("role", "dev");
+        run.put("stage", "審查中");
+        run.put("chain", "白虎");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject active = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject();
+        assertEquals("白虎", active.get("chain").getAsString());
+        assertEquals("審查中", active.get("stage").getAsString());
+        assertEquals(5, active.get("minutes").getAsInt());
+    }
+
+    @Test
+    public void activeCiFailFlagOnPublicApi() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 501);
+        run.put("round", 2);
+        run.put("branch", "ai/issue-501");
+        run.put("startedAt", 9_000_000L - 60_000L);
+        run.put("role", "dev");
+        run.put("verdict", "FAIL");
+        run.put("stage", "等 CI");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject active = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject();
+        assertTrue(active.get("failed").getAsBoolean());
+        assertEquals("FAIL", active.get("verdict").getAsString());
+    }
+
+    @Test
     public void heartbeatRunStageLiteralOverridesInference() throws Exception {
         Map<String, Object> run = new HashMap<>();
         run.put("issue", 580);
