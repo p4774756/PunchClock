@@ -34,7 +34,7 @@ Worker 走 HTTP 心跳。主控台以 REST 下指令，WebSocket `/ws/dashboard`
 
 心跳帶 `appVersion`。伺服器快取 GitHub `releases/latest`；有較新 Release 且客戶端非 `dev` 時，心跳回應可帶 `update`（`version`、`sha256`、`size`、`path` 等）。`GET /download/app.jar`、`/download/SKLbaby.jar` 302 導向最新 Release jar。
 
-下載頁可連到 macOS（`SKLbaby-mac-arm.dmg` 等）與 Windows 安裝檔；環境變數 `DESKTOP_MAC_ARM_DOWNLOAD_URL`、`DESKTOP_MAC_INTEL_DOWNLOAD_URL`、`DESKTOP_WIN_DOWNLOAD_URL` 可覆寫按鈕網址。
+下載頁與首頁下載浮窗僅提供 `SKLbaby.jar` 下載連結；使用者需自行安裝 Java 11 或以上後執行 jar。
 
 ## 測試
 

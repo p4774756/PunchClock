@@ -46,11 +46,14 @@
   align-items: center;
 }
 
-.download-mac-hint {
-  flex-basis: 100%;
-  margin: 0;
+.download-version {
+  margin: 0.25rem 0 0;
   font-size: 14px;
   color: #3d4f68;
+}
+
+.download-version[hidden] {
+  display: none !important;
 }
 
 .download-btn {
@@ -70,8 +73,7 @@
 
 /* author display 會蓋過 UA 的 [hidden]；沒有檔時按鈕不可見。 */
 .download-btn[hidden],
-.download-unavailable[hidden],
-[data-desktop-missing][hidden] {
+.download-unavailable[hidden] {
   display: none !important;
 }
 

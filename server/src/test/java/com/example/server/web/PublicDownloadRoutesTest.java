@@ -63,7 +63,10 @@ public class PublicDownloadRoutesTest {
         String body = page.body();
         assertTrue(body.contains("下載小寶貝"));
         assertTrue(body.contains("SKLbaby.jar"));
-        assertTrue(body.contains("下載 SKLbaby.jar（v1.8.0）"));
+        assertTrue(body.contains(">下載 SKLbaby.jar<"));
+        assertTrue(body.contains("目前版本：v1.8.0"));
+        assertFalse(body.contains("Mac（Apple 晶片"));
+        assertFalse(body.contains("安裝檔（macOS"));
         assertTrue(body.contains(DOWNLOAD));
         assertTrue(body.contains("data-download-missing hidden"));
         assertFalse(body.contains("punchclock-client-standalone"));
@@ -99,7 +102,9 @@ public class PublicDownloadRoutesTest {
         String body = page.body();
         assertTrue(body.contains(ClientUpdatePolicy.GITHUB_LATEST_JAR_URL));
         assertTrue(body.contains("data-download-missing hidden"));
-        assertTrue(body.contains("下載 SKLbaby.jar（v）"));
+        assertTrue(body.contains(">下載 SKLbaby.jar<"));
+        assertTrue(body.contains("需要已安裝"));
+        assertTrue(body.contains("Java 11"));
     }
 
     @Test
@@ -141,7 +146,8 @@ public class PublicDownloadRoutesTest {
                     assertTrue(missingHiddenAttr);
                     assertTrue(page.locator("[data-download-jar]").isVisible());
                     if (available) {
-                        assertTrue(text.contains("下載 SKLbaby.jar（v1.8.0）"));
+                        assertTrue(text.contains("下載 SKLbaby.jar"));
+                        assertTrue(text.contains("目前版本：v1.8.0"));
                         assertNotNull(page.locator("[data-download-jar]").boundingBox());
                     }
                     assertNull(page.locator("[data-download-missing]").boundingBox());

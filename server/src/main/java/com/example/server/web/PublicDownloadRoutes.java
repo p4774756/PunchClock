@@ -32,7 +32,7 @@ public final class PublicDownloadRoutes {
         app.get("/download/SKLbaby.jar", this::downloadJar);
     }
 
-    /** 首頁下載浮窗的 jar／安裝檔 placeholder（與 download.html 同一套邏輯）。 */
+    /** 首頁下載浮窗的 jar placeholder（與 download.html 同一套邏輯）。 */
     public static String applyHomeDownloadTokens(String html, ClientRelease release) {
         if (html == null) {
             return "";
@@ -40,74 +40,29 @@ public final class PublicDownloadRoutes {
         ClientRelease r = release != null ? release : ClientRelease.NONE;
         String version = r.isAvailable() ? r.version() : "";
         String jarUrl = r.isAvailable() ? r.downloadUrl() : ClientUpdatePolicy.GITHUB_LATEST_JAR_URL;
-        String macArmUrl = desktopEnv("DESKTOP_MAC_ARM_DOWNLOAD_URL");
-        if (macArmUrl.isEmpty()) {
-            macArmUrl = desktopEnv("DESKTOP_MAC_DOWNLOAD_URL");
-        }
-        String macIntelUrl = desktopEnv("DESKTOP_MAC_INTEL_DOWNLOAD_URL");
-        String winUrl = desktopEnv("DESKTOP_WIN_DOWNLOAD_URL");
         return html
-                .replace("{{HOME_MAC_ARM_HIDDEN}}", macArmUrl.isEmpty() ? " hidden" : "")
-                .replace("{{HOME_MAC_INTEL_HIDDEN}}", macIntelUrl.isEmpty() ? " hidden" : "")
-                .replace("{{HOME_WIN_HIDDEN}}", winUrl.isEmpty() ? " hidden" : "")
-                .replace("{{HOME_DESKTOP_MISSING_HIDDEN}}",
-                        (!macArmUrl.isEmpty() || !macIntelUrl.isEmpty() || !winUrl.isEmpty()) ? " hidden" : "")
                 .replace("{{HOME_JAR_HIDDEN}}", "")
                 .replace("{{HOME_JAR_MISSING_HIDDEN}}", " hidden")
-                .replace("{{HOME_MAC_ARM_URL}}", escapeHtml(macArmUrl))
-                .replace("{{HOME_MAC_INTEL_URL}}", escapeHtml(macIntelUrl))
-                .replace("{{HOME_WIN_URL}}", escapeHtml(winUrl))
                 .replace("{{HOME_JAR_URL}}", escapeHtml(jarUrl))
                 .replace("{{HOME_CLIENT_VERSION}}", escapeHtml(version))
                 .replace("{{HOME_CLIENT_VERSION_JS}}", jsStringLiteral(version))
-                .replace("{{DESKTOP_MAC_ARM_JS}}", jsStringLiteral(macArmUrl))
-                .replace("{{DESKTOP_MAC_INTEL_JS}}", jsStringLiteral(macIntelUrl))
-                .replace("{{DESKTOP_MAC_JS}}", jsStringLiteral(macArmUrl))
-                .replace("{{DESKTOP_WIN_JS}}", jsStringLiteral(winUrl));
+                .replace("{{HOME_VERSION_HIDDEN}}", version.isEmpty() ? " hidden" : "")
+                .replace("{{HOME_JAVA_VERSION}}", "11");
     }
 
     private void downloadPage(Context ctx) {
         ClientRelease release = clientReleaseService.get(Instant.now().toEpochMilli());
         String version = release.isAvailable() ? release.version() : "";
         String jarUrl = release.isAvailable() ? release.downloadUrl() : ClientUpdatePolicy.GITHUB_LATEST_JAR_URL;
-        String macArmUrl = desktopEnv("DESKTOP_MAC_ARM_DOWNLOAD_URL");
-        if (macArmUrl.isEmpty()) {
-            macArmUrl = desktopEnv("DESKTOP_MAC_DOWNLOAD_URL");
-        }
-        String macIntelUrl = desktopEnv("DESKTOP_MAC_INTEL_DOWNLOAD_URL");
-        String winUrl = desktopEnv("DESKTOP_WIN_DOWNLOAD_URL");
-        boolean desktopKnown = !macArmUrl.isEmpty() || !macIntelUrl.isEmpty() || !winUrl.isEmpty();
         String html = readResource("/public/download.html")
                 .replace("{{JAR_HIDDEN}}", "")
                 .replace("{{MISSING_HIDDEN}}", " hidden")
-                .replace("{{MAC_ARM_HIDDEN}}", macArmUrl.isEmpty() ? " hidden" : "")
-                .replace("{{MAC_INTEL_HIDDEN}}", macIntelUrl.isEmpty() ? " hidden" : "")
-                .replace("{{WIN_HIDDEN}}", winUrl.isEmpty() ? " hidden" : "")
-                .replace("{{DESKTOP_MISSING_HIDDEN}}", desktopKnown ? " hidden" : "")
-                .replace("{{DESKTOP_MAC_ARM_URL}}", escapeHtml(macArmUrl))
-                .replace("{{DESKTOP_MAC_INTEL_URL}}", escapeHtml(macIntelUrl))
-                .replace("{{DESKTOP_WIN_URL}}", escapeHtml(winUrl))
-                .replace("{{DESKTOP_MAC_ARM_JS}}", jsStringLiteral(macArmUrl))
-                .replace("{{DESKTOP_MAC_INTEL_JS}}", jsStringLiteral(macIntelUrl))
-                .replace("{{DESKTOP_MAC_JS}}", jsStringLiteral(macArmUrl))
-                .replace("{{DESKTOP_WIN_JS}}", jsStringLiteral(winUrl))
+                .replace("{{VERSION_HIDDEN}}", version.isEmpty() ? " hidden" : "")
                 .replace("{{CLIENT_VERSION}}", escapeHtml(version))
                 .replace("{{JAR_DOWNLOAD_URL}}", escapeHtml(jarUrl))
                 .replace("{{JAVA_VERSION}}", "11");
         ctx.header("Cache-Control", "no-cache, must-revalidate");
         ctx.html(html);
-    }
-
-    private static String desktopEnv(String key) {
-        String raw = System.getenv(key);
-        if (raw == null) {
-            return "";
-        }
-        String trimmed = raw.trim();
-        if (trimmed.isEmpty() || trimmed.contains("${")) {
-            return "";
-        }
-        return trimmed;
     }
 
     private static String jsStringLiteral(String raw) {
