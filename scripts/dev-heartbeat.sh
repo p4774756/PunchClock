@@ -127,6 +127,13 @@ read_waiter_queued() {
   [ -z "$ps_out" ] && return 0
   tsv=$(printf '%s\n' "$ps_out" | awk '
     BEGIN { count = 0 }
+    function chainfast_tail(line,    pos, tail) {
+      pos = index(line, "chainfast2.sh")
+      if (pos < 1) return ""
+      tail = substr(line, pos + length("chainfast2.sh"))
+      sub(/^[ \t]+/, "", tail)
+      return tail
+    }
     function emit(issue, after,    key) {
       if (issue < 1) return
       key = issue SUBSEP after
@@ -145,6 +152,24 @@ read_waiter_queued() {
     }
     {
       line = $0
+      if (line ~ /chainfast2\.sh/) {
+        tail = chainfast_tail(line)
+        if (tail != "") {
+          n = split(tail, cf, /[ \t]+/)
+          if (n >= 3) {
+            for (i = 3; i <= n; i++) {
+              tok = cf[i]
+              sub(/\+.*/, "", tok)
+              prev = cf[i - 1]
+              sub(/\+.*/, "", prev)
+              if (tok ~ /^[0-9]+$/ && prev ~ /^[0-9]+$/) {
+                emit(tok + 0, prev + 0)
+              }
+            }
+          }
+        }
+        next
+      }
       if (line !~ /waiter\.sh/) next
       after = 0
       if (match(line, /after[0-9]+/)) {
@@ -690,16 +715,14 @@ read_chain_runs() {
       }
       return 0
     }
-    function chainfast_issues(line, started,    tail, n, i, tok) {
+    function chainfast_issue(line, started,    tail, n, tok) {
       tail = after_script(line, "chainfast2.sh")
       if (tail == "") return
       n = split(tail, parts, /[ \t]+/)
       if (n < 2) return
-      for (i = 2; i <= n; i++) {
-        tok = parts[i]
-        sub(/\+.*/, "", tok)
-        if (tok ~ /^[0-9]+$/) add_issue(tok + 0, started)
-      }
+      tok = parts[2]
+      sub(/\+.*/, "", tok)
+      if (tok ~ /^[0-9]+$/) add_issue(tok + 0, started)
     }
     BEGIN { count = 0 }
     {
@@ -717,7 +740,7 @@ read_chain_runs() {
         next
       }
       if (line ~ /chainfast2\.sh/) {
-        chainfast_issues(line, started)
+        chainfast_issue(line, started)
       }
     }
     END {

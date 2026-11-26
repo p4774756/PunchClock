@@ -71,10 +71,11 @@ public final class OfficeDevStartStore {
         }
         Long candidate = null;
         if (startedAt != null && startedAt > 0) {
-            candidate = startedAt;
+            candidate = normalizeEpochMillis(startedAt);
         }
         if (stageStartedAt != null && stageStartedAt > 0) {
-            candidate = candidate == null ? stageStartedAt : Math.min(candidate, stageStartedAt);
+            long stageMs = normalizeEpochMillis(stageStartedAt);
+            candidate = candidate == null ? stageMs : Math.min(candidate, stageMs);
         }
         if (candidate == null) {
             return;
@@ -107,7 +108,7 @@ public final class OfficeDevStartStore {
                 }
                 try {
                     int issue = Integer.parseInt(entry.getKey().trim());
-                    long ms = entry.getValue();
+                    long ms = normalizeEpochMillis(entry.getValue());
                     if (issue > 0 && ms > 0) {
                         earliestByIssue.put(issue, ms);
                     }
@@ -118,6 +119,19 @@ public final class OfficeDevStartStore {
         } catch (Exception e) {
             LOG.log(Level.WARNING, "無法讀取辦公室開發起點：" + file, e);
         }
+    }
+
+    private static long normalizeEpochMillis(long value) {
+        if (value <= 0) {
+            return value;
+        }
+        if (value >= 1_000_000_000_000L) {
+            return value;
+        }
+        if (value >= 1_000_000_000L) {
+            return value * 1000L;
+        }
+        return value;
     }
 
     private void saveQuietly() {
