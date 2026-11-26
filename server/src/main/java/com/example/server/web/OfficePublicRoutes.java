@@ -66,7 +66,7 @@ public final class OfficePublicRoutes {
 
             Map<String, Object> characters = new LinkedHashMap<>();
             for (String id : CHARACTER_IDS) {
-                String status = coarseStatus(id, machines, doc, now, store);
+                String status = coarseStatus(id, machines, doc, now, store, github);
                 long updatedAtMs = updatedAtMs(id, machines, doc, now);
                 Map<String, Object> row = new LinkedHashMap<>();
                 row.put("status", status);
@@ -76,7 +76,7 @@ public final class OfficePublicRoutes {
                     String machineId = secretaryMachineId(tiger);
                     row.put("active", buildActive(now, store, machineId, tiger, doc, github, repo, devStatusService));
                     row.put("queue", buildTigerQueue(now, store, machineId, tiger, doc, github, repo, devStatusService));
-                    row.put("completedToday", buildCompletedToday(now, machines, github, repo));
+                    row.put("completedToday", buildCompletedToday(now, store, machines, github, repo));
                 }
                 characters.put(id, row);
             }
@@ -88,7 +88,8 @@ public final class OfficePublicRoutes {
         }
 
         static String coarseStatus(String charId, List<DevMachineStore.Snapshot> machines,
-                                   DevStatusModels.Document doc, long now, DevMachineStore store) {
+                                   DevStatusModels.Document doc, long now, DevMachineStore store,
+                                   Snapshot github) {
             if ("reviewer".equals(charId)) {
                 int n = countReviewActive(machines, now);
                 if (n > 0) {
@@ -99,7 +100,7 @@ public final class OfficePublicRoutes {
             if ("tiger".equals(charId)) {
                 DevMachineStore.Snapshot tiger = findSecretaryMachine(machines, now);
                 String machineId = secretaryMachineId(tiger);
-                int n = secretaryWorkCount(now, store, machineId, tiger, doc);
+                int n = secretaryWorkCount(now, store, machineId, tiger, doc, github);
                 if (n > 0) {
                     return n == 1 ? "工作中" : "工作中 ×" + n;
                 }
@@ -160,13 +161,16 @@ public final class OfficePublicRoutes {
             if (out.isEmpty() && tiger != null && isOnline(tiger, now)
                     && (tiger.agentRunning || (tiger.issue != null && tiger.issue > 0))) {
                 int issue = tiger.issue != null ? tiger.issue : 0;
-                if (issue > 0 && seen.add(issue)) {
+                if (issue > 0 && seen.add(issue) && !isIssueMerged(github, issue)) {
                     out.add(activeEntryFromMachine(now, issue, tiger, github, repo, devStatusService));
                 }
             }
             if (out.isEmpty() && doc != null && doc.now != null && doc.now.current != null) {
                 for (DevStatusModels.Item item : doc.now.current) {
                     if (item == null || item.issue <= 0 || !seen.add(item.issue)) {
+                        continue;
+                    }
+                    if (isIssueMerged(github, item.issue)) {
                         continue;
                     }
                     out.add(activeFromGithubItem(now, item, github, repo, devStatusService));
@@ -187,6 +191,9 @@ public final class OfficePublicRoutes {
             String machineRole = tiger != null ? tiger.role : null;
             for (DevMachineStore.RunEntry run : runs) {
                 if (run == null || run.issue <= 0 || !seen.add(run.issue)) {
+                    continue;
+                }
+                if (isIssueMerged(github, run.issue)) {
                     continue;
                 }
                 out.add(activeEntry(now, run, agentRunning, machineVerdict, machineRole, github, repo,
@@ -326,12 +333,13 @@ public final class OfficePublicRoutes {
         }
 
         private static int secretaryWorkCount(long now, DevMachineStore store, String machineId,
-                                              DevMachineStore.Snapshot tiger, DevStatusModels.Document doc) {
+                                              DevMachineStore.Snapshot tiger, DevStatusModels.Document doc,
+                                              Snapshot github) {
             List<DevMachineStore.RunEntry> runs = effectiveRuns(now, store, machineId, tiger);
             int n = 0;
             if (runs != null) {
                 for (DevMachineStore.RunEntry run : runs) {
-                    if (run != null && run.issue > 0) {
+                    if (run != null && run.issue > 0 && !isIssueMerged(github, run.issue)) {
                         n++;
                     }
                 }
@@ -340,7 +348,7 @@ public final class OfficePublicRoutes {
                 return n;
             }
             if (tiger != null && isOnline(tiger, now)) {
-                int loops = loopsOnMachine(tiger);
+                int loops = loopsOnMachine(tiger, github);
                 if (loops > 0) {
                     return loops;
                 }
@@ -350,7 +358,13 @@ public final class OfficePublicRoutes {
                 return 1;
             }
             if (doc != null && doc.now != null && doc.now.current != null) {
-                return doc.now.current.size();
+                int q = 0;
+                for (DevStatusModels.Item item : doc.now.current) {
+                    if (item != null && item.issue > 0 && !isIssueMerged(github, item.issue)) {
+                        q++;
+                    }
+                }
+                return q;
             }
             return 0;
         }
@@ -514,7 +528,8 @@ public final class OfficePublicRoutes {
             return row;
         }
 
-        static List<Map<String, Object>> buildCompletedToday(long now, List<DevMachineStore.Snapshot> machines,
+        static List<Map<String, Object>> buildCompletedToday(long now, DevMachineStore store,
+                                                             List<DevMachineStore.Snapshot> machines,
                                                              Snapshot github, String repo) {
             if (github == null) {
                 return List.of();
@@ -548,6 +563,12 @@ public final class OfficePublicRoutes {
                     row.put("title", publicTitle);
                 }
                 Long devStart = earliestDevStartMs(machines, issue);
+                if (devStart == null && store != null) {
+                    devStart = store.recordedDevStart(issue);
+                }
+                if (devStart == null && pull.createdAt > 0) {
+                    devStart = pull.createdAt;
+                }
                 Long durationMinutes = devDurationMinutes(pull.mergedAt, devStart);
                 if (durationMinutes != null) {
                     row.put("durationMinutes", durationMinutes);
@@ -600,7 +621,12 @@ public final class OfficePublicRoutes {
                 return null;
             }
             long minutes = (mergedAt - devStart) / 60_000L;
-            return minutes > 0 ? minutes : null;
+            return minutes >= 0 ? minutes : null;
+        }
+
+        static boolean isIssueMerged(Snapshot github, int issue) {
+            PullRow pull = findPullForIssue(github, issue);
+            return pull != null && pull.merged;
         }
 
         private static long minutesRunning(long now, Long startedAt) {
@@ -714,20 +740,23 @@ public final class OfficePublicRoutes {
             if (tiger == null || !isOnline(tiger, now)) {
                 return 0;
             }
-            return loopsOnMachine(tiger);
+            return loopsOnMachine(tiger, null);
         }
 
-        private static int loopsOnMachine(DevMachineStore.Snapshot row) {
+        private static int loopsOnMachine(DevMachineStore.Snapshot row, Snapshot github) {
             if (row.runs != null && !row.runs.isEmpty()) {
                 int n = 0;
                 for (DevMachineStore.RunEntry run : row.runs) {
-                    if (run != null && run.issue > 0) {
+                    if (run != null && run.issue > 0 && !isIssueMerged(github, run.issue)) {
                         n++;
                     }
                 }
                 return n;
             }
             if (row.agentRunning || (row.issue != null && row.issue > 0)) {
+                if (row.issue != null && isIssueMerged(github, row.issue)) {
+                    return 0;
+                }
                 return 1;
             }
             return 0;

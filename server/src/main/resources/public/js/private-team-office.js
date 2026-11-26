@@ -218,7 +218,8 @@ export function phraseForDoneDisplay(row) {
 
 export function formatDoneDuration(minutes) {
   const m = Number(minutes);
-  if (!Number.isFinite(m) || m <= 0) return '';
+  if (!Number.isFinite(m) || m < 0) return '';
+  if (m === 0) return '耗時 < 1 分';
   if (m < 60) return '耗時 ' + m + ' 分';
   const hours = Math.floor(m / 60);
   const rem = m % 60;
@@ -303,7 +304,9 @@ export function statusLineForActive(item) {
   }
   const minutes = Number(row.minutes);
   const minText = Number.isFinite(minutes) && minutes > 0 ? '・' + minutes + ' 分' : '';
-  if (stage === '審查中') return '審核中' + minText;
+  const round = Number(row.round);
+  const roundText = Number.isFinite(round) && round > 0 ? '・第 ' + round + ' 輪' : '';
+  if (stage === '審查中') return '審核中' + roundText + minText;
   if (stage === '等 CI') return '等 CI' + minText;
   return stage + minText;
 }

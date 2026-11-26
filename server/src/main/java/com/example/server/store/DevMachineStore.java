@@ -172,13 +172,23 @@ public final class DevMachineStore {
     private final ConcurrentHashMap<String, Snapshot> byMachine = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, GraceHold> graceByMachine = new ConcurrentHashMap<>();
     private final Clock clock;
+    private final OfficeDevStartStore devStartStore;
 
     public DevMachineStore() {
-        this(System::currentTimeMillis);
+        this(System::currentTimeMillis, new OfficeDevStartStore(OfficeDevStartStore.defaultFile()));
     }
 
     public DevMachineStore(Clock clock) {
+        this(clock, new OfficeDevStartStore(null));
+    }
+
+    DevMachineStore(Clock clock, OfficeDevStartStore devStartStore) {
         this.clock = clock == null ? System::currentTimeMillis : clock;
+        this.devStartStore = devStartStore == null ? new OfficeDevStartStore(null) : devStartStore;
+    }
+
+    public Long recordedDevStart(int issue) {
+        return devStartStore == null ? null : devStartStore.earliestDevStart(issue);
     }
 
     public static boolean isAllowedMachine(String machine) {
@@ -252,7 +262,25 @@ public final class DevMachineStore {
                 parsed.chain
         );
         byMachine.put(machine, next);
+        recordDevStarts(parsed);
         return ApplyResult.OK;
+    }
+
+    private void recordDevStarts(Parsed parsed) {
+        if (devStartStore == null || parsed == null) {
+            return;
+        }
+        if (parsed.runs != null) {
+            for (RunEntry run : parsed.runs) {
+                if (run == null || run.issue <= 0) {
+                    continue;
+                }
+                devStartStore.noteRun(run.issue, run.role, run.startedAt, run.stageStartedAt);
+            }
+        }
+        if (parsed.issue != null && parsed.issue > 0) {
+            devStartStore.noteMachineIssue(parsed.issue, parsed.role, parsed.runStartedAt, parsed.stageStartedAt);
+        }
     }
 
     private void updateGrace(String machine, long now, Parsed parsed) {
