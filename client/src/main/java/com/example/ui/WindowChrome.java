@@ -61,6 +61,11 @@ public final class WindowChrome {
     private static final Color TITLE_FG = Color.WHITE;
     private static final Color MUTED_FG = CandyTheme.MUTED;
     private static final String STATUS_MARK = "punchclock.statusLabel";
+    static final String TITLE_MINI_ZONE = "punchclock.titleMiniZone";
+    private static final String TITLE_COLLAPSE_GLYPH = "punchclock.titleCollapseGlyph";
+    private static final String TITLE_COLLAPSED = "punchclock.titleCollapsed";
+    private static final String MINI_TOGGLE_TOOLTIP = "點一下縮成迷你橫條";
+    private static final int COLLAPSE_GLYPH_SIZE = 10;
     private static final int GRIP = 6;
     /** 標題列左側圖示槽高度（與 {@link TitleBarLayout} 共用）。 */
     static final int TITLE_BAR_ICON_HEIGHT = 18;
@@ -237,7 +242,7 @@ public final class WindowChrome {
 
     private static Runnable titleBarMiniToggle;
 
-    /** 一般模式點標題列（位移小於門檻）切換迷你；由 App 註冊。 */
+    /** 一般模式點圖示、主標題或折疊三角（位移小於門檻）切換迷你；由 App 註冊。 */
     public static void setTitleBarMiniToggle(JFrame frame, Runnable toggle) {
         titleBarMiniToggle = toggle;
         if (frame == null || frame.getRootPane() == null) {
@@ -245,8 +250,37 @@ public final class WindowChrome {
         }
         JComponent bar = findMarked(frame.getRootPane(), "punchclock.titleBar");
         if (bar != null) {
-            bar.putClientProperty("punchclock.titleMiniToggle", toggle);
+            markMiniToggleZones(bar, toggle);
         }
+    }
+
+    private static void markMiniToggleZones(JComponent bar, Runnable toggle) {
+        for (Component child : bar.getComponents()) {
+            if (!(child instanceof JComponent)) {
+                continue;
+            }
+            JComponent zone = (JComponent) child;
+            if (Boolean.TRUE.equals(zone.getClientProperty(TITLE_MINI_ZONE))) {
+                zone.putClientProperty("punchclock.titleMiniToggle", toggle);
+            }
+        }
+    }
+
+    public static void paintTitleCollapseGlyph(Graphics2D g, int x, int y, int size, boolean collapsed) {
+        int[] xs;
+        int[] ys;
+        if (collapsed) {
+            xs = new int[] {x, x, x + size};
+            ys = new int[] {y, y + size, y + size / 2};
+        } else {
+            int h = size;
+            xs = new int[] {x, x + size, x + size / 2};
+            ys = new int[] {y, y, y + h};
+        }
+        g.setColor(TITLE_FG);
+        g.fillPolygon(xs, ys, 3);
+        g.setColor(BAR_BORDER);
+        g.drawPolygon(xs, ys, 3);
     }
 
     /**
@@ -264,6 +298,11 @@ public final class WindowChrome {
         JComponent title = canvas == null ? null : findMarked(canvas, "punchclock.titleBar");
         if (title != null) {
             title.setVisible(!mini);
+            JComponent glyph = findMarked(title, TITLE_COLLAPSE_GLYPH);
+            if (glyph != null) {
+                glyph.putClientProperty(TITLE_COLLAPSED, mini);
+                glyph.repaint();
+            }
         }
         if (body != null) {
             body.setBorder(mini ? new EmptyBorder(0, 0, 0, 0) : new EmptyBorder(0, 6, 6, 6));
@@ -613,7 +652,6 @@ public final class WindowChrome {
         bar.setBorder(new EmptyBorder(2, 4, 2, 2));
         int barHeight = 28;
         bar.setPreferredSize(new Dimension(720, barHeight));
-        bar.setToolTipText("點一下縮成迷你橫條");
 
         JComponent iconLabel = null;
         if (icon != null) {
@@ -633,9 +671,17 @@ public final class WindowChrome {
             };
             iconLabel.setPreferredSize(titleBarIconSize(icon));
             iconLabel.setOpaque(false);
+            iconLabel.putClientProperty(TITLE_MINI_ZONE, Boolean.TRUE);
+            iconLabel.setToolTipText(MINI_TOGGLE_TOOLTIP);
         }
         TitleName titleLabel = new TitleName(title, titleFont);
         titleLabel.setForeground(TITLE_FG);
+        titleLabel.putClientProperty(TITLE_MINI_ZONE, Boolean.TRUE);
+        titleLabel.setToolTipText(MINI_TOGGLE_TOOLTIP);
+
+        JComponent collapseGlyph = createCollapseGlyph();
+        collapseGlyph.putClientProperty(TITLE_MINI_ZONE, Boolean.TRUE);
+        collapseGlyph.setToolTipText(MINI_TOGGLE_TOOLTIP);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttons.setOpaque(false);
@@ -651,25 +697,62 @@ public final class WindowChrome {
         buttons.add(max);
         buttons.add(close);
 
-        bar.setLayout(new TitleBarLayout(iconLabel, titleLabel, buttons));
+        bar.setLayout(new TitleBarLayout(iconLabel, titleLabel, collapseGlyph, buttons));
         if (iconLabel != null) {
             bar.add(iconLabel);
         }
         bar.add(titleLabel);
+        bar.add(collapseGlyph);
         bar.add(buttons);
 
         DragSupport drag = new DragSupport(frame, buttons);
-        MouseAdapter dragAdapter = drag.adapter();
-        bar.addMouseListener(dragAdapter);
-        bar.addMouseMotionListener(dragAdapter);
-        titleLabel.addMouseListener(dragAdapter);
-        titleLabel.addMouseMotionListener(dragAdapter);
+        MouseAdapter dragOnly = drag.adapter(false);
+        MouseAdapter dragToggle = drag.adapter(true);
+        bar.addMouseListener(dragOnly);
+        bar.addMouseMotionListener(dragOnly);
+        titleLabel.addMouseListener(dragToggle);
+        titleLabel.addMouseMotionListener(dragToggle);
+        collapseGlyph.addMouseListener(dragToggle);
+        collapseGlyph.addMouseMotionListener(dragToggle);
         if (iconLabel != null) {
-            iconLabel.addMouseListener(dragAdapter);
-            iconLabel.addMouseMotionListener(dragAdapter);
+            iconLabel.addMouseListener(dragToggle);
+            iconLabel.addMouseMotionListener(dragToggle);
         }
 
         return bar;
+    }
+
+    private static JComponent createCollapseGlyph() {
+        return new JComponent() {
+            {
+                setOpaque(false);
+                setName("punchclock.titleCollapseGlyph");
+                putClientProperty(TITLE_COLLAPSE_GLYPH, Boolean.TRUE);
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                if (getWidth() <= 0 || getHeight() <= 0) {
+                    return;
+                }
+                Graphics2D g2 = (Graphics2D) g.create();
+                try {
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
+                    int size = COLLAPSE_GLYPH_SIZE;
+                    int x = (getWidth() - size) / 2;
+                    int y = (getHeight() - size) / 2;
+                    boolean collapsed = Boolean.TRUE.equals(getClientProperty(TITLE_COLLAPSED));
+                    paintTitleCollapseGlyph(g2, x, y, size, collapsed);
+                } finally {
+                    g2.dispose();
+                }
+            }
+
+            @Override
+            public Dimension getPreferredSize() {
+                return new Dimension(COLLAPSE_GLYPH_SIZE + 6, TITLE_BAR_ICON_HEIGHT);
+            }
+        };
     }
 
     /** 主標題保留到版號；commit 與提交時間在放不下時改走 tooltip。 */
@@ -706,7 +789,7 @@ public final class WindowChrome {
             full = fullTitle == null ? "" : fullTitle.trim();
             main = mainTitle(full);
             shown = main;
-            setToolTipText(full.equals(main) ? null : full);
+            refreshToolTip();
         }
 
         boolean fit(FontMetrics metrics, int available) {
@@ -716,8 +799,16 @@ public final class WindowChrome {
                 return false;
             }
             shown = next;
-            setToolTipText(shown.equals(full) ? null : full);
+            refreshToolTip();
             return true;
+        }
+
+        private void refreshToolTip() {
+            if (Boolean.TRUE.equals(getClientProperty(TITLE_MINI_ZONE))) {
+                setToolTipText(MINI_TOGGLE_TOOLTIP);
+                return;
+            }
+            setToolTipText(shown.equals(full) ? null : full);
         }
 
         @Override
@@ -743,11 +834,13 @@ public final class WindowChrome {
     private static final class TitleBarLayout implements LayoutManager {
         private final JComponent icon;
         private final TitleName title;
+        private final JComponent collapse;
         private final JComponent buttons;
 
-        TitleBarLayout(JComponent icon, TitleName title, JComponent buttons) {
+        TitleBarLayout(JComponent icon, TitleName title, JComponent collapse, JComponent buttons) {
             this.icon = icon;
             this.title = title;
+            this.collapse = collapse;
             this.buttons = buttons;
         }
 
@@ -783,15 +876,20 @@ public final class WindowChrome {
             int iconW = icon == null ? 0 : icon.getPreferredSize().width;
             int iconH = icon == null ? 0 : icon.getPreferredSize().height;
             int textGap = iconW == 0 ? 0 : 8;
-            int textRoom = Math.max(40, innerW - buttonW - iconW - textGap - 16);
+            int collapseW = collapse.getPreferredSize().width;
+            int textRoom = Math.max(40, innerW - buttonW - iconW - textGap - collapseW - 16);
             title.fit(metrics, textRoom);
             int shownW = title.shown.isEmpty() ? 0 : metrics.stringWidth(title.shown);
             int textW = Math.min(textRoom, Math.max(0, shownW));
+            int x = x0;
             if (icon != null) {
                 int iconY = y0 + Math.max(0, (innerH - iconH) / 2);
-                icon.setBounds(x0, iconY, iconW, iconH);
+                icon.setBounds(x, iconY, iconW, iconH);
+                x += iconW + textGap;
             }
-            title.setBounds(x0 + iconW + textGap, y0, textW, innerH);
+            title.setBounds(x, y0, textW, innerH);
+            x += textW + 2;
+            collapse.setBounds(x, y0, collapseW, innerH);
         }
     }
 
@@ -993,7 +1091,7 @@ public final class WindowChrome {
             this.chromeButtons = chromeButtons;
         }
 
-        MouseAdapter adapter() {
+        MouseAdapter adapter(boolean allowMiniToggle) {
             return new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
@@ -1011,7 +1109,7 @@ public final class WindowChrome {
                         dragging = false;
                         return;
                     }
-                    if (!dragging && !overChromeControls(e)) {
+                    if (allowMiniToggle && !dragging && !overChromeControls(e) && isMiniToggleZone(e)) {
                         Point now = e.getLocationOnScreen();
                         if (MiniBarDrag.isClick(pressOnScreen, now)) {
                             Runnable toggle = titleBarMiniToggle;
@@ -1065,6 +1163,14 @@ public final class WindowChrome {
                     }
                     Point p = SwingUtilities.convertPoint(e.getComponent(), e.getPoint(), chromeButtons);
                     return chromeButtons.contains(p);
+                }
+
+                private boolean isMiniToggleZone(MouseEvent e) {
+                    Component source = e.getComponent();
+                    if (!(source instanceof JComponent)) {
+                        return false;
+                    }
+                    return Boolean.TRUE.equals(((JComponent) source).getClientProperty(TITLE_MINI_ZONE));
                 }
             };
         }

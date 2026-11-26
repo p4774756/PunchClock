@@ -26,6 +26,7 @@ import java.awt.image.BufferedImage;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.Assert.assertEquals;
@@ -292,6 +293,70 @@ public class WindowChromeTest {
     }
 
     @Test
+    public void titleBarMiniToggleOnlyOnMarkedZones() throws Exception {
+        Assume.assumeFalse("headless JVM cannot show a window", GraphicsEnvironment.isHeadless());
+
+        JFrame[] holder = new JFrame[1];
+        AtomicInteger toggles = new AtomicInteger();
+        int[] fx = {0};
+        int[] fy = {0};
+        SwingUtilities.invokeAndWait(() -> {
+            JFrame frame = new JFrame(AppBranding.DISPLAY_NAME + " v4.0.0");
+            holder[0] = frame;
+            WindowChrome.install(
+                    frame, frame.getTitle(), null,
+                    new Font(Font.SANS_SERIF, Font.BOLD, 13),
+                    new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            WindowChrome.setTitleBarMiniToggle(frame, toggles::incrementAndGet);
+            frame.pack();
+            frame.setSize(720, 480);
+            frame.setLocation(120, 120);
+            frame.setVisible(true);
+            frame.validate();
+            fx[0] = frame.getX();
+            fy[0] = frame.getY();
+        });
+        try {
+            JPanel title = findMarked(holder[0].getContentPane(), "punchclock.titleBar");
+            assertNotNull(title);
+            Component titleName = findNamed(title, "punchclock.titleName");
+            assertNotNull(titleName);
+            Component collapse = findNamed(title, "punchclock.titleCollapseGlyph");
+            assertNotNull(collapse);
+            assertNull(title.getToolTipText());
+
+            java.awt.Point screen = title.getLocationOnScreen();
+            int gapX = collapse.getX() + collapse.getWidth() + 24;
+            click(title, screen.x + gapX, screen.y + title.getHeight() / 2);
+            assertEquals("標題列空白區不應切換迷你", 0, toggles.get());
+
+            java.awt.Point titleScreen = titleName.getLocationOnScreen();
+            click(titleName, titleScreen.x + 8, titleScreen.y + titleName.getHeight() / 2);
+            assertEquals(1, toggles.get());
+
+            click(titleName, titleScreen.x + 8, titleScreen.y + titleName.getHeight() / 2);
+            assertEquals(2, toggles.get());
+
+            java.awt.Point glyphScreen = collapse.getLocationOnScreen();
+            click(collapse, glyphScreen.x + collapse.getWidth() / 2, glyphScreen.y + collapse.getHeight() / 2);
+            assertEquals(3, toggles.get());
+
+            int dragX = gapX + 40;
+            title.dispatchEvent(mouse(title, MouseEvent.MOUSE_PRESSED, dragX, 10,
+                    screen.x + dragX, screen.y + 10, 1));
+            title.dispatchEvent(mouse(title, MouseEvent.MOUSE_DRAGGED, dragX + 80, 30,
+                    screen.x + dragX + 80, screen.y + 30, 0));
+            title.dispatchEvent(mouse(title, MouseEvent.MOUSE_RELEASED, dragX + 80, 30,
+                    screen.x + dragX + 80, screen.y + 30, 1));
+            assertEquals("拖曳不應再觸發縮小", 3, toggles.get());
+            assertEquals(fx[0] + 80, holder[0].getX());
+            assertEquals(fy[0] + 20, holder[0].getY());
+        } finally {
+            SwingUtilities.invokeAndWait(() -> holder[0].dispose());
+        }
+    }
+
+    @Test
     public void mainTitleDropsCommitAndTime() {
         assertEquals(AppBranding.DISPLAY_NAME + " v4.0.0", WindowChrome.mainTitle(
                 AppBranding.DISPLAY_NAME + "  v4.0.0 · a1b2c3d（提交 2026-11-06 14:05）"));
@@ -374,6 +439,28 @@ public class WindowChromeTest {
         if (root instanceof Container) {
             for (Component child : ((Container) root).getComponents()) {
                 JButton found = findButton(child, tip);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static void click(Component target, int screenX, int screenY) {
+        java.awt.Point local = new java.awt.Point(screenX, screenY);
+        SwingUtilities.convertPointFromScreen(local, target);
+        target.dispatchEvent(mouse(target, MouseEvent.MOUSE_PRESSED, local.x, local.y, screenX, screenY, 1));
+        target.dispatchEvent(mouse(target, MouseEvent.MOUSE_RELEASED, local.x, local.y, screenX, screenY, 1));
+    }
+
+    private static Component findNamed(Container root, String name) {
+        for (Component child : root.getComponents()) {
+            if (name.equals(child.getName())) {
+                return child;
+            }
+            if (child instanceof Container) {
+                Component found = findNamed((Container) child, name);
                 if (found != null) {
                     return found;
                 }
