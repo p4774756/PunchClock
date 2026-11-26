@@ -390,6 +390,35 @@ public class WindowChromeTest {
     }
 
     @Test
+    public void chromeControlsShareButtonSize() throws Exception {
+        Assume.assumeFalse("headless JVM cannot create frames", GraphicsEnvironment.isHeadless());
+        JFrame[] holder = new JFrame[1];
+        SwingUtilities.invokeAndWait(() -> {
+            JFrame frame = new JFrame("按鈕");
+            holder[0] = frame;
+            WindowChrome.install(frame, frame.getTitle(), null,
+                    new Font(Font.SANS_SERIF, Font.BOLD, 13),
+                    new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+            frame.pack();
+        });
+        try {
+            JButton min = findButton(holder[0], "最小化");
+            JButton max = findButton(holder[0], "最大化");
+            JButton close = findButton(holder[0], "關閉");
+            assertNotNull(min);
+            assertNotNull(max);
+            assertNotNull(close);
+            Dimension d = min.getPreferredSize();
+            assertEquals(d, max.getPreferredSize());
+            assertEquals(d, close.getPreferredSize());
+            assertEquals(18, d.width);
+            assertEquals(16, d.height);
+        } finally {
+            SwingUtilities.invokeAndWait(() -> holder[0].dispose());
+        }
+    }
+
+    @Test
     public void titleBarStaysInsideTheWorkArea() {
         Rectangle panel = new Rectangle(40, -40, 1100, 700);
         Rectangle work = new Rectangle(0, 25, 1440, 790);

@@ -683,7 +683,7 @@ public final class WindowChrome {
         collapseGlyph.putClientProperty(TITLE_MINI_ZONE, Boolean.TRUE);
         collapseGlyph.setToolTipText(MINI_TOGGLE_TOOLTIP);
 
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
         buttons.setOpaque(false);
         buttons.putClientProperty("punchclock.chromeControls", Boolean.TRUE);
         // Mac Aqua L&F 會把按鈕文字擠成「...」；改成自繪圖示，不依賴字元。
@@ -869,8 +869,11 @@ public final class WindowChrome {
             int y0 = insets.top;
             int innerW = Math.max(0, parent.getWidth() - insets.left - insets.right);
             int innerH = Math.max(0, parent.getHeight() - insets.top - insets.bottom);
-            int buttonW = buttons.getPreferredSize().width;
-            buttons.setBounds(x0 + innerW - buttonW, y0, buttonW, innerH);
+            Dimension buttonSize = buttons.getPreferredSize();
+            int buttonW = buttonSize.width;
+            int buttonH = buttonSize.height;
+            int buttonY = y0 + Math.max(0, (innerH - buttonH) / 2);
+            buttons.setBounds(x0 + innerW - buttonW, buttonY, buttonW, buttonH);
 
             FontMetrics metrics = title.getFontMetrics(title.getFont());
             int iconW = icon == null ? 0 : icon.getPreferredSize().width;
