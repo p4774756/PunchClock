@@ -78,6 +78,14 @@ public class HomeBubbleFormatTest {
         HomeBrief brief = HomeBrief.testSnapshot(2, 0, 0, 0, null, "", "");
         HomeBubbleFormat.BubbleLine line = HomeBubbleFormat.resolve(brief, List.of(), "", "");
         assertTrue(line.text.contains("完成"));
+        assertTrue(!line.text.contains("♡"));
+    }
+
+    @Test
+    public void moodFallbackIsAmbient() {
+        HomeBubbleFormat.BubbleLine line = HomeBubbleFormat.resolve(HomeBrief.empty(), List.of(), "", "午安");
+        assertTrue(line.ambientMood);
+        assertTrue(!line.openLog);
     }
 
     private static CheckInTask task(String name, LocalDateTime when, TaskStatus status) {

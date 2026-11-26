@@ -266,6 +266,10 @@ public final class AnimeShell extends JPanel {
 
     public void setFriendNavUnread(int count) {
         int next = Math.max(0, count);
+        if (next > friendNavUnread) {
+            board.sayUnread(HomeMoodPool.pickUnread(-1));
+            repaint(board.bubbleArea());
+        }
         if (friendNavUnread == next) {
             return;
         }
@@ -418,14 +422,29 @@ public final class AnimeShell extends JPanel {
 
     public void setHomeActions(HomeActions actions) {
         this.homeActions = actions;
+        wireMoodPickers();
         refreshBubble();
         repaint();
+    }
+
+    private void wireMoodPickers() {
+        if (homeActions == null) {
+            board.setMoodPicker(i -> "", () -> HomeMoodPool.Band.MORNING);
+            board.setClickPicker(HomeMoodPool::pickClick);
+            return;
+        }
+        board.setMoodPicker(
+                i -> HomeMoodPool.moodAt(homeActions.moodBand(), i),
+                homeActions::moodBand);
+        board.setClickPicker(i -> HomeMoodPool.clickAt(i));
     }
 
     public interface HomeActions {
         HomeBrief read();
 
         String moodLine();
+
+        HomeMoodPool.Band moodBand();
 
         List<CheckInTask> tasks();
 
@@ -554,12 +573,15 @@ public final class AnimeShell extends JPanel {
             greet();
             return;
         }
-        if (id == HomeBoard.BUBBLE && board.bubbleOpensLog()) {
-            if (homeActions != null) {
-                homeActions.openLog();
-            } else {
-                openTab(3);
+        if (id == HomeBoard.BUBBLE) {
+            if (board.bubbleOpensLog()) {
+                if (homeActions != null) {
+                    homeActions.openLog();
+                } else {
+                    openTab(3);
+                }
             }
+            greet();
             return;
         }
         if (homeActions == null) {
@@ -674,6 +696,11 @@ public final class AnimeShell extends JPanel {
     }
 
     private void paintHome(Graphics2D g, java.awt.Rectangle area) {
+        BufferedImage background = homeIllustrations.get(homeIllustration);
+        int imgW = background == null ? 1 : background.getWidth();
+        int imgH = background == null ? 1 : background.getHeight();
+        board.setIllustrationContext(
+                homeIllustration, imgW, imgH, swapIllustrationButton.getBounds());
         board.paint(g, hot == HomeBoard.BUBBLE ? HomeBoard.BUBBLE : -1);
     }
 
