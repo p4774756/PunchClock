@@ -2989,7 +2989,6 @@ public class App extends JFrame {
                     } else {
                         serverRefs.heartbeatStatusLabel.setText("[異常] HTTP POST 異常");
                         serverRefs.heartbeatStatusLabel.setForeground(new Color(239, 68, 68));
-                        appendLog("[提示] 若為 401，請先取消「啟用雲端」→ 修改 Token / 網址 → 再重新勾選");
                     }
                     refreshMainStatusBar();
                 });
@@ -2997,15 +2996,41 @@ public class App extends JFrame {
         }
     }
 
+    private static final int MAX_SYSTEM_LOG_LINES = 500;
+
     private void appendLog(String message) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         String timestamp = LocalDateTime.now().format(formatter);
         String logMessage = "[" + timestamp + "] " + message;
         SwingUtilities.invokeLater(() -> {
             logRefs.logTextArea.append(logMessage + "\n");
+            trimSystemLogToMaxLines();
             logRefs.logTextArea.setCaretPosition(logRefs.logTextArea.getDocument().getLength());
         });
         System.out.println(logMessage);
+    }
+
+    private void trimSystemLogToMaxLines() {
+        String text = logRefs.logTextArea.getText();
+        int lineCount = 0;
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\n') {
+                lineCount++;
+            }
+        }
+        if (lineCount <= MAX_SYSTEM_LOG_LINES) {
+            return;
+        }
+        int toRemove = lineCount - MAX_SYSTEM_LOG_LINES;
+        int cut = 0;
+        for (int removed = 0; removed < toRemove && cut < text.length(); cut++) {
+            if (text.charAt(cut) == '\n') {
+                removed++;
+            }
+        }
+        if (cut < text.length()) {
+            logRefs.logTextArea.setText(text.substring(cut + 1));
+        }
     }
 
     public static void main(String[] args) {
