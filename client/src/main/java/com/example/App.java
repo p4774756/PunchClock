@@ -46,6 +46,7 @@ import com.example.ui.hud.ShellDimensions;
 import com.example.ui.WindowChrome;
 import com.example.ui.WindowOpacity;
 import com.example.ui.WindowShake;
+import com.example.ui.TaskbarPeerUnread;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -843,6 +844,7 @@ public class App extends JFrame {
         rememberPeerAvatar(fromId, avatar);
         InboundPeerDelivery.deliver(chatWindows, chatStore, fromId, text, imageEncoded, sentAtMs);
         markPeerUnread(fromId);
+        maybeRequestDockAttentionForInboundPeer();
     }
 
     private void markPeerUnread(String peerId) {
@@ -867,6 +869,14 @@ public class App extends JFrame {
         }
         if (shell != null) {
             shell.setFriendNavUnread(unreadPeerIds.size());
+        }
+        TaskbarPeerUnread.syncBadge(unreadPeerIds.size());
+    }
+
+    private void maybeRequestDockAttentionForInboundPeer() {
+        Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
+        if (TaskbarPeerUnread.shouldRequestDockAttention(focused, this, chatWindows.values())) {
+            TaskbarPeerUnread.requestDockAttentionOnce();
         }
     }
 
@@ -1588,6 +1598,7 @@ public class App extends JFrame {
             presentPendingRelayOffer(fromId, openWindow);
         } else {
             markPeerUnread(fromId);
+            maybeRequestDockAttentionForInboundPeer();
         }
         notifyPet(DesktopPetEvent.FILE_OFFERED, () -> openPetChat(fromId));
     }
