@@ -1,6 +1,5 @@
 package com.example.pet;
 
-import com.example.ui.CandyTheme;
 import com.example.ui.UiFonts;
 
 import javax.swing.JPanel;
@@ -45,11 +44,12 @@ final class PetContextMenu extends JPanel {
     static final Color SEP = new Color(0xE8, 0xD4, 0xE0);
     static final Color HOVER = new Color(0xFF, 0xE4, 0xF0);
     static final Color MUTED = new Color(0x9A, 0x88, 0x92);
-    static final Color INK = CandyTheme.PINK_INK;
+    static final Color INK = new Color(0x3A, 0x18, 0x28);
     static final Color BAR_TRACK = new Color(0xF0, 0xE0, 0xE8);
     static final Color BAR_HUNGER = new Color(0xFF, 0x9A, 0x6E);
-    static final Color BAR_MOOD = CandyTheme.PINK;
+    static final Color BAR_MOOD = new Color(0xFF, 0x78, 0xB5);
     static final Color BAR_ENERGY = new Color(0x8E, 0xB4, 0xE8);
+    static final Color CONTROL_MARK = new Color(0xE5, 0x58, 0x9C);
 
     enum RowKind {
         STATUS, CONTROL, CARE, DEBUG
@@ -257,7 +257,7 @@ final class PetContextMenu extends JPanel {
                 if (row.kind == RowKind.CONTROL && row.checked) {
                     String mark = "✓";
                     int mw = metrics.stringWidth(mark);
-                    g.setColor(CandyTheme.PINK_DEEP);
+                    g.setColor(CONTROL_MARK);
                     g.drawString(mark, ox + w - PAD_H - mw, textY);
                 }
                 y += ROW_H;

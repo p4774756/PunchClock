@@ -595,8 +595,8 @@ public final class DesktopPetSpriteLoader {
                     breath,
                     place(BLINK_1, defringe(blink1)),
                     place(BLINK_2, defringe(blink2)),
-                    loadOptional(WALK_LEFT),
-                    loadOptional(WALK_RIGHT),
+                    loadWalk(WALK_LEFT),
+                    loadWalk(WALK_RIGHT),
                     loadOptional(WAVE),
                     loadOptional(SIT),
                     loadOptional(SLEEP),
@@ -635,6 +635,21 @@ public final class DesktopPetSpriteLoader {
             shifted[i] = new Sprite(sprite.image, sprite.name, sprite.offsetX, offsetY, sprite.anchorX, sprite.anchorY);
         }
         return shifted;
+    }
+
+  private static Sprite[] loadWalk(String[] paths) {
+        List<Sprite> accepted = new ArrayList<Sprite>();
+        for (String path : paths) {
+            try {
+                BufferedImage image = read(path);
+                if (usableWalk(image)) {
+                    accepted.add(place(path, defringe(image)));
+                }
+            } catch (IOException ex) {
+                // 單張讀取失敗就略過，其他動作照常。
+            }
+        }
+        return accepted.toArray(new Sprite[0]);
     }
 
     private static Sprite[] loadOptional(String[] paths) {
@@ -737,6 +752,43 @@ public final class DesktopPetSpriteLoader {
      * 畫布邊緣被角色碰到、腳下有寬標籤底、細長分離線，或角色外面有殘塊時回傳 false。
      * 頭上的小塊效果（例如 Z）留著。
      */
+  static boolean usableWalk(BufferedImage image) {
+        if (!acceptable(image)) {
+            return false;
+        }
+        List<int[]> blobs = blobs(image);
+        if (blobs.isEmpty()) {
+            return false;
+        }
+        int[] body = blobs.get(0);
+        int width = image.getWidth();
+        int height = image.getHeight();
+        for (int i = 1; i < blobs.size(); i++) {
+            int[] blob = blobs.get(i);
+            if (inside(blob, body, 6)) {
+                continue;
+            }
+            int blobW = blob[3] - blob[1] + 1;
+            int blobH = blob[4] - blob[2] + 1;
+            boolean thinBar = (blobH <= 14 && blobW >= 80) || (blobW <= 8 && blobH >= 80);
+            boolean captionPlate = blob[2] >= height - 70 && blobW >= 80;
+            if (thinBar || captionPlate) {
+                return false;
+            }
+            int centerY = (blob[2] + blob[4]) / 2;
+            int aspectSpan = Math.max(blobW, blobH);
+            int aspectBase = Math.max(1, Math.min(blobW, blobH));
+            boolean aboveHead = centerY < body[2] && aspectSpan < aspectBase * 3.5 && blob[0] < 3000;
+            if (aboveHead) {
+                continue;
+            }
+            if (blob[0] >= 80) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static boolean usable(BufferedImage image) {
         return usable(image, false);
     }

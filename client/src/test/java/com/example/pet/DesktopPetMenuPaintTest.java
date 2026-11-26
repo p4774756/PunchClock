@@ -165,6 +165,42 @@ public class DesktopPetMenuPaintTest {
     }
 
     @Test
+    public void menuInkContrastsWithBackground() throws Exception {
+        int bgLum = menuLuminance(PetContextMenu.BG);
+        int inkLum = menuLuminance(PetContextMenu.INK);
+        assertTrue("menu label should contrast with background", bgLum - inkLum >= 40);
+
+        long t = 1_700_000_000_000L;
+        DesktopPetCare care = new DesktopPetCare(() -> t);
+        care.setEnabled(true, t);
+        final BufferedImage[] shot = new BufferedImage[1];
+        SwingUtilities.invokeAndWait(() -> {
+            UiFonts.chinesePlain(13);
+            PetContextMenu menu = PetContextMenu.build(
+                    true, false, true, care, t, noopListener());
+            java.awt.Dimension size = menu.getPreferredSize();
+            shot[0] = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = shot[0].createGraphics();
+            try {
+                menu.setSize(size);
+                menu.paint(g);
+            } finally {
+                g.dispose();
+            }
+        });
+        assertNotNull(shot[0]);
+        int ox = PetContextMenu.SHADOW_PAD;
+        int oy = PetContextMenu.SHADOW_PAD;
+        int controlTop = oy + PetContextMenu.STATUS_BLOCK + PetContextMenu.SEP_H + PetContextMenu.SEP_H;
+        int labelLeft = ox + PetContextMenu.PAD_H + 26;
+        int labelRight = ox + PetContextMenu.WIDTH - PetContextMenu.PAD_H;
+        int darkest = darkestLuminance(shot[0], labelLeft, controlTop, labelRight, controlTop + PetContextMenu.ROW_H);
+        assertTrue(
+                "painted menu row should look darker than the panel background",
+                bgLum - darkest >= 35);
+    }
+
+    @Test
     public void paintMenuToBufferedImageForScreenshot() throws Exception {
         long t = 1_700_000_000_000L;
         DesktopPetCare care = new DesktopPetCare(() -> t);
@@ -191,6 +227,35 @@ public class DesktopPetMenuPaintTest {
         ImageIO.write(shot[0], "png", out.toFile());
         assertTrue(Files.exists(out));
         assertTrue(Files.size(out) > 500L);
+    }
+
+    private static int darkestLuminance(BufferedImage image, int x0, int y0, int x1, int y1) {
+        int darkest = Integer.MAX_VALUE;
+        int top = Math.max(0, y0);
+        int bottom = Math.min(image.getHeight(), y1);
+        int left = Math.max(0, x0);
+        int right = Math.min(image.getWidth(), x1);
+        for (int y = top; y < bottom; y++) {
+            for (int x = left; x < right; x++) {
+                int argb = image.getRGB(x, y);
+                if (((argb >> 24) & 0xff) < 128) {
+                    continue;
+                }
+                darkest = Math.min(darkest, menuLuminance(argb));
+            }
+        }
+        return darkest == Integer.MAX_VALUE ? menuLuminance(PetContextMenu.BG) : darkest;
+    }
+
+    private static int menuLuminance(java.awt.Color color) {
+        return menuLuminance(color.getRGB());
+    }
+
+    private static int menuLuminance(int rgb) {
+        int r = (rgb >> 16) & 0xff;
+        int g = (rgb >> 8) & 0xff;
+        int b = rgb & 0xff;
+        return (r * 299 + g * 587 + b * 114) / 1000;
     }
 
     private static PetControlKeyBindings.Handler noopHandler() {
