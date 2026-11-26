@@ -216,9 +216,11 @@ export function phraseForDoneDisplay(row) {
   return titleForDoneDisplay(row);
 }
 
+const MAX_DONE_DURATION_MINUTES = 30 * 24 * 60;
+
 export function formatDoneDuration(minutes) {
   const m = Number(minutes);
-  if (!Number.isFinite(m) || m < 0) return '';
+  if (!Number.isFinite(m) || m < 0 || m > MAX_DONE_DURATION_MINUTES) return '';
   if (m === 0) return '耗時 < 1 分';
   if (m < 60) return '耗時 ' + m + ' 分';
   const hours = Math.floor(m / 60);

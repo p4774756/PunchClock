@@ -154,6 +154,7 @@ test('formatDoneDuration 耗時字樣', () => {
   assert.equal(formatDoneDuration(72), '耗時 1 時 12 分');
   assert.equal(formatDoneDuration(60), '耗時 1 時');
   assert.equal(formatDoneDuration(0), '耗時 < 1 分');
+  assert.equal(formatDoneDuration(16_666_620), '');
 });
 
 test('phraseForActiveDisplay 空泛句改標題', () => {

@@ -178,14 +178,14 @@ public final class UiFonts {
                 }
             });
 
-            JButton copyButton = new JButton("複製圖片");
+            CandyButton copyButton = new CandyButton("複製圖片", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
             copyButton.setFont(chinesePlain(12));
             copyButton.addActionListener(e -> {
                 if (copyImageToClipboard(image)) {
                     copyButton.setText("已複製");
                 }
             });
-            JButton saveButton = new JButton("另存圖片");
+            CandyButton saveButton = new CandyButton("另存圖片", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
             saveButton.setFont(chinesePlain(12));
             saveButton.addActionListener(e -> saveImageWithDialog(parent, image));
             JPanel saveRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
@@ -207,7 +207,21 @@ public final class UiFonts {
             label.setFont(chinesePlain(13));
             panel.add(label, BorderLayout.CENTER);
         }
-        JOptionPane.showMessageDialog(parent, panel, title, messageType, icon);
+        JDialog dialog = modelessDialog(parent, title == null ? "" : title);
+        JPanel shell = new JPanel(new BorderLayout());
+        shell.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        shell.add(panel, BorderLayout.CENTER);
+        CandyButton close = new CandyButton("關閉", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
+        close.setFont(chinesePlain(12));
+        close.addActionListener(e -> dialog.dispose());
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
+        actions.setOpaque(false);
+        actions.add(close);
+        shell.add(actions, BorderLayout.SOUTH);
+        dialog.setContentPane(shell);
+        dialog.pack();
+        dialog.setLocationRelativeTo(ownerOf(parent));
+        dialog.setVisible(true);
     }
 
     private static Image fitForDisplay(BufferedImage image, int maxW, int maxH) {
@@ -302,7 +316,7 @@ public final class UiFonts {
         JPanel body = new JPanel(new BorderLayout(0, 12));
         body.setBorder(BorderFactory.createEmptyBorder(16, 18, 16, 18));
         body.add(messageBody(message), BorderLayout.CENTER);
-        JButton close = new JButton("關閉");
+        CandyButton close = new CandyButton("關閉", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
         close.setFont(chinesePlain(13));
         close.addActionListener(e -> dialog.dispose());
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
@@ -346,8 +360,12 @@ public final class UiFonts {
         JPanel body = new JPanel(new BorderLayout(0, 12));
         body.setBorder(BorderFactory.createEmptyBorder(16, 18, 16, 18));
         body.add(messageBody(message), BorderLayout.CENTER);
-        JButton accept = new JButton(yesText == null || yesText.isBlank() ? "確定" : yesText);
-        JButton decline = new JButton(noText == null || noText.isBlank() ? "取消" : noText);
+        CandyButton accept = new CandyButton(
+                yesText == null || yesText.isBlank() ? "確定" : yesText,
+                CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
+        CandyButton decline = new CandyButton(
+                noText == null || noText.isBlank() ? "取消" : noText,
+                CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         accept.setFont(chinesePlain(13));
         decline.setFont(chinesePlain(13));
         accept.addActionListener(e -> yes.run());

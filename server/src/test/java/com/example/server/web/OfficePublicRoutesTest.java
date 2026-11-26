@@ -36,6 +36,7 @@ import java.util.regex.Pattern;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class OfficePublicRoutesTest {
@@ -379,6 +380,20 @@ public class OfficePublicRoutesTest {
                 .getAsJsonArray("completedToday").get(0).getAsJsonObject();
         assertEquals("秘密標題", item.get("title").getAsString());
         assertFalse(item.has("phrase"));
+    }
+
+    @Test
+    public void devDurationMinutesNormalizesUnixSeconds() {
+        long mergedAt = 1_730_000_000_000L;
+        long devStartSec = 1_729_999_000L;
+        assertEquals(Long.valueOf(16L),
+                OfficePublicRoutes.OfficePublicPayload.devDurationMinutes(mergedAt, devStartSec));
+    }
+
+    @Test
+    public void devDurationMinutesRejectsAbsurdSpan() {
+        long mergedAt = 1_730_000_000_000L;
+        assertNull(OfficePublicRoutes.OfficePublicPayload.devDurationMinutes(mergedAt, 1_000L));
     }
 
     @Test

@@ -8,11 +8,13 @@ import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.Scrollable;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
+import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
+import javax.swing.border.LineBorder;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -20,6 +22,8 @@ import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
@@ -34,12 +38,15 @@ import java.util.List;
 import java.util.function.Consumer;
 
 /**
- * 聊天視窗的對話區。所有訊息靠左，標題為「名字 (時間):」。
- * 長文在區塊內換行；程式碼與 stack trace 保留縮排，改在區塊內左右捲動。
+ * 聊天視窗的對話區。訊息靠左；程式碼區塊自動換行、可展開收合。
  */
 public class PeerChatTranscript extends JPanel implements Scrollable {
 
     static final int THUMB_EDGE = 220;
+    static final int CODE_COLLAPSE_LINES = 15;
+    private static final Color CODE_BG = new Color(0x2A, 0x2E, 0x36);
+    private static final Color CODE_INK = new Color(0xE8, 0xEA, 0xED);
+    private static final Color CODE_BORDER = new Color(0x4A, 0x4F, 0x58);
 
     private final String peerId;
     private final Font bodyFont;
@@ -68,9 +75,23 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         });
     }
 
-    /** 點圖片時要做什麼（通常是開一個可另存的檢視視窗）。 */
     public void setImageViewer(Consumer<BufferedImage> viewer) {
         this.imageViewer = viewer;
+    }
+
+    public PeerChatRelayCard addRelayCard() {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            throw new IllegalStateException("addRelayCard on EDT");
+        }
+        PeerChatRelayCard card = new PeerChatRelayCard(bodyFont);
+        JPanel line = wrapLeft(card);
+        add(line);
+        laidWidth = -1;
+        refit(Math.max(getWidth(), 360));
+        revalidate();
+        repaint();
+        SwingUtilities.invokeLater(this::scrollToEnd);
+        return card;
     }
 
     public void append(PeerChatStore.Entry entry) {
@@ -85,7 +106,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         MessageView view = new MessageView(entry);
         views.add(view);
         add(view.row);
-        // 寬度沒變時舊的 refit 會直接 return，後加的訊息就沒做 fit，短寬度會把字切掉。
         int width = Math.max(getWidth(), 360);
         laidWidth = -1;
         refit(width);
@@ -107,21 +127,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         repaint();
     }
 
-    private void rebuild() {
-        removeAll();
-        views.clear();
-        for (PeerChatStore.Entry entry : entries) {
-            MessageView view = new MessageView(entry);
-            views.add(view);
-            add(view.row);
-        }
-        laidWidth = -1;
-        refit(Math.max(getWidth(), 360));
-        revalidate();
-        repaint();
-    }
-
-    /** 測試用：這段文字落在左邊、右邊或中間。 */
     String sideOf(String snippet) {
         for (MessageView view : views) {
             if (view.contains(snippet)) {
@@ -131,7 +136,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         return "";
     }
 
-    /** 測試用：氣泡裡的原文，含換行與縮排。 */
     String bodyOf(String snippet) {
         for (MessageView view : views) {
             if (view.contains(snippet)) {
@@ -160,7 +164,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         return false;
     }
 
-    /** 從傳檔提示裡取出檔名、大小與狀態。不是檔案訊息時回傳 null。 */
     static FileNotice fileNotice(String text) {
         if (text == null) {
             return null;
@@ -194,7 +197,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         return text.contains("Exception") || text.contains("Caused by:") || text.contains("\tat ");
     }
 
-    /** 放上剪貼簿的文字。圖片沒有文字時是空字串。 */
     static String copyPayload(PeerChatStore.Entry entry) {
         if (entry == null) {
             return "";
@@ -202,7 +204,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         return entry.text == null ? "" : entry.text;
     }
 
-    /** 氣泡標題上的來源。自己送出的顯示「我」，對方顯示名稱，名稱和裝置不同時兩個都留。 */
     static String sourceLabel(PeerChatStore.Entry entry, String conversationId) {
         if (entry == null) {
             return "";
@@ -213,7 +214,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             if (file == null) {
                 return "";
             }
-            // 傳檔提示一律記成 outgoing，方向要看文字
             outgoing = !file.status.startsWith("對方");
         }
         if (outgoing) {
@@ -227,12 +227,24 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         return name.isEmpty() ? "對方" : name;
     }
 
-    /** 有縮排、stack trace 或圍欄程式碼時，不要依單字折行。 */
+    static String messageTitle(PeerChatStore.Entry entry, String conversationId, ZoneId zone) {
+        String source = sourceLabel(entry, conversationId);
+        String when = formatTime(entry == null ? 0L : entry.timeMs, zone);
+        if (source.isEmpty()) {
+            return when;
+        }
+        return source + " · " + when;
+    }
+
+  /** 有縮排、stack trace、圍欄，或多行像程式碼的純文字。 */
     static boolean preserveLayout(String text) {
         if (text == null || text.isEmpty()) {
             return false;
         }
         if (text.contains("```")) {
+            return true;
+        }
+        if (looksLikeSourceCode(text)) {
             return true;
         }
         String[] lines = text.split("\n", -1);
@@ -253,8 +265,69 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         return indented || trace;
     }
 
+    static boolean looksLikeSourceCode(String text) {
+        if (text == null || !text.contains("\n")) {
+            return false;
+        }
+        String[] lines = text.split("\n", -1);
+        if (lines.length < 2) {
+            return false;
+        }
+        int keywordLines = 0;
+        int punct = 0;
+        int nonEmpty = 0;
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            nonEmpty++;
+            if (trimmed.startsWith("package ")
+                    || trimmed.startsWith("import ")
+                    || trimmed.startsWith("public class ")
+                    || trimmed.startsWith("public interface ")
+                    || trimmed.startsWith("public enum ")) {
+                keywordLines++;
+            }
+            for (int i = 0; i < trimmed.length(); i++) {
+                char ch = trimmed.charAt(i);
+                if (ch == '{' || ch == '}' || ch == ';') {
+                    punct++;
+                }
+            }
+        }
+        if (keywordLines >= 2) {
+            return true;
+        }
+        return nonEmpty >= 3 && punct >= nonEmpty;
+    }
+
+    static int countLines(String text) {
+        if (text == null || text.isEmpty()) {
+            return 0;
+        }
+        int lines = 1;
+        for (int i = 0; i < text.length(); i++) {
+            if (text.charAt(i) == '\n') {
+                lines++;
+            }
+        }
+        return lines;
+    }
+
+    private JPanel wrapLeft(JComponent block) {
+        JPanel line = new JPanel(new BorderLayout());
+        line.setOpaque(false);
+        line.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
+        line.setAlignmentX(Component.LEFT_ALIGNMENT);
+        block.setAlignmentX(Component.LEFT_ALIGNMENT);
+        line.add(block, BorderLayout.CENTER);
+        lock(line);
+        return line;
+    }
+
     private void refit(int width) {
-        if (width <= 0 || views.isEmpty()) {
+        if (width <= 0) {
             return;
         }
         if (width == laidWidth) {
@@ -296,7 +369,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         return false;
     }
 
-    /** 今天只顯示時間，其他日期加上月日。 */
     static String formatTime(long epochMs, ZoneId zone) {
         java.time.ZonedDateTime time = Instant.ofEpochMilli(epochMs).atZone(zone);
         boolean today = time.toLocalDate().equals(LocalDate.now(zone));
@@ -309,20 +381,19 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         private final boolean preserved;
         private final JComponent row;
         private final JTextArea body;
-        private final JScrollPane bodyScroll;
+        private boolean expanded;
+        private JPanel codeShell;
 
         private MessageView(PeerChatStore.Entry entry) {
             this.entry = entry;
             this.preserved = entry.kind == PeerChatStore.Kind.MESSAGE
                     && preserveLayout(entry.text);
-            FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
             if (entry.kind == PeerChatStore.Kind.POKE) {
                 side = "";
             } else {
                 side = "left";
             }
             body = buildBody();
-            bodyScroll = preserved ? scrollAround(body) : null;
             row = buildRow();
         }
 
@@ -354,14 +425,20 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         }
 
         private void fit(int contentWidth) {
-            if (body == null) {
+            if (body == null && codeShell == null) {
                 lock(row);
                 return;
             }
-            if (preserved) {
-                bodyScroll.setPreferredSize(new Dimension(contentWidth, blockHeight(body)));
-                bodyScroll.setMaximumSize(new Dimension(contentWidth, blockHeight(body)));
-            } else {
+            if (preserved && body != null) {
+                int lineH = body.getFontMetrics(body.getFont()).getHeight();
+                int lines = countLines(body.getText());
+                int showLines = expanded ? lines : Math.min(lines, CODE_COLLAPSE_LINES);
+                int height = Math.max(lineH + 8, showLines * lineH + 12);
+                if (codeShell != null) {
+                    codeShell.setPreferredSize(new Dimension(contentWidth, height + 36));
+                    codeShell.setMaximumSize(new Dimension(contentWidth, height + 36));
+                }
+            } else if (body != null) {
                 body.setSize(new Dimension(contentWidth, Short.MAX_VALUE));
                 Dimension pref = body.getPreferredSize();
                 body.setPreferredSize(new Dimension(contentWidth, pref.height));
@@ -386,7 +463,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             JPanel panel = new JPanel(new BorderLayout(0, 2));
             panel.setOpaque(false);
             panel.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
-            panel.setBorder(new EmptyBorder(0, 0, 6, 0));
+            panel.setBorder(new EmptyBorder(0, 0, 12, 0));
             panel.add(header(), BorderLayout.NORTH);
             FileNotice file = entry.kind == PeerChatStore.Kind.NOTE ? fileNotice(entry.text) : null;
             if (entry.kind == PeerChatStore.Kind.POKE) {
@@ -394,7 +471,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
                         BorderLayout.CENTER);
             } else if (file != null) {
                 panel.add(fileCard(file), BorderLayout.CENTER);
-            } else if (bodyScroll != null) {
+            } else if (preserved) {
                 panel.add(codeBlock(), BorderLayout.CENTER);
             } else if (body != null && entry.text != null && !entry.text.isEmpty()) {
                 panel.add(body, BorderLayout.CENTER);
@@ -409,10 +486,9 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             JPanel header = new JPanel(new BorderLayout());
             header.setOpaque(false);
             header.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
-            String source = sourceLabel(entry, peerId);
-            String when = formatTime(entry.timeMs, ZoneId.systemDefault());
-            String title = source.isEmpty() ? when + ":" : source + " (" + when + "):";
-            JLabel label = plainLabel(title, bodyFont.deriveFont(Font.BOLD), CandyTheme.INK);
+            String title = messageTitle(entry, peerId, ZoneId.systemDefault());
+            JLabel label = plainLabel(title, bodyFont.deriveFont((float) Math.max(10, fontSize - 2)),
+                    CandyTheme.MUTED);
             header.add(label, BorderLayout.WEST);
             return header;
         }
@@ -424,14 +500,19 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             JTextArea area = new JTextArea(entry.text);
             area.setFont(preserved ? codeFont : bodyFont);
             area.setEditable(false);
-            area.setOpaque(false);
-            area.setForeground(CandyTheme.INK);
-            area.setCaretColor(CandyTheme.INK);
-            area.setLineWrap(!preserved);
+            area.setOpaque(!preserved);
+            if (preserved) {
+                area.setBackground(CODE_BG);
+                area.setForeground(CODE_INK);
+            } else {
+                area.setBackground(CandyTheme.PANEL);
+                area.setForeground(CandyTheme.INK);
+            }
+            area.setCaretColor(area.getForeground());
+            area.setLineWrap(true);
             area.setWrapStyleWord(false);
             area.setTabSize(4);
-            area.putClientProperty(CandyTextField.MARK, Boolean.TRUE);
-            area.setBorder(new EmptyBorder(0, 0, 0, 0));
+            area.setBorder(new EmptyBorder(4, 6, 4, 6));
             return area;
         }
 
@@ -470,18 +551,55 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         }
 
         private JComponent codeBlock() {
-            JPanel stack = new JPanel();
-            stack.setOpaque(false);
-            stack.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
-            stack.setLayout(new javax.swing.BoxLayout(stack, javax.swing.BoxLayout.Y_AXIS));
+            codeShell = new JPanel(new BorderLayout(0, 4));
+            codeShell.setOpaque(true);
+            codeShell.setBackground(CODE_BG);
+            codeShell.setBorder(new CompoundBorder(new LineBorder(CODE_BORDER), new EmptyBorder(6, 6, 6, 6)));
+            codeShell.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
+
+            JPanel top = new JPanel(new BorderLayout(0, 0));
+            top.setOpaque(false);
             String caption = isStackTrace(entry.text) ? "錯誤訊息" : "程式碼";
-            JLabel label = plainLabel(caption, bodyFont.deriveFont((float) Math.max(11, fontSize - 2)),
-                    CandyTheme.LAVENDER);
-            label.setAlignmentX(Component.LEFT_ALIGNMENT);
-            stack.add(label);
-            bodyScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
-            stack.add(bodyScroll);
-            return stack;
+            JLabel label = plainLabel(caption, bodyFont.deriveFont((float) Math.max(11, fontSize - 2)), CODE_INK);
+            top.add(label, BorderLayout.WEST);
+
+            CandyButton copy = new CandyButton("複製", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+            copy.setFont(bodyFont.deriveFont((float) Math.max(11, fontSize - 2)));
+            copy.addActionListener(e -> {
+                String payload = copyPayload(entry);
+                Toolkit.getDefaultToolkit().getSystemClipboard()
+                        .setContents(new StringSelection(payload), null);
+                copy.setText("已複製");
+                Timer reset = new Timer(1200, ev -> copy.setText("複製"));
+                reset.setRepeats(false);
+                reset.start();
+            });
+            top.add(copy, BorderLayout.EAST);
+            codeShell.add(top, BorderLayout.NORTH);
+            codeShell.add(body, BorderLayout.CENTER);
+
+            int lines = countLines(entry.text);
+            if (lines > CODE_COLLAPSE_LINES) {
+                JPanel fold = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+                fold.setOpaque(false);
+                CandyButton toggle = new CandyButton("展開", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+                toggle.setFont(bodyFont.deriveFont((float) Math.max(11, fontSize - 2)));
+                toggle.addActionListener(e -> {
+                    expanded = !expanded;
+                    toggle.setText(expanded ? "收合" : "展開");
+                    laidWidth = -1;
+                    refit(Math.max(getWidth(), 360));
+                    revalidate();
+                    repaint();
+                });
+                fold.add(toggle);
+                codeShell.add(fold, BorderLayout.SOUTH);
+            }
+
+            JPanel wrap = new JPanel(new BorderLayout());
+            wrap.setOpaque(false);
+            wrap.add(codeShell, BorderLayout.CENTER);
+            return wrap;
         }
 
         private JComponent fileCard(FileNotice file) {
@@ -493,7 +611,7 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             name.setAlignmentX(Component.LEFT_ALIGNMENT);
             card.add(name);
             if (!file.size.isEmpty()) {
-                JLabel size = plainLabel(file.size, bodyFont, CandyTheme.LAVENDER);
+                JLabel size = plainLabel(file.size, bodyFont, CandyTheme.MUTED);
                 size.setAlignmentX(Component.LEFT_ALIGNMENT);
                 card.add(size);
             }
@@ -502,29 +620,6 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             card.add(status);
             return card;
         }
-    }
-
-    private static JScrollPane scrollAround(JTextArea area) {
-        JScrollPane scroll = new JScrollPane(area,
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        scroll.putClientProperty(CandyScrollBar.MARK, Boolean.TRUE);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        scroll.setBorder(new EmptyBorder(0, 0, 0, 0));
-        return scroll;
-    }
-
-    private static int blockHeight(JTextArea area) {
-        int lines = 1;
-        String text = area.getText();
-        for (int i = 0; i < text.length(); i++) {
-            if (text.charAt(i) == '\n') {
-                lines++;
-            }
-        }
-        int line = area.getFontMetrics(area.getFont()).getHeight();
-        return Math.min(180, Math.max(line + 8, lines * line + 8));
     }
 
     private static JLabel plainLabel(String text, Font font, Color color) {
