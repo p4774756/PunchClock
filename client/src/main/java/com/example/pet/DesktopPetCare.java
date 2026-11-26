@@ -15,6 +15,8 @@ public final class DesktopPetCare {
     public static final int MIN = 5;
     public static final int MAX = 100;
     public static final int DEFAULT = 70;
+    /** 啟動還原後最低飽足／心情，避免離線衰減後再也不走路。 */
+    static final int WALK_STAT_FLOOR = 25;
 
     public static final int HUNGER_PER_HOUR = -5;
     public static final int MOOD_PER_HOUR = -3;
@@ -123,6 +125,14 @@ public final class DesktopPetCare {
         lastCursorAt = Math.max(0L, snap.lastCursorAt);
         enabled = snap.enabled;
         frozen = snap.frozen;
+        if (enabled && !frozen) {
+            if (hunger < WALK_STAT_FLOOR) {
+                hunger = WALK_STAT_FLOOR;
+            }
+            if (mood < WALK_STAT_FLOOR) {
+                mood = WALK_STAT_FLOOR;
+            }
+        }
         clearCarry();
         if (savedAt <= 0L) {
             savedAt = Math.max(0L, clock.getAsLong());

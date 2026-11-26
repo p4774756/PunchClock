@@ -21,6 +21,8 @@ import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsConfiguration;
+import java.awt.KeyboardFocusManager;
+import java.awt.KeyEventDispatcher;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Insets;
@@ -106,6 +108,7 @@ public final class DesktopPetWindow extends JFrame {
     private boolean suppressMenuOnRelease;
     private boolean controlWindowFocused = true;
     private Timer controlFocusTimer;
+    private KeyEventDispatcher controlKeyDispatcher;
     /** 邏輯畫布上目前露出的區塊。視窗矩形就是這塊。 */
     private Rectangle view = new Rectangle(0, 0, WIDTH, HEIGHT);
     /** 待機角色加影子的穩定外框。頭頂就是這塊的上緣。 */
@@ -120,6 +123,7 @@ public final class DesktopPetWindow extends JFrame {
      */
     private static final int CARRY_CLIP = 14;
     private static final List<CachedBody> BODY_CACHE = new ArrayList<CachedBody>();
+    private static volatile Rectangle ESTIMATED_MILU_SHELL;
 
     DesktopPetWindow(DesktopPetSettings settings) {
         super("桌面寵物");
@@ -299,6 +303,7 @@ public final class DesktopPetWindow extends JFrame {
     void disposePet() {
         requireEdt();
         retired = true;
+        removeControlKeyDispatcher();
         stopMotion();
         rememberLocation();
         persistCareNow();
@@ -368,6 +373,7 @@ public final class DesktopPetWindow extends JFrame {
         setFocusableWindowState(true);
         stage.setFocusable(true);
         scheduleControlFocusGrab();
+        installControlKeyDispatcher();
         repaint();
     }
 
@@ -376,6 +382,7 @@ public final class DesktopPetWindow extends JFrame {
         if (!control.isActive()) {
             return;
         }
+        removeControlKeyDispatcher();
         control.exit();
         animation.setPlayerControl(false);
         animation.syncPlayerWalk(0);
@@ -471,6 +478,54 @@ public final class DesktopPetWindow extends JFrame {
         stage.requestFocusInWindow();
         controlWindowFocused = isFocused();
         repaint();
+    }
+
+    private void installControlKeyDispatcher() {
+        if (controlKeyDispatcher != null) {
+            return;
+        }
+        controlKeyDispatcher = event -> {
+            if (!control.isActive() || !isVisible()) {
+                return false;
+            }
+            if (event.getID() != KeyEvent.KEY_PRESSED && event.getID() != KeyEvent.KEY_RELEASED) {
+                return false;
+            }
+            int vk = event.getKeyCode();
+            if (PetMenuDismiss.shouldCloseOnEscape(petMenuVisible(), vk)) {
+                if (event.getID() == KeyEvent.KEY_PRESSED) {
+                    hidePetMenu();
+                }
+                return true;
+            }
+            DesktopPetControl.KeyAction action = DesktopPetControl.keyAction(vk);
+            if (action == DesktopPetControl.KeyAction.NONE) {
+                return false;
+            }
+            if (event.getID() == KeyEvent.KEY_PRESSED) {
+                control.applyKeyPressed(vk);
+                if (!control.isActive()) {
+                    exitControlMode();
+                    return true;
+                }
+                tickControlMove();
+                repaint();
+            } else {
+                control.applyKeyReleased(vk);
+                animation.syncPlayerWalk(control.walkDirection());
+                repaint();
+            }
+            return true;
+        };
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(controlKeyDispatcher);
+    }
+
+    private void removeControlKeyDispatcher() {
+        if (controlKeyDispatcher == null) {
+            return;
+        }
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(controlKeyDispatcher);
+        controlKeyDispatcher = null;
     }
 
     private static void requestAppForeground() {
@@ -1675,7 +1730,10 @@ public final class DesktopPetWindow extends JFrame {
 
     private Rectangle targetView() {
         if (milu == null) {
-            return pixelBody();
+            if (miluFailed) {
+                return pixelBody();
+            }
+            return estimatedMiluShell();
         }
         if (fittedShell == null) {
             fittedShell = stableShellFor(milu);
@@ -1785,11 +1843,29 @@ public final class DesktopPetWindow extends JFrame {
             double pivotY,
             double radians,
             double scale) {
+        paintMiluViewport(target, view, milu, animation, pivotX, pivotY, radians, scale, 1);
+    }
+
+    static void paintMiluViewport(
+            BufferedImage target,
+            Rectangle view,
+            DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation,
+            double pivotX,
+            double pivotY,
+            double radians,
+            double scale,
+            double pixelScale) {
         if (target == null || view == null || view.width < 1 || view.height < 1 || milu == null) {
             return;
         }
         Graphics2D g = target.createGraphics();
         try {
+            if (pixelScale > 1.0001) {
+                g.scale(pixelScale, pixelScale);
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            }
             g.setComposite(AlphaComposite.Src);
             g.setColor(new Color(0, 0, 0, 0));
             g.fillRect(0, 0, view.width, view.height);
@@ -1873,6 +1949,18 @@ public final class DesktopPetWindow extends JFrame {
         }
         Rectangle idle = cachedBody(sprites[0].image, sprites[0].offsetX, sprites[0].offsetY);
         return clipToCanvas(idle);
+    }
+
+    /** 影格尚未載入時使用的外框，與 {@link #stableShellFor} 同尺寸，避免先縮成像素後備格。 */
+    static Rectangle estimatedMiluShell() {
+        Rectangle cached = ESTIMATED_MILU_SHELL;
+        if (cached != null) {
+            return new Rectangle(cached);
+        }
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        Rectangle shell = frames != null ? stableShellFor(frames) : new Rectangle(0, 0, WIDTH, HEIGHT);
+        ESTIMATED_MILU_SHELL = new Rectangle(shell);
+        return new Rectangle(shell);
     }
 
     /** 全部動作影格 union 的穩定外框；換 mode 時視窗不再 resize。 */
@@ -2066,18 +2154,16 @@ public final class DesktopPetWindow extends JFrame {
             Graphics2D g = (Graphics2D) graphics.create();
             try {
                 BufferedImage frame = renderLiveFrame();
-                g.setRenderingHint(
-                        RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+                boolean pixelFallback = milu == null && miluFailed;
                 if (perPixel) {
-                    // 緩衝已畫好角色；用 Src 整張貼上，不在螢幕上先清成全透明。
                     g.setComposite(AlphaComposite.Src);
-                    g.drawImage(frame, 0, 0, null);
+                    DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, pixelFallback);
                 } else {
                     g.setComposite(AlphaComposite.Src);
                     g.setColor(CandyTheme.NIGHT);
                     g.fillRoundRect(0, 0, Math.max(1, getWidth()), Math.max(1, getHeight()), 16, 16);
                     g.setComposite(AlphaComposite.SrcOver);
-                    g.drawImage(frame, 0, 0, null);
+                    DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, pixelFallback);
                 }
                 if (control.isActive()) {
                     g.setComposite(AlphaComposite.SrcOver);
@@ -2089,17 +2175,24 @@ public final class DesktopPetWindow extends JFrame {
         }
 
         /**
-         * 在一張沒有螢幕縮放的緩衝上畫完整隻。拖曳時的旋轉也做在這張圖上，再整張貼回視窗。
+         * 依裝置縮放畫完整隻。拖曳時的旋轉也做在緩衝上，再依螢幕變換貼回視窗。
          */
         private BufferedImage renderLiveFrame() {
+            double pixelScale = DesktopPetMiluLayout.deviceScale(getGraphicsConfiguration());
             if (milu == null) {
-                BufferedImage image = new BufferedImage(
-                        Math.max(1, view.width), Math.max(1, view.height), BufferedImage.TYPE_INT_ARGB);
+                int w = Math.max(1, view.width);
+                int h = Math.max(1, view.height);
+                int bw = DesktopPetMiluLayout.bufferPixelWidth(w, pixelScale);
+                int bh = DesktopPetMiluLayout.bufferPixelHeight(h, pixelScale);
+                BufferedImage image = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
                 Graphics2D canvas = image.createGraphics();
                 try {
+                    if (pixelScale > 1.0001) {
+                        canvas.scale(pixelScale, pixelScale);
+                    }
                     canvas.setComposite(AlphaComposite.Src);
                     canvas.setColor(new Color(0, 0, 0, 0));
-                    canvas.fillRect(0, 0, image.getWidth(), image.getHeight());
+                    canvas.fillRect(0, 0, w, h);
                     canvas.setComposite(AlphaComposite.SrcOver);
                     canvas.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     canvas.translate(-view.x, -view.y);
@@ -2133,10 +2226,14 @@ public final class DesktopPetWindow extends JFrame {
             }
             int w = Math.max(1, view.width);
             int h = Math.max(1, view.height);
-            if (liveFrameBuffer == null || liveFrameBuffer.getWidth() != w || liveFrameBuffer.getHeight() != h) {
-                liveFrameBuffer = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+            int bw = DesktopPetMiluLayout.bufferPixelWidth(w, pixelScale);
+            int bh = DesktopPetMiluLayout.bufferPixelHeight(h, pixelScale);
+            if (liveFrameBuffer == null
+                    || liveFrameBuffer.getWidth() != bw
+                    || liveFrameBuffer.getHeight() != bh) {
+                liveFrameBuffer = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
             }
-            paintMiluViewport(liveFrameBuffer, view, milu, animation, pivotX, pivotY, radians, scale);
+            paintMiluViewport(liveFrameBuffer, view, milu, animation, pivotX, pivotY, radians, scale, pixelScale);
             BufferedImage image = liveFrameBuffer;
             Graphics2D extra = image.createGraphics();
             try {

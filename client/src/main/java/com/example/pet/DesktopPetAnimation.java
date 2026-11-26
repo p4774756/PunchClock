@@ -611,6 +611,9 @@ public final class DesktopPetAnimation {
             return Mode.SLEEP;
         }
         if (careIdle && (careHunger < 25 || careMood < 25)) {
+            if (random.nextInt(4) == 0) {
+                return Mode.WALK;
+            }
             if (random.nextInt(3) == 0) {
                 return Mode.WORRY;
             }
