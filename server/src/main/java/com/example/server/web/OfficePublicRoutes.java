@@ -28,6 +28,12 @@ import java.util.Set;
 public final class OfficePublicRoutes {
 
     private static final List<String> CHARACTER_IDS = List.of("oki", "tiger", "reviewer");
+    /** Unix 秒級時間戳下限（約 2001-09）；低於 {@link #EPOCH_MS_FLOOR} 且大於等於此值時視為秒、乘 1000 轉毫秒。 */
+    private static final long EPOCH_SEC_FLOOR = 1_000_000_000L;
+    /** 毫秒級 epoch 下限（約 2001-09），低於此視為已為毫秒或測試用小值。 */
+    private static final long EPOCH_MS_FLOOR = 1_000_000_000_000L;
+    /** 今天完成耗時合理上限（分鐘）。 */
+    private static final long MAX_DEV_DURATION_MINUTES = 30L * 24L * 60L;
     private static final ZoneId TAIPEI = ZoneId.of("Asia/Taipei");
     private static final String DEFAULT_SECRETARY_MACHINE = "tiger";
 
@@ -564,10 +570,13 @@ public final class OfficePublicRoutes {
                 }
                 Long devStart = earliestDevStartMs(machines, issue);
                 if (devStart == null && store != null) {
-                    devStart = store.recordedDevStart(issue);
+                    Long recorded = store.recordedDevStart(issue);
+                    if (recorded != null) {
+                        devStart = normalizeOfficeEpochMillis(recorded);
+                    }
                 }
                 if (devStart == null && pull.createdAt > 0) {
-                    devStart = pull.createdAt;
+                    devStart = normalizeOfficeEpochMillis(pull.createdAt);
                 }
                 Long durationMinutes = devDurationMinutes(pull.mergedAt, devStart);
                 if (durationMinutes != null) {
@@ -598,15 +607,17 @@ public final class OfficePublicRoutes {
                         continue;
                     }
                     if (run.startedAt != null && run.startedAt > 0) {
+                        long startMs = normalizeOfficeEpochMillis(run.startedAt);
                         earliestStarted = earliestStarted == null
-                                ? run.startedAt
-                                : Math.min(earliestStarted, run.startedAt);
+                                ? startMs
+                                : Math.min(earliestStarted, startMs);
                     }
                     boolean devRun = run.role == null || run.role.isEmpty() || "dev".equals(run.role);
                     if (devRun && run.stageStartedAt != null && run.stageStartedAt > 0) {
+                        long stageMs = normalizeOfficeEpochMillis(run.stageStartedAt);
                         earliestDevStage = earliestDevStage == null
-                                ? run.stageStartedAt
-                                : Math.min(earliestDevStage, run.stageStartedAt);
+                                ? stageMs
+                                : Math.min(earliestDevStage, stageMs);
                     }
                 }
             }
@@ -616,12 +627,33 @@ public final class OfficePublicRoutes {
             return earliestDevStage;
         }
 
-        private static Long devDurationMinutes(long mergedAt, Long devStart) {
-            if (devStart == null || devStart <= 0 || mergedAt <= devStart) {
+        static long normalizeOfficeEpochMillis(long value) {
+            if (value <= 0) {
+                return value;
+            }
+            if (value >= EPOCH_MS_FLOOR) {
+                return value;
+            }
+            if (value >= EPOCH_SEC_FLOOR) {
+                return value * 1000L;
+            }
+            return value;
+        }
+
+        static Long devDurationMinutes(long mergedAt, Long devStart) {
+            if (devStart == null || devStart <= 0) {
                 return null;
             }
-            long minutes = (mergedAt - devStart) / 60_000L;
-            return minutes >= 0 ? minutes : null;
+            long startMs = normalizeOfficeEpochMillis(devStart);
+            long mergedMs = normalizeOfficeEpochMillis(mergedAt);
+            if (mergedMs <= startMs) {
+                return null;
+            }
+            long minutes = (mergedMs - startMs) / 60_000L;
+            if (minutes < 0 || minutes > MAX_DEV_DURATION_MINUTES) {
+                return null;
+            }
+            return minutes;
         }
 
         static boolean isIssueMerged(Snapshot github, int issue) {

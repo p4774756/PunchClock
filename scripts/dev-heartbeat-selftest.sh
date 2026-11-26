@@ -206,6 +206,34 @@ case "$RUNS_JSON" in
   *'"issue":355'*) fail "chain runs must not parse chainrun queued specs as active runs" ;;
 esac
 
+MOCK_PS_CHAIN='  10:00 sh /path/chainfast2.sh 9475 683 680
+  09:50 sh /path/loopfast.sh 683 needsha 9475'
+RUNS_JSON="[]"
+read_chain_runs
+case "$RUNS_JSON" in
+  *'"issue":683'*) ;;
+  *) fail "chainfast2 runs must include active issue 683" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":680'*) fail "chainfast2 must not queue upcoming issue 680 as active run" ;;
+esac
+
+MOCK_PS_WAITERS='  10:00 sh /path/chainfast2.sh 9475 683 680'
+RUNS_JSON='[{"issue":683,"startedAt":1000}]'
+QUEUED_JSON="[]"
+read_waiter_queued
+case "$QUEUED_JSON" in
+  *'"issue":680'*) ;;
+  *) fail "chainfast2 queue json missing issue 680" ;;
+esac
+case "$QUEUED_JSON" in
+  *'"afterIssue":683'*) ;;
+  *) fail "chainfast2 queue must include afterIssue 683" ;;
+esac
+case "$QUEUED_JSON" in
+  *'"issue":683'*) fail "chainfast2 queue must drop active run issue 683" ;;
+esac
+
 # --- waiter queue ps parsing ---
 RUNS_JSON="[]"
 MOCK_PS_WAITERS='  12:00 sh /path/chain-9477-after559-i566-waiter.sh

@@ -26,4 +26,16 @@ public class OfficeDevStartStoreTest {
         Files.deleteIfExists(file);
         Files.deleteIfExists(dir);
     }
+
+    @Test
+    public void normalizesUnixSecondEpochOnRecord() throws Exception {
+        Path dir = Files.createTempDirectory("office-dev-start-sec-");
+        Path file = dir.resolve("issue-dev-starts.json");
+        OfficeDevStartStore store = new OfficeDevStartStore(file);
+        long unixSec = 1_730_000_000L;
+        store.noteRun(602, "dev", unixSec, null);
+        assertEquals(Long.valueOf(unixSec * 1000L), store.earliestDevStart(602));
+        Files.deleteIfExists(file);
+        Files.deleteIfExists(dir);
+    }
 }
