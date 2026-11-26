@@ -7,7 +7,12 @@ import { loadPublicModule } from './load-public-module.mjs';
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 const { taskProgressFromTiger } = await loadPublicModule('private-team-office.js');
-const { deployVersionLabel } = await loadPublicModule('private-team-page.js');
+const {
+  deployVersionLabel,
+  showGuestMonitorHintToast,
+  dismissGuestMonitorHintToast,
+  GUEST_MONITOR_HINT_TEXT
+} = await loadPublicModule('private-team-page.js');
 
 test('私人女秘書 HUD 標記與身分文案', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
@@ -28,12 +33,84 @@ test('私人女秘書 HUD 標記與身分文案', () => {
   assert.match(js, /pt-hud-id-logout/);
   assert.match(js, /win\.PUNCHCLOCK_USERNAME/);
   assert.match(js, /target === 'monitor'/);
+  assert.match(js, /showGuestMonitorHintToast/);
+  assert.match(js, /請先從左上角登入/);
+  assert.match(js, /if \(target === 'monitor'\)[\s\S]*showGuestMonitorHintToast/);
+  assert.doesNotMatch(js, /if \(target === 'monitor'\)[\s\S]*pendingOpenTasksAfterLogin = true/);
   assert.doesNotMatch(js, /pt-hud-identity/);
   assert.doesNotMatch(js, /AUTH_ABBREV/);
   assert.match(js, /data-pt-open-download/);
   assert.doesNotMatch(js, /href="\/download"/);
   assert.doesNotMatch(js, /data-pt-daynight/);
   assert.doesNotMatch(js, /punchclock-private-team-day/);
+});
+
+function miniDocForGuestHint() {
+  const nodes = [];
+  function el(tag) {
+    const n = {
+      tagName: String(tag).toUpperCase(),
+      className: '',
+      childNodes: [],
+      children: [],
+      attributes: {},
+      textContent: '',
+      parentNode: null,
+      removeChild(c) {
+        const i = this.childNodes.indexOf(c);
+        if (i >= 0) this.childNodes.splice(i, 1);
+        const j = this.children.indexOf(c);
+        if (j >= 0) this.children.splice(j, 1);
+        c.parentNode = null;
+        c.parent = null;
+        return c;
+      },
+      appendChild(c) {
+        this.childNodes.push(c);
+        this.children.push(c);
+        c.parentNode = this;
+        c.parent = this;
+        return c;
+      },
+      addEventListener() {},
+      setAttribute(k, v) {
+        this.attributes[k] = v;
+      },
+      getAttribute(k) {
+        return this.attributes[k];
+      }
+    };
+    nodes.push(n);
+    return n;
+  }
+  const body = el('body');
+  return {
+    createElement: el,
+    body,
+    nodes,
+    addEventListener() {},
+    removeEventListener() {},
+    querySelector(sel) {
+      if (sel === '[data-pt-guest-monitor-hint]') {
+        return nodes.find((n) => n.attributes['data-pt-guest-monitor-hint']) || null;
+      }
+      return null;
+    }
+  };
+}
+
+test('訪客螢幕提示 toast', () => {
+  const doc = miniDocForGuestHint();
+  const win = { setTimeout() {} };
+  const wrap = showGuestMonitorHintToast(doc, win);
+  assert.ok(wrap);
+  assert.equal(wrap.attributes['data-pt-guest-monitor-hint'], '1');
+  const msg = wrap.childNodes.find((c) => (c.className || '').includes('dev-login-toast-msg'));
+  assert.equal(msg.textContent, GUEST_MONITOR_HINT_TEXT);
+  showGuestMonitorHintToast(doc, win);
+  assert.equal(doc.body.childNodes.length, 1);
+  dismissGuestMonitorHintToast(doc);
+  assert.equal(doc.body.childNodes.length, 0);
 });
 
 test('任務細條僅在有公開計數時顯示', () => {

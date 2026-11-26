@@ -37,6 +37,68 @@ export function layoutAuthMenuInViewport(doc, win, menuEl, taskBtnEl, marginPx) 
   menuEl.style.transform = shift ? 'translateX(' + shift + 'px)' : '';
 }
 
+export const GUEST_MONITOR_HINT_TEXT = '請先從左上角登入';
+const GUEST_MONITOR_HINT_MS = 4000;
+
+let guestMonitorHintDismiss = null;
+
+function removeDomNode(node) {
+  if (!node) return;
+  const parent = node.parentNode || node.parent;
+  if (parent && typeof parent.removeChild === 'function') {
+    parent.removeChild(node);
+  }
+}
+
+export function dismissGuestMonitorHintToast(doc) {
+  if (guestMonitorHintDismiss) {
+    guestMonitorHintDismiss();
+    guestMonitorHintDismiss = null;
+  }
+  if (!doc || !doc.querySelector) return;
+  const existing = doc.querySelector('[data-pt-guest-monitor-hint]');
+  removeDomNode(existing);
+}
+
+/** 訪客點桌邊小螢幕：輕量引導至左上角登入，不開密碼視窗 */
+export function showGuestMonitorHintToast(doc, win) {
+  if (!doc || !doc.body) return null;
+  dismissGuestMonitorHintToast(doc);
+  const wrap = doc.createElement('div');
+  wrap.className = 'dev-login-toast maple-window donate-toast';
+  wrap.setAttribute('data-pt-guest-monitor-hint', '1');
+  wrap.setAttribute('role', 'status');
+  const msg = doc.createElement('p');
+  msg.className = 'dev-login-toast-msg donate-toast-msg';
+  msg.textContent = GUEST_MONITOR_HINT_TEXT;
+  const close = doc.createElement('button');
+  close.type = 'button';
+  close.className = 'dev-login-toast-close';
+  close.setAttribute('aria-label', '關閉');
+  close.textContent = '×';
+  const teardown = () => {
+    if (doc.removeEventListener) doc.removeEventListener('keydown', onKey, true);
+    removeDomNode(wrap);
+    if (guestMonitorHintDismiss === teardown) guestMonitorHintDismiss = null;
+  };
+  const onKey = (ev) => {
+    if (ev.key !== 'Escape') return;
+    if (!(wrap.parentNode || wrap.parent)) return;
+    if (ev.stopPropagation) ev.stopPropagation();
+    if (ev.preventDefault) ev.preventDefault();
+    teardown();
+  };
+  close.addEventListener('click', teardown);
+  if (doc.addEventListener) doc.addEventListener('keydown', onKey, true);
+  wrap.appendChild(msg);
+  wrap.appendChild(close);
+  doc.body.appendChild(wrap);
+  guestMonitorHintDismiss = teardown;
+  const schedule = win && typeof win.setTimeout === 'function' ? win.setTimeout : setTimeout;
+  schedule(teardown, GUEST_MONITOR_HINT_MS);
+  return wrap;
+}
+
 export function deployVersionLabel(win, opts) {
   const ver = win && typeof win.PUNCHCLOCK_SERVER_VERSION === 'string'
     ? win.PUNCHCLOCK_SERVER_VERSION.trim()
@@ -370,8 +432,7 @@ export function mountPrivateTeamPage(opts) {
   function onSceneActivate(target) {
     if (target === 'monitor') {
       if (!sessionAuthed) {
-        pendingOpenTasksAfterLogin = true;
-        loginModal.open(canvas);
+        showGuestMonitorHintToast(doc, win);
         return;
       }
       if (openTasks) openTasks();
