@@ -319,7 +319,7 @@ public class OfficePublicRoutesTest {
     @Test
     public void tigerWorkingWithPhraseAndLinks() throws Exception {
         status = new DevStatusService(repo -> githubWithIssue(385, "正在把工作狀態整理成公開 API",
-                new DevStatusModels.PullRow(390, "pr", false, false, true, 0, 0, 8_999_000L, null,
+                new DevStatusModels.PullRow(390, "pr", true, false, false, 0, 0, null, null,
                         new HashSet<>(Collections.singletonList(385)))));
         startApp();
 
@@ -409,6 +409,66 @@ public class OfficePublicRoutesTest {
         JsonObject item = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
                 .getAsJsonArray("completedToday").get(0).getAsJsonObject();
         assertEquals(72, item.get("durationMinutes").getAsLong());
+    }
+
+    @Test
+    public void completedTodayDurationFromRecordedStartAfterRunCleared() throws Exception {
+        ZoneId taipei = ZoneId.of("Asia/Taipei");
+        long now = 9_000_000L;
+        long devStart = 500_000L;
+        long mergedAt = devStart + 30 * 60_000L;
+        long dayStart = Instant.ofEpochMilli(now).atZone(taipei).toLocalDate()
+                .atStartOfDay(taipei).toInstant().toEpochMilli();
+        assertTrue(mergedAt >= dayStart);
+        status = new DevStatusService(repo -> githubWithIssue(701, "持久耗時",
+                new DevStatusModels.PullRow(702, "pr", false, false, true, devStart, 0, mergedAt, null,
+                        new HashSet<>(Collections.singletonList(701)))));
+        startApp();
+
+        Map<String, Object> withRun = new HashMap<>();
+        withRun.put("issue", 701);
+        withRun.put("round", 1);
+        withRun.put("branch", "ai/issue-701");
+        withRun.put("startedAt", devStart);
+        withRun.put("role", "dev");
+        Map<String, Object> work = new LinkedHashMap<>();
+        work.put("machine", "tiger");
+        work.put("agentRunning", true);
+        work.put("runs", Collections.singletonList(withRun));
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", work));
+
+        Map<String, Object> cleared = new LinkedHashMap<>();
+        cleared.put("machine", "tiger");
+        cleared.put("agentRunning", false);
+        store.applyHeartbeat("tiger", cleared);
+
+        JsonObject item = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("completedToday").get(0).getAsJsonObject();
+        assertEquals(30, item.get("durationMinutes").getAsLong());
+    }
+
+    @Test
+    public void activeOmitsMergedIssueWhenRunStageRemains() throws Exception {
+        status = new DevStatusService(repo -> githubWithIssue(712, "已合併殘留",
+                new DevStatusModels.PullRow(713, "pr", false, false, true, 0, 0, 8_999_000L, null,
+                        new HashSet<>(Collections.singletonList(712)))));
+        startApp();
+
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 712);
+        run.put("round", 2);
+        run.put("branch", "ai/issue-712");
+        run.put("role", "review");
+        run.put("startedAt", 9_000_000L - 60_000L);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals(0, tiger.getAsJsonArray("active").size());
+        assertEquals("待命中", tiger.get("status").getAsString());
     }
 
     @Test

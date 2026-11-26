@@ -153,7 +153,7 @@ test('formatDoneDuration 耗時字樣', () => {
   assert.equal(formatDoneDuration(12), '耗時 12 分');
   assert.equal(formatDoneDuration(72), '耗時 1 時 12 分');
   assert.equal(formatDoneDuration(60), '耗時 1 時');
-  assert.equal(formatDoneDuration(0), '');
+  assert.equal(formatDoneDuration(0), '耗時 < 1 分');
 });
 
 test('phraseForActiveDisplay 空泛句改標題', () => {
@@ -223,6 +223,10 @@ test('progressSegmentsForActive 各階段與 CI 失敗', () => {
   assert.equal(ciFail[2].state, 'fail');
   assert.equal(statusLineForActive(ciItem), 'CI 失敗，等待處理');
   assert.equal(statusLineForActive({ stage: '審查中', minutes: 8 }), '審核中・8 分');
+  assert.equal(
+    statusLineForActive({ stage: '審查中', round: 2, minutes: 12 }),
+    '審核中・第 2 輪・12 分'
+  );
   const merge = progressSegmentsForActive({ stage: '合併中', round: 2 });
   assert.deepEqual(merge.map((s) => s.state), ['done', 'done', 'done', 'current']);
 });
