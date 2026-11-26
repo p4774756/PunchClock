@@ -19,6 +19,7 @@ const {
   SECRETARY_CELEBRATE_STEPS,
   SECRETARY_DANCE_DURATION_MS,
   SECRETARY_STANDBY_IDLE_URLS,
+  secretaryCelebrateStateAt,
   secretaryCelebrateFrameUrlAt,
   secretaryCelebrateJumpOffsetAt,
   secretaryTypingDisplayUrl,
@@ -120,6 +121,36 @@ test('心跳待命預設喝茶不蓋輪替姿勢', () => {
     shouldIgnoreStandbyIdleSpriteUpdate(SECRETARY_SPRITE_URL_TYPING, SECRETARY_SPRITE_URL_IDLE),
     false
   );
+});
+
+test('慶祝小跳高點時間軸與 jumpOffset、換貼圖保留 Y', () => {
+  const jumpStart = 250 * 4 + 700;
+  assert.equal(jumpStart, 1700);
+  assert.equal(secretaryCelebrateStateAt(jumpStart).kind, 'jump');
+  assert.equal(secretaryCelebrateStateAt(jumpStart).url, SECRETARY_SPRITE_URL_YEAH);
+  for (const t of [1750, 1975]) {
+    const st = secretaryCelebrateStateAt(t);
+    assert.equal(st.kind, 'jump', 't=' + t);
+    assert.equal(st.url, SECRETARY_SPRITE_URL_YEAH);
+    assert.ok(secretaryCelebrateJumpOffsetAt(t) > 0, 't=' + t);
+  }
+  assert.ok(secretaryCelebrateJumpOffsetAt(1925) > 0.05);
+  assert.equal(secretaryCelebrateStateAt(1699).kind, 'frame');
+  assert.equal(secretaryCelebrateJumpOffsetAt(1699), 0);
+  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  assert.match(src, /dancePlayback\.jumpOffset != null/);
+  const retexture = src.slice(
+    src.indexOf('function retextureSecretarySprite'),
+    src.indexOf('function disposeUnusedSpriteTexture')
+  );
+  assert.match(retexture, /if \(dancePlayback\)/);
+  assert.match(retexture, /secretarySprite\.position\.x = 0/);
+  assert.match(retexture, /secretarySprite\.position\.z = 0/);
+  const danceBranch = retexture.slice(
+    retexture.indexOf('if (dancePlayback)'),
+    retexture.indexOf('} else {')
+  );
+  assert.doesNotMatch(danceBranch, /position\.y/);
 });
 
 test('待命閒置起舞條件', () => {
