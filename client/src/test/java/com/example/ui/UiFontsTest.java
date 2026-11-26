@@ -151,6 +151,32 @@ public class UiFontsTest {
     }
 
     @Test
+    public void modelessConfirmUsesCandyButtons() throws Exception {
+        Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            java.util.concurrent.atomic.AtomicInteger yes = new java.util.concurrent.atomic.AtomicInteger();
+            UiFonts.showModelessConfirm(
+                    null, "內容", "標題", "接收", "拒收", yes::incrementAndGet, () -> {});
+            boolean sawCandy = false;
+            for (java.awt.Window w : java.awt.Window.getWindows()) {
+                if (!(w instanceof javax.swing.JDialog)) {
+                    continue;
+                }
+                for (java.awt.Component c : flatten(((javax.swing.JDialog) w).getContentPane())) {
+                    if (c instanceof JButton) {
+                        JButton button = (JButton) c;
+                        assertTrue(button.getText().equals("接收") || button.getText().equals("拒收"));
+                        assertTrue(Boolean.TRUE.equals(button.getClientProperty(CandyButton.MARK)));
+                        sawCandy = true;
+                    }
+                }
+                w.dispose();
+            }
+            assertTrue(sawCandy);
+        });
+    }
+
+    @Test
     public void macChineseFontStaysPingFang() {
         org.junit.Assume.assumeTrue(UiFonts.isMac());
         String family = UiFonts.chinesePlain(13).getFamily();

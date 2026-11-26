@@ -24,6 +24,7 @@ import com.example.ui.AppIconImages;
 import com.example.ui.CompactShellPanels;
 import com.example.ui.FileTransferDialog;
 import com.example.ui.MarqueeBar;
+import com.example.ui.PeerChatRelayCard;
 import com.example.ui.PeerChatWindow;
 import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
@@ -1297,11 +1298,14 @@ public class App extends JFrame {
     private void startRelaySend(String toClientId, java.util.List<Path> files, java.awt.Component owner,
                                 java.util.function.Consumer<SendEnd> finished, boolean quiet) {
         setSendFileBusy(true);
-        TransferProgressDialog progress = TransferProgressDialog.open(owner, "直傳檔案");
+        PeerChatWindow chat = ensureChatWindow(toClientId);
+        chat.showAndFocus();
+        PeerChatRelayCard card = chat.addRelayCard();
         TransferCancel cancel = new TransferCancel();
-        progress.setOnCancel(cancel::cancel);
+        card.setOnCancel(cancel::cancel);
         String displayName = HeartbeatService.displayNameOf(files);
-        progress.setPreparing(files.size() > 1
+        card.showOutboundTransfer(displayName, "");
+        card.setPreparing(files.size() > 1
                 ? "正在壓縮 " + files.size() + " 個項目…"
                 : Files.isDirectory(files.get(0))
                 ? "正在壓縮資料夾「" + displayName + "」…"
@@ -1317,33 +1321,30 @@ public class App extends JFrame {
                         failDetail.append(msg);
                     }
                 },
-                progress::setProgress,
-                progress::setStatus,
+                (done, total) -> card.setProgress(done, total, true),
+                card::setStatus,
                 cancel,
                 outcome -> SwingUtilities.invokeLater(() -> {
-                    progress.close();
                     setSendFileBusy(false);
                     switch (outcome) {
                         case DELIVERED:
+                            card.finishSuccess(true, displayName);
                             chatNote(toClientId, "已直傳「" + displayName + "」");
                             if (!quiet) {
                                 celebrateTransfer();
                                 notifyPet(DesktopPetEvent.FILE_SENT, () -> focusChat(toClientId));
-                                UiFonts.showMessage(
-                                        owner,
-                                        "「" + displayName + "」已直傳給【" + toClientId + "】。\n伺服器沒有保留這個檔案。",
-                                        "傳送檔案",
-                                        JOptionPane.INFORMATION_MESSAGE);
                             }
                             endSend(finished, SendEnd.OK);
                             break;
                         case UNSUPPORTED_SERVER:
+                            card.finishFailure("伺服器尚未支援直傳，請更新雲端後再試。");
                             if (!quiet) {
                                 UiFonts.showWarning(owner, "伺服器尚未支援直傳，請更新雲端後再試。", "傳送檔案");
                             }
                             endSend(finished, SendEnd.FAILED);
                             break;
                         case RECIPIENT_UNAVAILABLE:
+                            card.finishFailure("【" + toClientId + "】目前無法直傳。");
                             if (!quiet) {
                                 UiFonts.showWarning(
                                         owner,
@@ -1354,17 +1355,24 @@ public class App extends JFrame {
                             break;
                         case FAILED:
                             String detail = failDetail.toString().trim();
-                            UiFonts.showWarning(
-                                    owner,
-                                    "直傳沒有完成。對方可能拒收、逾時未接收，或連線中斷。"
-                                            + (detail.isEmpty() ? "" : "\n\n" + detail),
-                                    "傳送檔案");
+                            card.finishFailure(detail.isEmpty()
+                                    ? "直傳沒有完成。對方可能拒收、逾時未接收，或連線中斷。"
+                                    : detail);
+                            if (!quiet) {
+                                UiFonts.showWarning(
+                                        owner,
+                                        "直傳沒有完成。對方可能拒收、逾時未接收，或連線中斷。"
+                                                + (detail.isEmpty() ? "" : "\n\n" + detail),
+                                        "傳送檔案");
+                            }
                             endSend(finished, SendEnd.FAILED);
                             break;
                         case CANCELLED:
+                            card.finishCancelled();
                             endSend(finished, SendEnd.CANCELLED);
                             break;
                         default:
+                            card.finishFailure("直傳沒有完成。");
                             endSend(finished, SendEnd.FAILED);
                             break;
                     }
@@ -1640,21 +1648,18 @@ public class App extends JFrame {
         }
         for (PendingRelayOffer offer : offers) {
             pendingRelayOffers.remove(offer.relayId);
-            String timeLabel = formatPeerMessageTime(offer.sentAtMs);
             String sizeLabel = PeerFileRules.formatSize(Math.max(0, offer.size));
-            UiFonts.showModelessConfirm(
-                    window,
-                    timeLabel + "\n\n【" + offer.fromId + "】要直接傳"
-                            + (offer.folder ? "資料夾（ZIP）" : "檔案") + "給你：\n"
-                            + offer.safeName + "（" + sizeLabel + "）\n\n"
-                            + "雙方需保持在線直到傳完。\n"
-                            + "請在 " + PeerFileRules.RELAY_ACCEPT_TIMEOUT_LABEL + " 內決定，要接收嗎？",
-                    "同事直傳檔案 · " + offer.fromId,
-                    "接收",
-                    "拒收",
+            PeerChatRelayCard card = window.addRelayCard();
+            card.showInboundOffer(
+                    offer.fromId,
+                    offer.safeName,
+                    sizeLabel,
+                    offer.folder,
+                    PeerFileRules.RELAY_ACCEPT_TIMEOUT_MS,
                     () -> pickRelaySavePath(offer.fromId, offer.relayId, offer.safeName, window),
                     () -> {
                         declineRelay(offer.relayId);
+                        card.setOfferClosed("已拒收");
                         appendLog("[檔案] 已拒收「" + offer.safeName + "」");
                     });
         }
@@ -1720,34 +1725,33 @@ public class App extends JFrame {
     private void startRelayReceive(
             String fromId, String relayId, String safeName, Path dest, Component dialogParent) {
         StringBuilder failDetail = new StringBuilder();
-        TransferProgressDialog progress = TransferProgressDialog.open(dialogParent, "接收直傳");
+        PeerChatWindow chat = dialogParent instanceof PeerChatWindow
+                ? (PeerChatWindow) dialogParent
+                : ensureChatWindow(fromId);
+        PeerChatRelayCard card = chat.addRelayCard();
         TransferCancel cancel = new TransferCancel();
-        progress.setOnCancel(cancel::cancel);
-        progress.setPreparing("正在連線，等待【" + fromId + "】送出「" + safeName + "」…");
+        card.setOnCancel(cancel::cancel);
+        card.showInboundTransfer(safeName, "");
+        card.setPreparing("正在連線，等待【" + fromId + "】送出「" + safeName + "」…");
         heartbeatService.receivePeerRelay(relayId, dest, msg -> {
             appendLog(msg);
             if (msg != null && (msg.contains("[失敗]") || msg.contains("[警告]"))) {
                 failDetail.setLength(0);
                 failDetail.append(msg);
             }
-        }, progress::setProgress, progress::setStatus, cancel, ok ->
+        }, (done, total) -> card.setProgress(done, total, false), card::setStatus, cancel, ok ->
                 SwingUtilities.invokeLater(() -> {
-                    progress.close();
                     if (ok) {
                         celebrateTransfer();
                         notifyPet(DesktopPetEvent.FILE_RECEIVED, () -> openPetChat(fromId));
-                        UiFonts.showModelessMessage(
-                                dialogParent,
-                                "已儲存：\n" + dest.toAbsolutePath(),
-                                "檔案已儲存");
+                        card.showSaved(dest);
                     } else if (!cancel.isCancelled()) {
                         String detail = failDetail.toString().trim();
-                        UiFonts.showModelessMessage(
-                                dialogParent,
-                                detail.isEmpty()
-                                        ? "直傳沒有完成。對方可能已取消或離線，請請對方重新傳送。"
-                                        : "直傳沒有完成。\n\n" + detail,
-                                "接收直傳");
+                        card.finishFailure(detail.isEmpty()
+                                ? "直傳沒有完成。對方可能已取消或離線。"
+                                : detail);
+                    } else {
+                        card.finishCancelled();
                     }
                 }));
     }

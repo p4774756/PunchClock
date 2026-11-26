@@ -165,6 +165,34 @@ public class PeerChatTranscriptTest {
     }
 
     @Test
+    public void detectsPlainJavaSourceAndShowsCopyOnCodeBlock() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            String code = "package com.example.demo;\n"
+                    + "import java.util.List;\n"
+                    + "public class Demo {\n"
+                    + "  void run() { System.out.println(1); }\n"
+                    + "}";
+            assertTrue(PeerChatTranscript.looksLikeSourceCode(code));
+            assertTrue(PeerChatTranscript.preserveLayout(code));
+            PeerChatStore store = new PeerChatStore();
+            PeerChatTranscript t = new PeerChatTranscript("alice", "SansSerif", 13);
+            t.setSize(520, 400);
+            t.append(store.addMessage("alice", false, code, "", 1_000L));
+            assertTrue(t.preservesLayout("package com.example"));
+            assertTrue(hasCopyButton(t));
+        });
+    }
+
+    @Test
+    public void messageTitleUsesNameDotTime() {
+        PeerChatStore store = new PeerChatStore();
+        PeerChatStore.Entry entry = store.addMessage("alice", false, "hi", "", 3_600_000L);
+        String title = PeerChatTranscript.messageTitle(entry, "alice", ZoneOffset.UTC);
+        assertTrue(title.contains(" · "));
+        assertFalse(title.contains("("));
+    }
+
+    @Test
     public void formatsTodayAsTimeOnlyAndOtherDaysWithDate() {
         ZoneId zone = ZoneOffset.UTC;
         long now = System.currentTimeMillis();

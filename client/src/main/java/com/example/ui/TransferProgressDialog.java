@@ -80,6 +80,11 @@ public final class TransferProgressDialog {
         dialog.setLocationRelativeTo(owner);
     }
 
+    /** 聊天傳檔卡與此視窗共用粉紅進度條樣式。 */
+    public static JProgressBar createRelayProgressBar() {
+        return createProgressBar();
+    }
+
     private static JProgressBar createProgressBar() {
         JProgressBar progress = new JProgressBar(0, 1000);
         progress.setUI(new VisibleProgressBarUI());
