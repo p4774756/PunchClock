@@ -165,6 +165,34 @@ public class DesktopPetMenuPaintTest {
     }
 
     @Test
+    public void menuInkContrastsWithBackground() throws Exception {
+        long t = 1_700_000_000_000L;
+        DesktopPetCare care = new DesktopPetCare(() -> t);
+        care.setEnabled(true, t);
+        final BufferedImage[] shot = new BufferedImage[1];
+        SwingUtilities.invokeAndWait(() -> {
+            UiFonts.chinesePlain(13);
+            PetContextMenu menu = PetContextMenu.build(
+                    true, false, true, care, t, noopListener());
+            java.awt.Dimension size = menu.getPreferredSize();
+            shot[0] = new BufferedImage(size.width, size.height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = shot[0].createGraphics();
+            try {
+                menu.setSize(size);
+                menu.paint(g);
+            } finally {
+                g.dispose();
+            }
+        });
+        int bgLum = menuLuminance(PetContextMenu.BG);
+        int sampleX = PetContextMenu.PAD_H + 40;
+        int sampleY = PetContextMenu.PAD_TOP + PetContextMenu.STATUS_BLOCK + PetContextMenu.SEP_H
+                + PetContextMenu.ROW_H / 2;
+        int inkLum = menuLuminance(shot[0].getRGB(sampleX, sampleY));
+        assertTrue("menu label should contrast with background", bgLum - inkLum >= 40);
+    }
+
+    @Test
     public void paintMenuToBufferedImageForScreenshot() throws Exception {
         long t = 1_700_000_000_000L;
         DesktopPetCare care = new DesktopPetCare(() -> t);
@@ -191,6 +219,17 @@ public class DesktopPetMenuPaintTest {
         ImageIO.write(shot[0], "png", out.toFile());
         assertTrue(Files.exists(out));
         assertTrue(Files.size(out) > 500L);
+    }
+
+    private static int menuLuminance(java.awt.Color color) {
+        return menuLuminance(color.getRGB());
+    }
+
+    private static int menuLuminance(int rgb) {
+        int r = (rgb >> 16) & 0xff;
+        int g = (rgb >> 8) & 0xff;
+        int b = rgb & 0xff;
+        return (r * 299 + g * 587 + b * 114) / 1000;
     }
 
     private static PetControlKeyBindings.Handler noopHandler() {
