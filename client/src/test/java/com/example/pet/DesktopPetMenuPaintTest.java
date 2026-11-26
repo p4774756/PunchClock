@@ -189,6 +189,15 @@ public class DesktopPetMenuPaintTest {
             }
         });
         assertNotNull(shot[0]);
+        int ox = PetContextMenu.SHADOW_PAD;
+        int oy = PetContextMenu.SHADOW_PAD;
+        int controlTop = oy + PetContextMenu.STATUS_BLOCK + PetContextMenu.SEP_H + PetContextMenu.SEP_H;
+        int labelLeft = ox + PetContextMenu.PAD_H + 26;
+        int labelRight = ox + PetContextMenu.WIDTH - PetContextMenu.PAD_H;
+        int darkest = darkestLuminance(shot[0], labelLeft, controlTop, labelRight, controlTop + PetContextMenu.ROW_H);
+        assertTrue(
+                "painted menu row should look darker than the panel background",
+                bgLum - darkest >= 35);
     }
 
     @Test
@@ -218,6 +227,24 @@ public class DesktopPetMenuPaintTest {
         ImageIO.write(shot[0], "png", out.toFile());
         assertTrue(Files.exists(out));
         assertTrue(Files.size(out) > 500L);
+    }
+
+    private static int darkestLuminance(BufferedImage image, int x0, int y0, int x1, int y1) {
+        int darkest = Integer.MAX_VALUE;
+        int top = Math.max(0, y0);
+        int bottom = Math.min(image.getHeight(), y1);
+        int left = Math.max(0, x0);
+        int right = Math.min(image.getWidth(), x1);
+        for (int y = top; y < bottom; y++) {
+            for (int x = left; x < right; x++) {
+                int argb = image.getRGB(x, y);
+                if (((argb >> 24) & 0xff) < 128) {
+                    continue;
+                }
+                darkest = Math.min(darkest, menuLuminance(argb));
+            }
+        }
+        return darkest == Integer.MAX_VALUE ? menuLuminance(PetContextMenu.BG) : darkest;
     }
 
     private static int menuLuminance(java.awt.Color color) {
