@@ -4,7 +4,12 @@ import org.junit.After;
 import org.junit.Assume;
 import org.junit.Test;
 
+import java.awt.Color;
 import java.awt.GraphicsEnvironment;
+import javax.swing.Action;
+import javax.swing.JButton;
+import javax.swing.JFileChooser;
+import javax.swing.SwingUtilities;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
@@ -88,6 +93,61 @@ public class UiFontsTest {
         } finally {
             Files.deleteIfExists(dir);
         }
+    }
+
+    @Test
+    public void fileChooserExposesDetailsViewAction() throws Exception {
+        Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        AtomicReference<JFileChooser> holder = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> holder.set(UiFonts.fileChooser()));
+        JFileChooser chooser = holder.get();
+        Action details = chooser.getActionMap().get("viewTypeDetails");
+        assertNotNull(details);
+        Integer viewType = UiFonts.fileChooserViewTypeForTest(chooser);
+        assertNotNull(viewType);
+        assertEquals(Integer.valueOf(1), viewType);
+    }
+
+    @Test
+    public void macFileChooserToolbarTipsAndReadableButtons() throws Exception {
+        Assume.assumeTrue(UiFonts.isMac());
+        Assume.assumeFalse(GraphicsEnvironment.isHeadless());
+        AtomicReference<JFileChooser> holder = new AtomicReference<>();
+        SwingUtilities.invokeAndWait(() -> holder.set(UiFonts.fileChooser()));
+        JFileChooser chooser = holder.get();
+        String[] tips = {"上一層", "家目錄", "新建資料夾", "清單", "詳細資料"};
+        int matched = 0;
+        boolean sawCancel = false;
+        boolean sawOpen = false;
+        for (java.awt.Component c : flatten(chooser)) {
+            if (c instanceof JButton) {
+                JButton button = (JButton) c;
+                String tip = button.getToolTipText();
+                if (tip != null) {
+                    for (String expected : tips) {
+                        if (expected.equals(tip)) {
+                            matched++;
+                            break;
+                        }
+                    }
+                }
+                String text = button.getText() == null ? "" : button.getText();
+                if ("取消".equals(text) || "Cancel".equalsIgnoreCase(text)) {
+                    sawCancel = true;
+                    assertTrue(button.getForeground().getRed() < 200 || button.getForeground().getGreen() < 200);
+                    assertFalse("取消鈕不應是白字疊白底",
+                            button.getForeground().equals(Color.WHITE) && button.getBackground().getRed() > 200);
+                }
+                if ("開啟".equals(text) || "打開".equals(text) || "Open".equalsIgnoreCase(text)) {
+                    sawOpen = true;
+                    assertTrue(button.getForeground().getRed() < 200 || button.getForeground().getGreen() < 200
+                            || button.getForeground().equals(Color.WHITE));
+                }
+            }
+        }
+        assertEquals(tips.length, matched);
+        assertTrue(sawCancel);
+        assertTrue(sawOpen);
     }
 
     @Test
