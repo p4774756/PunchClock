@@ -18,7 +18,15 @@ import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
+import javax.swing.Action;
+import javax.swing.JToolBar;
+import javax.swing.plaf.metal.MetalButtonUI;
 import javax.swing.plaf.metal.MetalFileChooserUI;
+import javax.swing.plaf.metal.MetalLookAndFeel;
+import java.awt.event.ActionEvent;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.List;
 import java.awt.BorderLayout;
 import java.awt.Dialog;
 import java.awt.Window;
@@ -454,12 +462,9 @@ public final class UiFonts {
      * macOS 原生選檔面板會把 Downloads 畫成「D wnlo ads」；改走 Metal，由 Swing 自己畫。
      */
     public static JFileChooser fileChooser() {
-        JFileChooser chooser;
+        JFileChooser chooser = createWithLightDefaults();
         if (isMac()) {
-            chooser = new SwingFileChooser();
             applyFontTree(chooser, latinPlain(13));
-        } else {
-            chooser = createWithLightDefaults();
         }
         if (rememberedOpenDirectory != null && rememberedOpenDirectory.isDirectory()) {
             chooser.setCurrentDirectory(rememberedOpenDirectory);
@@ -510,6 +515,18 @@ public final class UiFonts {
      * NightTheme 把 Label／List／ComboBox 前景設成淺色，Windows 原生選檔面板底色是白的，
      * 檔名、標籤就會變成白底白字。建立選檔面板的當下暫時換回淺色預設，建完再還原。
      */
+    private static final String[] FILE_CHOOSER_METAL_ICON_KEYS = {
+            "FileChooser.upFolderIcon",
+            "FileChooser.homeFolderIcon",
+            "FileChooser.newFolderIcon",
+            "FileChooser.listViewIcon",
+            "FileChooser.detailsViewIcon",
+    };
+
+    private static final String[] FILE_CHOOSER_TOOLBAR_TIPS = {
+            "上一層", "家目錄", "新建資料夾", "清單", "詳細資料",
+    };
+
     private static JFileChooser createWithLightDefaults() {
         Object[][] light = {
                 {"Panel.background", new Color(240, 240, 240)},
@@ -546,13 +563,125 @@ public final class UiFonts {
             saved[i] = UIManager.get(key);
             UIManager.put(key, light[i][1]);
         }
+        Object[] savedMetalIcons = null;
+        if (isMac()) {
+            MetalLookAndFeel metal = new MetalLookAndFeel();
+            javax.swing.UIDefaults metalDefaults = metal.getDefaults();
+            savedMetalIcons = new Object[FILE_CHOOSER_METAL_ICON_KEYS.length];
+            for (int i = 0; i < FILE_CHOOSER_METAL_ICON_KEYS.length; i++) {
+                String key = FILE_CHOOSER_METAL_ICON_KEYS[i];
+                savedMetalIcons[i] = UIManager.get(key);
+                Object icon = metalDefaults.get(key);
+                if (icon != null) {
+                    UIManager.put(key, icon);
+                }
+            }
+        }
         try {
-            return new JFileChooser();
+            JFileChooser chooser = isMac() ? new SwingFileChooser() : new JFileChooser();
+            finishFileChooserUi(chooser);
+            return chooser;
         } finally {
             for (int i = 0; i < light.length; i++) {
                 UIManager.put((String) light[i][0], saved[i]);
             }
+            if (savedMetalIcons != null) {
+                for (int i = 0; i < FILE_CHOOSER_METAL_ICON_KEYS.length; i++) {
+                    UIManager.put(FILE_CHOOSER_METAL_ICON_KEYS[i], savedMetalIcons[i]);
+                }
+            }
         }
+    }
+
+    private static void finishFileChooserUi(JFileChooser chooser) {
+        applyFileChooserDetailsView(chooser);
+        if (isMac()) {
+            applyFileChooserToolbarTooltips(chooser);
+            styleFileChooserDialogButtons(chooser);
+        }
+    }
+
+    private static void applyFileChooserDetailsView(JFileChooser chooser) {
+        Action details = chooser.getActionMap().get("viewTypeDetails");
+        if (details != null && details.isEnabled()) {
+            details.actionPerformed(new ActionEvent(chooser, ActionEvent.ACTION_PERFORMED, "viewTypeDetails"));
+        }
+    }
+
+    private static void applyFileChooserToolbarTooltips(JFileChooser chooser) {
+        List<JButton> buttons = new ArrayList<>();
+        collectToolbarButtons(chooser, buttons);
+        for (int i = 0; i < buttons.size() && i < FILE_CHOOSER_TOOLBAR_TIPS.length; i++) {
+            buttons.get(i).setToolTipText(FILE_CHOOSER_TOOLBAR_TIPS[i]);
+        }
+    }
+
+    private static void collectToolbarButtons(Component component, List<JButton> buttons) {
+        if (component instanceof JToolBar) {
+            for (Component child : ((JToolBar) component).getComponents()) {
+                if (child instanceof JButton) {
+                    buttons.add((JButton) child);
+                }
+            }
+            return;
+        }
+        if (component instanceof Container) {
+            for (Component child : ((Container) component).getComponents()) {
+                collectToolbarButtons(child, buttons);
+            }
+        }
+    }
+
+    private static void styleFileChooserDialogButtons(JFileChooser chooser) {
+        Color lightButton = new Color(225, 225, 225);
+        for (Component component : flattenComponents(chooser)) {
+            if (!(component instanceof JButton)) {
+                continue;
+            }
+            JButton button = (JButton) component;
+            String label = button.getText() == null ? "" : button.getText();
+            if (!isFileChooserApprovalLabel(label)) {
+                continue;
+            }
+            button.setUI(new MetalButtonUI());
+            button.setOpaque(true);
+            button.setBackground(lightButton);
+            button.setForeground(Color.BLACK);
+        }
+    }
+
+    private static boolean isFileChooserApprovalLabel(String label) {
+        return "開啟".equals(label) || "打開".equals(label) || "取消".equals(label)
+                || "Open".equalsIgnoreCase(label) || "Cancel".equalsIgnoreCase(label);
+    }
+
+    static Integer fileChooserViewTypeForTest(JFileChooser chooser) {
+        for (Component component : flattenComponents(chooser)) {
+            if (!component.getClass().getName().endsWith("FilePane")) {
+                continue;
+            }
+            try {
+                Method method = component.getClass().getMethod("getViewType");
+                Object value = method.invoke(component);
+                if (value instanceof Integer) {
+                    return (Integer) value;
+                }
+            } catch (ReflectiveOperationException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static List<Component> flattenComponents(Component root) {
+        List<Component> list = new ArrayList<>();
+        list.add(root);
+        if (root instanceof Container) {
+            for (Component child : ((Container) root).getComponents()) {
+                list.addAll(flattenComponents(child));
+            }
+        }
+        return list;
     }
 
     /** JComponent.setUI 是 protected，只能從子類呼叫。 */
