@@ -129,7 +129,9 @@ final class HeartbeatResponseParser {
             int taskCount = p.has("taskCount") ? p.get("taskCount").getAsInt() : 0;
             int scheduledCount = p.has("scheduledCount") ? p.get("scheduledCount").getAsInt() : 0;
             String lastSeen = p.has("lastSeen") ? p.get("lastSeen").getAsString() : "";
-            peers.add(new HeartbeatService.PeerInfo(id, status, appVersion, taskCount, scheduledCount, lastSeen));
+            String statusText = p.has("statusText") ? p.get("statusText").getAsString() : "";
+            peers.add(new HeartbeatService.PeerInfo(
+                    id, status, appVersion, taskCount, scheduledCount, lastSeen, statusText));
         }
         host.peersListener().accept(peers);
     }

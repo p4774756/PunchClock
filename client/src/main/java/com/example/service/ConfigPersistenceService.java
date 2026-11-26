@@ -1,6 +1,7 @@
 package com.example.service;
 
 import com.example.BuildInfo;
+import com.example.PeerFileRules;
 import com.example.ui.TaskEditDialog;
 import com.example.ui.hud.CharacterTheme;
 import com.example.ui.hud.HomeIllustration;
@@ -82,6 +83,9 @@ public class ConfigPersistenceService {
 
         /** 標為最愛的好友裝置 ID；好友列表會排在最上面。 */
         public List<String> favoritePeers = new ArrayList<>();
+
+        /** 自訂好友列表狀態（最多 20 字）；隨心跳上傳。 */
+        public String statusText = "";
 
         /** 上次選檔的資料夾。下次開啟選檔面板時從這裡開始。 */
         public String lastOpenDirectory = "";
@@ -271,6 +275,7 @@ public class ConfigPersistenceService {
         config.characterTheme = CharacterTheme.fromId(config.characterTheme).id();
         config.homeIllustration = HomeIllustration.fromId(config.homeIllustration).id();
         config.lastUpdateCheckAt = normalizeUpdateCheckAt(config.lastUpdateCheckAt);
+        config.statusText = PeerFileRules.sanitizeStatusText(config.statusText);
     }
 
     /** 讀不回來的時間清成空字串，避免畫面顯示壞掉的紀錄。 */

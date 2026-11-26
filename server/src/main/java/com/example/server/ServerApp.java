@@ -433,6 +433,14 @@ public final class ServerApp {
                 clientInfo.put("avatar", avatar);
             }
         }
+        if (body.containsKey("statusText")) {
+            String statusText = ClientStore.sanitizeStatusText(body.get("statusText"));
+            if (statusText.isEmpty()) {
+                clientInfo.remove("statusText");
+            } else {
+                clientInfo.put("statusText", statusText);
+            }
+        }
         ClientStore.applyCapabilities(clientInfo, body);
         clientStore.setClient(clientId, clientInfo);
         return false;

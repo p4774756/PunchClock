@@ -85,6 +85,15 @@ public class AnimeShellNavTest {
     }
 
     @Test
+    public void nonHomeShellFillsPanelGray() {
+        BufferedImage tab = AnimeShell.renderShellPreview(380, 520, false, 1);
+        Color sample = new Color(tab.getRGB(4, 4), true);
+        assertEquals(192, sample.getRed());
+        assertEquals(192, sample.getGreen());
+        assertEquals(192, sample.getBlue());
+    }
+
+    @Test
     public void navFillIconsLoad() {
         for (int i = 0; i < AnimeShell.navCount(); i++) {
             String id = TabNavIcon.navIconId(i);
