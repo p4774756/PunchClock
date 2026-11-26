@@ -1994,8 +1994,13 @@ export function mountPrivateTeamScene(canvas, opts) {
     secretarySprite.material.map = tex;
     secretarySprite.material.needsUpdate = true;
     if (oldMap && oldMap !== tex) oldMap.dispose();
-    secretarySprite.position.set(0, spriteBaseY, 0);
-    secretarySprite.rotation.set(0, 0, 0);
+    if (dancePlayback) {
+      secretarySprite.position.x = 0;
+      secretarySprite.position.z = 0;
+    } else {
+      secretarySprite.position.set(0, spriteBaseY, 0);
+      secretarySprite.rotation.set(0, 0, 0);
+    }
     currentSpriteUrl = url;
   }
 
@@ -2363,7 +2368,8 @@ export function mountPrivateTeamScene(canvas, opts) {
             danceDisplayFrame = frameKey;
             if (st.url) applySecretarySpriteUrl(st.url);
           }
-          dancePlayback.jumpOffset = secretaryCelebrateJumpOffsetAt(elapsed);
+          dancePlayback.jumpOffset =
+            st.kind === 'jump' ? secretaryCelebrateJumpOffsetAt(elapsed) : null;
         }
       }
     } else if (
@@ -2413,7 +2419,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       let extraY = 0;
       let leanZ = 0;
       if (!reducedMotion) {
-        if (dancePlayback && dancePlayback.jumpOffset) {
+        if (dancePlayback && dancePlayback.jumpOffset != null) {
           extraY = dancePlayback.jumpOffset;
         } else {
           extraY = breath;

@@ -27,7 +27,24 @@ EXTRA_SPRITES = (
     "secretary-typing-b.webp",
     "secretary-wave.webp",
     "secretary-yeah.webp",
+    "secretary-read.webp",
+    "secretary-phone.webp",
 )
+
+WAIST_GAP_SPRITES = frozenset(
+    {
+        "secretary-yeah.webp",
+        "secretary-idle-tea.webp",
+        "secretary-read.webp",
+        "secretary-phone.webp",
+    }
+)
+
+REF_WAIST_SPRITE = "secretary-clap-a.webp"
+
+# 比讚跳躍時鍵盤與大腿間的透明腰洞（與 issue 描述列區間對齊）
+CELEBRATE_WAIST_BOX = (552, 590, 80, 126)
+WAIST_GAP_BOX = (500, 620, 60, 180)
 
 
 def dilate(mask: np.ndarray, radius: int = 1) -> np.ndarray:
@@ -338,6 +355,47 @@ def repair_foot_and_fringe(alpha: np.ndarray, rgb: np.ndarray) -> Tuple[np.ndarr
     return a, c
 
 
+def repair_waist_gaps_from_reference(
+    alpha: np.ndarray, rgb: np.ndarray, ref: np.ndarray, box: Tuple[int, int, int, int]
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Fill exterior-connected waist transparency using a pose with a closed torso (clap-a)."""
+    a = alpha.copy()
+    c = rgb.copy()
+    ref_rgb = ref[:, :, :3]
+    ref_a = ref[:, :, 3]
+    matte_ref = is_matte_rgb(ref)
+    y0, y1, x0, x1 = box
+    h, w = a.shape
+    y1 = min(y1, h)
+    x1 = min(x1, w)
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            if a[y, x] >= 12:
+                continue
+            if ref_a[y, x] < 180:
+                continue
+            if matte_ref[y, x] or is_brown_rgb(int(ref_rgb[y, x, 0]), int(ref_rgb[y, x, 1]), int(ref_rgb[y, x, 2])):
+                continue
+            c[y, x] = ref_rgb[y, x]
+            a[y, x] = int(ref_a[y, x])
+    rem = np.zeros_like(a, dtype=bool)
+    rem[y0:y1, x0:x1] = True
+    rem &= a < 12
+    if int(rem.sum()):
+        _paint_from_skin(c, a, rem)
+    return a, c
+
+
+def celebrate_waist_gap_pixels(alpha: np.ndarray) -> int:
+    y0, y1, x0, x1 = CELEBRATE_WAIST_BOX
+    return int((alpha[y0:y1, x0:x1] < 12).sum())
+
+
+def waist_gap_band_pixels(alpha: np.ndarray) -> int:
+    y0, y1, x0, x1 = WAIST_GAP_BOX
+    return int((alpha[y0:y1, x0:x1] < 12).sum())
+
+
 def snap_alpha(alpha: np.ndarray) -> np.ndarray:
     a = alpha.copy()
     a[a < 12] = 0
@@ -345,10 +403,15 @@ def snap_alpha(alpha: np.ndarray) -> np.ndarray:
     return a
 
 
-def fix_sprite(im: Image.Image) -> Image.Image:
+def fix_sprite(im: Image.Image, name: str = "") -> Image.Image:
     arr = np.array(im.convert("RGBA"))
     rgb = arr[:, :, :3].copy()
     alpha = arr[:, :, 3].copy()
+    if name in WAIST_GAP_SPRITES:
+        ref_path = ASSET_DIR / REF_WAIST_SPRITE
+        if ref_path.is_file():
+            ref = np.array(Image.open(ref_path).convert("RGBA"))
+            alpha, rgb = repair_waist_gaps_from_reference(alpha, rgb, ref, WAIST_GAP_BOX)
     alpha, rgb = repair_foot_and_fringe(alpha, rgb)
     alpha, rgb = inpaint_holes(alpha, rgb, max_passes=48)
     alpha = snap_alpha(alpha)
@@ -397,6 +460,14 @@ def check_sprite(path: Path) -> List[str]:
     waist = waist_hole_pixels(alpha)
     if waist > 120:
         errs.append(f"{path.name}: {waist} waist enclosed holes (limit 120)")
+    if path.name in WAIST_GAP_SPRITES:
+        gap = celebrate_waist_gap_pixels(alpha)
+        if gap > 0:
+            errs.append(f"{path.name}: {gap} celebrate waist gap px (limit 0)")
+        band = waist_gap_band_pixels(alpha)
+        band_limit = 220 if path.name == "secretary-yeah.webp" else 320
+        if band > band_limit:
+            errs.append(f"{path.name}: {band} waist gap band px (limit {band_limit})")
     h = alpha.shape[0]
     sl = slice(h - 40, h)
     bad = (
@@ -527,15 +598,18 @@ def run_fix(extra: bool = False) -> None:
         if not path.exists():
             print(f"skip missing {name}", file=sys.stderr)
             continue
-        im = fix_sprite(Image.open(path))
+        im = fix_sprite(Image.open(path), name=name)
         save_webp(im, path)
         print(f"wrote {name}")
 
 
 def run_check() -> int:
     errs: List[str] = []
-    for name in STATUS_SPRITES:
-        errs.extend(check_sprite(ASSET_DIR / name))
+    checked = set(STATUS_SPRITES) | WAIST_GAP_SPRITES
+    for name in sorted(checked):
+        path = ASSET_DIR / name
+        if path.is_file():
+            errs.extend(check_sprite(path))
     if errs:
         for e in errs:
             print(e, file=sys.stderr)
