@@ -39,8 +39,18 @@ public class HomeMoodPoolTest {
 
     @Test
     public void statusLinesHaveNoEmoji() {
-        assertTrue(!HomeMoodPool.doneLine().contains("♡"));
-        assertTrue(!HomeMoodPool.allDoneLine().contains("♡"));
-        assertTrue(HomeMoodPool.pickUnread(-1).contains("訊息") || HomeMoodPool.pickUnread(-1).contains("消息"));
+        boolean hasUnreadCue = false;
+        for (String line : HomeMoodPool.allLines()) {
+            assertTrue("不得含愛心符號：" + line, !line.contains("♡"));
+            assertTrue("不得含愛心符號：" + line, !line.contains("♥"));
+            if (line.contains("訊息") || line.contains("消息")) {
+                hasUnreadCue = true;
+            }
+        }
+        assertTrue(hasUnreadCue);
+        String unread = HomeMoodPool.unreadAt(0);
+        assertTrue(unread.contains("訊息") || unread.contains("消息"));
+        unread = HomeMoodPool.unreadAt(1);
+        assertTrue(unread.contains("訊息") || unread.contains("消息"));
     }
 }

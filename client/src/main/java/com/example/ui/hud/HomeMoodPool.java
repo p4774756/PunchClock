@@ -94,8 +94,39 @@ public final class HomeMoodPool {
         return pick(CLICK, lastIndex);
     }
 
+    public static String unreadAt(int index) {
+        if (index < 0 || index >= UNREAD.length) {
+            return UNREAD[0];
+        }
+        return UNREAD[index];
+    }
+
     public static String pickUnread(int lastIndex) {
         return pick(UNREAD, lastIndex);
+    }
+
+    /** 台詞池全部句子，供單測檢查無 emoji。 */
+    static String[] allLines() {
+        int n = 2 + CLICK.length + UNREAD.length;
+        for (String[] band : MOOD) {
+            n += band.length;
+        }
+        String[] lines = new String[n];
+        int i = 0;
+        lines[i++] = doneLine();
+        lines[i++] = allDoneLine();
+        for (String[] band : MOOD) {
+            for (String line : band) {
+                lines[i++] = line;
+            }
+        }
+        for (String line : CLICK) {
+            lines[i++] = line;
+        }
+        for (String line : UNREAD) {
+            lines[i++] = line;
+        }
+        return lines;
     }
 
     public static String doneLine() {
