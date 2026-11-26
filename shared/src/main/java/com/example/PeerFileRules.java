@@ -199,6 +199,32 @@ public final class PeerFileRules {
         return home.toAbsolutePath().normalize();
     }
 
+    /** 好友列表自訂狀態字數上限（Unicode 字／code point）。 */
+    public static final int PEER_STATUS_TEXT_MAX_CODE_POINTS = 20;
+
+    /** 去掉控制字元並截斷；非字串或 null 視為空。 */
+    public static String sanitizeStatusText(Object raw) {
+        if (!(raw instanceof String)) {
+            return "";
+        }
+        String source = (String) raw;
+        StringBuilder kept = new StringBuilder();
+        int count = 0;
+        for (int i = 0; i < source.length(); ) {
+            int cp = source.codePointAt(i);
+            i += Character.charCount(cp);
+            if (cp <= 0x1F || cp == 0x7F) {
+                continue;
+            }
+            if (count >= PEER_STATUS_TEXT_MAX_CODE_POINTS) {
+                break;
+            }
+            kept.appendCodePoint(cp);
+            count++;
+        }
+        return kept.toString();
+    }
+
     public static Path resolveSavePath(Path selected, String fallbackName) {
         String name = sanitizeFilename(fallbackName);
         if (name.isEmpty()) {

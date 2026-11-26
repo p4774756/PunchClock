@@ -344,6 +344,10 @@ public final class ClientStore {
             if (!avatar.isEmpty()) {
                 peer.put("avatar", avatar);
             }
+            String statusText = sanitizeStatusText(c.get("statusText"));
+            if (!statusText.isEmpty()) {
+                peer.put("statusText", statusText);
+            }
             peers.add(peer);
         }
         peers.sort(Comparator.comparing(m -> String.valueOf(m.get("clientId"))));
@@ -594,6 +598,10 @@ public final class ClientStore {
                 + "|" + size
                 + "|" + PeerFileRules.normalizeKind(kind)
                 + "|" + System.currentTimeMillis();
+    }
+
+    public static String sanitizeStatusText(Object raw) {
+        return PeerFileRules.sanitizeStatusText(raw);
     }
 
     public static String sanitizeAvatar(Object raw) {

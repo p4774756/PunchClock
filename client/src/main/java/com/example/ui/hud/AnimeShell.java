@@ -657,7 +657,12 @@ public final class AnimeShell extends JPanel {
             g.dispose();
             return;
         }
-        paintRoom(g);
+        if (holdingHome) {
+            paintRoom(g);
+        } else {
+            g.setColor(CandyTheme.PANEL);
+            g.fillRect(0, 0, getWidth(), getHeight());
+        }
         java.awt.Rectangle content = contentBounds();
         if (holdingHome) {
             board.layout(content);

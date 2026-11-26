@@ -113,6 +113,34 @@ public class HeartbeatServiceCommandParseTest {
     }
 
     @Test
+    public void parseServerCommand_readsPeerStatusText() throws Exception {
+        HeartbeatService service = new HeartbeatService();
+        List<HeartbeatService.PeerInfo> peers = new ArrayList<>();
+        service.setPeersListener(peers::addAll);
+
+        Method method = HeartbeatService.class.getDeclaredMethod(
+                "parseServerCommand", String.class, Consumer.class);
+        method.setAccessible(true);
+        String body = "{"
+                + "\"peers\":[{\"clientId\":\"worker-b\",\"status\":\"ONLINE\","
+                + "\"statusText\":\"開會中\"}]"
+                + "}";
+        method.invoke(service, body, (Consumer<String>) msg -> {});
+
+        assertEquals(1, peers.size());
+        assertEquals("開會中", peers.get(0).statusText);
+    }
+
+    @Test
+    public void heartbeatPayloadIncludesStatusText() {
+        HeartbeatService service = new HeartbeatService();
+        service.setStatusText("今天好累");
+        assertEquals("今天好累", service.getStatusText());
+        service.setStatusText("字".repeat(30));
+        assertEquals(20, service.getStatusText().codePointCount(0, service.getStatusText().length()));
+    }
+
+    @Test
     public void parseServerCommand_forwardsPeerAvatar() throws Exception {
         HeartbeatService service = new HeartbeatService();
         List<String> received = new ArrayList<>();

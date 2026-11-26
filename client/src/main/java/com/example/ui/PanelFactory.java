@@ -733,8 +733,38 @@ public class PanelFactory {
     /** 有未讀訊息的好友 ID 集合（不含本機）。 */
     public static final String PEER_UNREAD_CLIENT_KEY = "peer.unread";
 
+    private static void installPeerStatusTextLimit(javax.swing.JTextField field) {
+        if (field == null) {
+            return;
+        }
+        javax.swing.text.Document doc = field.getDocument();
+        if (!(doc instanceof javax.swing.text.AbstractDocument)) {
+            return;
+        }
+        ((javax.swing.text.AbstractDocument) doc).setDocumentFilter(new javax.swing.text.DocumentFilter() {
+            @Override
+            public void insertString(FilterBypass fb, int offset, String string,
+                                     javax.swing.text.AttributeSet attr) throws javax.swing.text.BadLocationException {
+                replace(fb, offset, 0, string, attr);
+            }
+
+            @Override
+            public void replace(FilterBypass fb, int offset, int length, String text,
+                                javax.swing.text.AttributeSet attrs) throws javax.swing.text.BadLocationException {
+                String current = fb.getDocument().getText(0, fb.getDocument().getLength());
+                String head = current.substring(0, offset);
+                String tail = current.substring(offset + length);
+                String merged = head + (text == null ? "" : text) + tail;
+                String limited = com.example.PeerFileRules.sanitizeStatusText(merged);
+                fb.remove(0, fb.getDocument().getLength());
+                fb.insertString(0, limited, attrs);
+                field.setCaretPosition(Math.min(offset + (text == null ? 0 : text.length()), limited.length()));
+            }
+        });
+    }
+
     /** 好友列表「最愛」欄的 model 索引（最後一欄，不影響第 0 欄的裝置 ID）。 */
-    public static final int PEER_FAVORITE_COLUMN = 3;
+    public static final int PEER_FAVORITE_COLUMN = 2;
     public static final String PEER_FAVORITE_ON = "★";
     public static final String PEER_FAVORITE_OFF = "☆";
     private static final Color PEER_FAVORITE_GOLD = new Color(255, 208, 96);
@@ -752,7 +782,7 @@ public class PanelFactory {
         refs.peerHintLabel = hint;
 
         refs.peerTableModel = new javax.swing.table.DefaultTableModel(
-                new Object[]{"裝置 ID", "等待任務", "版本", "最愛"}, 0) {
+                new Object[]{"裝置 ID", "狀態", "最愛"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -766,7 +796,7 @@ public class PanelFactory {
                 if (layingOutPeerColumns) {
                     return;
                 }
-                if (getWidth() <= 0 || getColumnCount() != 4) {
+                if (getWidth() <= 0 || getColumnCount() != 3) {
                     super.doLayout();
                     return;
                 }
@@ -784,7 +814,7 @@ public class PanelFactory {
         refs.peerTable.getTableHeader().setFont(boldFont);
         refs.peerTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         // 真正的欄寬在 doLayout 用表頭 renderer 的 preferred 寬重算。這裡先給一個放得下欄名的初值。
-        int[] peerColW = {120, 76, 48, 48};
+        int[] peerColW = {120, 96, 48};
         for (int i = 0; i < peerColW.length; i++) {
             javax.swing.table.TableColumn column = refs.peerTable.getColumnModel().getColumn(i);
             column.setMinWidth(28);
@@ -831,6 +861,15 @@ public class PanelFactory {
         JPanel avatarRow = wrapFlowRow(1, 2,
                 avatarLabel, refs.avatarPreview, refs.chooseAvatarButton, refs.clearAvatarButton);
         refs.avatarRow = avatarRow;
+
+        refs.statusTextField = new javax.swing.JTextField();
+        refs.statusTextField.setFont(mainFont);
+        refs.statusTextField.setToolTipText("好友列表上顯示的一句話，最多 20 個字；可留空");
+        installPeerStatusTextLimit(refs.statusTextField);
+        JLabel statusLabel = new JLabel("狀態：");
+        statusLabel.setFont(mainFont);
+        JPanel statusRow = wrapFlowRow(1, 2, statusLabel, refs.statusTextField);
+        refs.statusRow = statusRow;
 
         String[] workerOptions = {"company-worker", "company-worker2", "company-worker3", "company-worker4"};
         refs.clientIdCombo = new JComboBox<>(workerOptions);
@@ -903,6 +942,8 @@ public class PanelFactory {
         north.add(refs.openCloudSettingsButton);
         north.add(Box.createVerticalStrut(8));
         north.add(avatarRow);
+        north.add(Box.createVerticalStrut(8));
+        north.add(statusRow);
 
         JPanel center = new JPanel(new BorderLayout(0, 8));
         center.setOpaque(false);
@@ -1084,15 +1125,15 @@ public class PanelFactory {
     }
 
     /**
-     * 後面三欄至少放下表頭（套用 NightTheme 之後的 header renderer，含左右 padding）。
-     * 多出來的寬度給裝置 ID；表太窄時先縮裝置 ID（允許省略），最後才壓縮後面三欄。
+     * 後兩欄至少放下表頭（套用 NightTheme 之後的 header renderer，含左右 padding）。
+     * 多出來的寬度給裝置 ID；表太窄時先縮裝置 ID（允許省略），最後才壓縮後兩欄。
      */
     private static void layoutPeerColumns(JTable table) {
         int width = table.getWidth();
-        if (table.getColumnCount() != 4) {
+        if (table.getColumnCount() != 3) {
             return;
         }
-        int[] tail = new int[3];
+        int[] tail = new int[2];
         int tailSum = 0;
         for (int i = 0; i < tail.length; i++) {
             tail[i] = peerColumnPreferredWidth(table, i + 1);
@@ -1273,6 +1314,8 @@ public class PanelFactory {
         public JButton chooseAvatarButton;
         public JButton clearAvatarButton;
         public JPanel avatarRow;
+        public javax.swing.JTextField statusTextField;
+        public JPanel statusRow;
     }
 
     // ==================== 分組 2: 上班排程 ====================

@@ -92,14 +92,18 @@ public class NarrowShellLayoutTest {
             assertFits(scroll, refs.clientIdApplyButton);
             assertTrue(refs.peerTable.getWidth() > 0);
             assertTrue(refs.peerTable.getWidth() <= VIEW_W);
-            assertEquals(4, refs.peerTable.getColumnCount());
+            assertEquals(3, refs.peerTable.getColumnCount());
             int covered = 0;
             for (int i = 0; i < refs.peerTable.getColumnCount(); i++) {
                 int colW = refs.peerTable.getColumnModel().getColumn(i).getWidth();
                 assertTrue("col " + i + " width " + colW, colW >= 28);
                 covered += colW;
                 Object header = refs.peerTable.getColumnModel().getColumn(i).getHeaderValue();
-                assertFalse("狀態".equals(header));
+                if (i == 1) {
+                    assertEquals("狀態", header);
+                } else {
+                    assertFalse("狀態".equals(header));
+                }
             }
             assertTrue(covered <= refs.peerTable.getWidth() + 2);
             assertTrue(refs.peerHintLabel.getWidth() <= VIEW_W);
@@ -108,8 +112,8 @@ public class NarrowShellLayoutTest {
             online.put("company-worker2", true);
             online.put("company-worker3", false);
             refs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, online);
-            refs.peerTableModel.addRow(new Object[]{"company-worker2", 0, "4.0.0", "☆"});
-            refs.peerTableModel.addRow(new Object[]{"company-worker3", 2, "4.0.0", "★"});
+            refs.peerTableModel.addRow(new Object[]{"company-worker2", "開會中", "☆"});
+            refs.peerTableModel.addRow(new Object[]{"company-worker3", "", "★"});
             assertPeerIdsFit(refs.peerTable, 300);
             assertPeerColumnAlignments(refs.peerTable);
             assertPeerOnlineDotsDiffer(refs.peerTable);

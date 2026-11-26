@@ -52,15 +52,17 @@ public class HeartbeatService implements HeartbeatEvents {
         public final int taskCount;
         public final int scheduledCount;
         public final String lastSeen;
+        public final String statusText;
 
         public PeerInfo(String clientId, String status, String appVersion,
-                        int taskCount, int scheduledCount, String lastSeen) {
+                        int taskCount, int scheduledCount, String lastSeen, String statusText) {
             this.clientId = clientId;
             this.status = status != null ? status : "UNKNOWN";
             this.appVersion = appVersion != null ? appVersion : "";
             this.taskCount = taskCount;
             this.scheduledCount = scheduledCount;
             this.lastSeen = lastSeen != null ? lastSeen : "";
+            this.statusText = statusText != null ? statusText : "";
         }
     }
 
@@ -118,6 +120,7 @@ public class HeartbeatService implements HeartbeatEvents {
     private boolean isServiceActive = false;
     private boolean trustAllSsl = false;
     private volatile String avatarEncoded = "";
+    private volatile String statusText = "";
 
     private Supplier<List<CheckInTask>> tasksProvider;
     private Consumer<String> commandListener;
@@ -234,6 +237,14 @@ public class HeartbeatService implements HeartbeatEvents {
         return avatarEncoded;
     }
 
+    public void setStatusText(String text) {
+        this.statusText = PeerFileRules.sanitizeStatusText(text);
+    }
+
+    public String getStatusText() {
+        return statusText;
+    }
+
     /**
      * 啟動定期單向 HTTP POST 心跳
      */
@@ -297,6 +308,7 @@ public class HeartbeatService implements HeartbeatEvents {
         payload.put("tasks", tasksList);
         payload.put("heartbeatSeq", heartbeatSeq.incrementAndGet());
         payload.put("avatar", avatarEncoded == null ? "" : avatarEncoded);
+        payload.put("statusText", statusText == null ? "" : statusText);
         payload.put("capabilities", List.of(PeerFileRules.CAPABILITY_RELAY));
 
         String jsonBody = gson.toJson(payload);

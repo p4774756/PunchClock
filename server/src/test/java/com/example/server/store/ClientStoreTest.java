@@ -167,6 +167,33 @@ public class ClientStoreTest {
     }
 
     @Test
+    public void sanitizeStatusTextTrimsAndLimits() {
+        assertEquals("", ClientStore.sanitizeStatusText(null));
+        assertEquals("", ClientStore.sanitizeStatusText(12));
+        assertEquals("開會中", ClientStore.sanitizeStatusText("開會中"));
+        assertEquals("a".repeat(20), ClientStore.sanitizeStatusText("a".repeat(25)));
+        assertEquals("字".repeat(20), ClientStore.sanitizeStatusText("字".repeat(25)));
+    }
+
+    @Test
+    public void peerSnapshotIncludesStatusTextWhenSet() {
+        Map<String, Object> client = store.getOrCreateClient("b");
+        client.put("statusText", "今天好累");
+        store.setClient("b", client);
+        store.getOrCreateClient("a");
+        assertEquals("今天好累", store.peerSnapshot("a").get(0).get("statusText"));
+    }
+
+    @Test
+    public void peerSnapshotOmitsEmptyStatusText() {
+        Map<String, Object> client = store.getOrCreateClient("b");
+        client.put("statusText", "");
+        store.setClient("b", client);
+        store.getOrCreateClient("a");
+        assertFalse(store.peerSnapshot("a").get(0).containsKey("statusText"));
+    }
+
+    @Test
     public void sanitizeClientForApiStripsAvatar() {
         Map<String, Object> dirty = new LinkedHashMap<>();
         dirty.put("clientId", "worker-a");

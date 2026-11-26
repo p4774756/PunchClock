@@ -729,6 +729,28 @@ public class App extends JFrame {
         if (peerRefs.clearAvatarButton != null) {
             peerRefs.clearAvatarButton.addActionListener(e -> clearPeerAvatar());
         }
+        if (peerRefs.statusTextField != null) {
+            peerRefs.statusTextField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                private void onChange() {
+                    applyPeerStatusFromUi();
+                }
+
+                @Override
+                public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                    onChange();
+                }
+
+                @Override
+                public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                    onChange();
+                }
+
+                @Override
+                public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                    onChange();
+                }
+            });
+        }
     }
 
     /** 加入／取消最愛；好友列表會重排並存檔。 */
@@ -1411,8 +1433,7 @@ public class App extends JFrame {
             friendCount++;
             peerRefs.peerTableModel.addRow(new Object[]{
                     peer.clientId,
-                    peer.scheduledCount,
-                    peer.appVersion.isBlank() ? "—" : peer.appVersion,
+                    peer.statusText,
                     favoritePeerIds.contains(peer.clientId)
                             ? PanelFactory.PEER_FAVORITE_ON
                             : PanelFactory.PEER_FAVORITE_OFF
@@ -1745,6 +1766,36 @@ public class App extends JFrame {
         }
         heartbeatService.setAvatarEncoded(encoded);
         refreshAvatarPreview(encoded);
+    }
+
+    private void applyPeerStatusFromConfig(ConfigPersistenceService.CloudConfig config) {
+        String text = config == null ? "" : com.example.PeerFileRules.sanitizeStatusText(config.statusText);
+        heartbeatService.setStatusText(text);
+        if (peerRefs.statusTextField != null) {
+            String shown = peerRefs.statusTextField.getText();
+            if (!text.equals(shown)) {
+                peerRefs.statusTextField.setText(text);
+            }
+        }
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().statusText = text;
+        }
+    }
+
+    private void applyPeerStatusFromUi() {
+        if (peerRefs.statusTextField == null || suppressConfigSave) {
+            return;
+        }
+        String text = com.example.PeerFileRules.sanitizeStatusText(peerRefs.statusTextField.getText());
+        if (!text.equals(peerRefs.statusTextField.getText())) {
+            peerRefs.statusTextField.setText(text);
+            return;
+        }
+        heartbeatService.setStatusText(text);
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().statusText = text;
+        }
+        saveCloudConfig();
     }
 
     private void refreshAvatarPreview(String encoded) {
@@ -2304,6 +2355,7 @@ public class App extends JFrame {
             applyCheckInUiSelection(config);
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
+            applyPeerStatusFromConfig(config);
             applyBackgroundFromConfig(config);
             UiFonts.setRememberedOpenDirectory(config.lastOpenDirectory);
         } finally {
@@ -2564,6 +2616,12 @@ public class App extends JFrame {
         List<String> favorites = new ArrayList<>(favoritePeerIds);
         java.util.Collections.sort(favorites);
         config.favoritePeers = favorites;
+        if (peerRefs.statusTextField != null) {
+            config.statusText = com.example.PeerFileRules.sanitizeStatusText(peerRefs.statusTextField.getText());
+            heartbeatService.setStatusText(config.statusText);
+        } else if (slotController.getConfig() != null) {
+            config.statusText = com.example.PeerFileRules.sanitizeStatusText(slotController.getConfig().statusText);
+        }
         if (serverRefs.checkInUiVisibleSwitch != null) {
             config.checkInUiVisible = serverRefs.checkInUiVisibleSwitch.isSelected();
         }
