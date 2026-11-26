@@ -686,6 +686,10 @@ public final class AnimeShell extends JPanel {
             g.drawImage(img, x, y, w, icon, null);
             x += w + 6;
         }
+        int glyph = 10;
+        int gy = (h - glyph) / 2;
+        WindowChrome.paintTitleCollapseGlyph(g, x + 2, gy, glyph, true);
+        x += glyph + 8;
         HomeBrief brief = homeActions == null ? HomeBrief.empty() : homeActions.read();
         boolean online = brief != null && brief.cloudOn;
         g.setColor(online ? new Color(117, 214, 162) : new Color(160, 148, 188));
