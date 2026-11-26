@@ -25,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -128,6 +129,10 @@ public class HeartbeatService implements HeartbeatEvents {
     /** 上一發還在飛時又有人要送，完成後補一發，並把這些 callback 掛上去。 */
     private final List<Consumer<Boolean>> queuedHeartbeatCallbacks = new ArrayList<>();
     private final java.util.concurrent.atomic.AtomicLong heartbeatSeq = new java.util.concurrent.atomic.AtomicLong(0);
+    private final HeartbeatFailurePolicy failurePolicy = new HeartbeatFailurePolicy();
+    private Consumer<String> heartbeatLogger;
+    private Consumer<Boolean> heartbeatStatusCallback;
+    private volatile ScheduledFuture<?> nextHeartbeatTask;
 
     public void setCommandListener(Consumer<String> commandListener) {
         this.commandListener = commandListener;
@@ -248,13 +253,11 @@ public class HeartbeatService implements HeartbeatEvents {
                 + (trustAllSsl ? " [SSL 信任全部憑證]" : ""));
 
         scheduler = Executors.newScheduledThreadPool(1);
+        this.heartbeatLogger = logger;
+        this.heartbeatStatusCallback = statusCallback;
+        failurePolicy.reset();
 
         sendPostHeartbeat(logger, statusCallback);
-
-        scheduler.scheduleAtFixedRate(() -> {
-            if (!isServiceActive) return;
-            sendPostHeartbeat(logger, statusCallback);
-        }, 15, 15, TimeUnit.SECONDS);
     }
 
     /**
@@ -311,13 +314,19 @@ public class HeartbeatService implements HeartbeatEvents {
                     .whenComplete((response, ex) -> {
                         try {
                             if (ex != null) {
-                                log(logger, "[失敗] [HTTP POST 心跳失敗] " + ex.getMessage());
+                                failurePolicy.onConnectionFailure(ex.getMessage())
+                                        .ifPresent(line -> log(logger, line));
                                 if (statusCallback != null) statusCallback.accept(false);
                             } else if (response.statusCode() == 200) {
+                                failurePolicy.onSuccess().ifPresent(line -> log(logger, line));
                                 responses.parse(response.body(), logger);
                                 if (statusCallback != null) statusCallback.accept(true);
                             } else {
-                                log(logger, "[警告] [HTTP POST 心跳] 伺服器回應異常，狀態碼：" + response.statusCode());
+                                int statusCode = response.statusCode();
+                                failurePolicy.onHttpError(statusCode).ifPresent(line -> log(logger, line));
+                                if (HeartbeatFailurePolicy.shouldLog401Hint(statusCode, false)) {
+                                    log(logger, HeartbeatFailurePolicy.unauthorizedHintLine());
+                                }
                                 if (statusCallback != null) statusCallback.accept(false);
                             }
                         } finally {
@@ -325,7 +334,7 @@ public class HeartbeatService implements HeartbeatEvents {
                         }
                     });
         } catch (Exception ex) {
-            log(logger, "[失敗] [HTTP POST 發送異常] " + ex.getMessage());
+            failurePolicy.onConnectionFailure(ex.getMessage()).ifPresent(line -> log(logger, line));
             if (statusCallback != null) statusCallback.accept(false);
             finishHeartbeatSend(logger, statusCallback);
         }
@@ -358,6 +367,7 @@ public class HeartbeatService implements HeartbeatEvents {
             queuedHeartbeatCallbacks.clear();
         }
         if (!heartbeatPending.getAndSet(false)) {
+            scheduleNextHeartbeat();
             return;
         }
         Consumer<Boolean> followUp = statusCallback;
@@ -371,6 +381,23 @@ public class HeartbeatService implements HeartbeatEvents {
             };
         }
         sendPostHeartbeat(logger, followUp);
+    }
+
+    private void scheduleNextHeartbeat() {
+        if (!isServiceActive || scheduler == null || scheduler.isShutdown()) {
+            return;
+        }
+        ScheduledFuture<?> previous = nextHeartbeatTask;
+        if (previous != null) {
+            previous.cancel(false);
+        }
+        long delaySeconds = failurePolicy.currentIntervalSeconds();
+        nextHeartbeatTask = scheduler.schedule(() -> {
+            if (!isServiceActive) {
+                return;
+            }
+            sendPostHeartbeat(heartbeatLogger, heartbeatStatusCallback);
+        }, delaySeconds, TimeUnit.SECONDS);
     }
 
     /**
@@ -473,6 +500,12 @@ public class HeartbeatService implements HeartbeatEvents {
 
     public void stopHeartbeat() {
         this.isServiceActive = false;
+        failurePolicy.reset();
+        ScheduledFuture<?> pending = nextHeartbeatTask;
+        nextHeartbeatTask = null;
+        if (pending != null) {
+            pending.cancel(false);
+        }
         heartbeatInFlight.set(false);
         heartbeatPending.set(false);
         List<Consumer<Boolean>> abandoned;
