@@ -26,10 +26,17 @@ public final class HomeBubbleFormat {
         public final String text;
         /** 點泡泡要開日誌時為 true。 */
         public final boolean openLog;
+        /** 氛圍句可輪播、打字淡出。 */
+        public final boolean ambientMood;
 
         BubbleLine(String text, boolean openLog) {
+            this(text, openLog, false);
+        }
+
+        BubbleLine(String text, boolean openLog, boolean ambientMood) {
             this.text = text;
             this.openLog = openLog;
+            this.ambientMood = ambientMood;
         }
     }
 
@@ -57,16 +64,16 @@ public final class HomeBubbleFormat {
             }
             if (brief != null && brief.hasWork() && brief.waiting == 0 && brief.failed == 0
                     && brief.done > 0) {
-                return new BubbleLine("今天的排程都完成了，做得好 ♡", false);
+                return new BubbleLine(HomeMoodPool.allDoneLine(), false);
             }
         }
         if (eventFlash != null && !eventFlash.isBlank()) {
             return new BubbleLine(eventFlash.trim(), false);
         }
         if (moodLine != null && !moodLine.isBlank()) {
-            return new BubbleLine(moodLine.trim(), false);
+            return new BubbleLine(moodLine.trim(), false, true);
         }
-        return new BubbleLine("我在這裡陪著你。", false);
+        return new BubbleLine("我在這裡陪著你。", false, true);
     }
 
     static String dayLabel(LocalDateTime when) {

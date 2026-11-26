@@ -40,6 +40,7 @@ import com.example.ui.hud.AnimeShell;
 import com.example.ui.hud.BabyAssets;
 import com.example.ui.hud.CharacterTheme;
 import com.example.ui.hud.HomeIllustration;
+import com.example.ui.hud.HomeMoodPool;
 import com.example.ui.hud.HomeBrief;
 import com.example.ui.hud.HomePortrait;
 import com.example.ui.hud.ShellDimensions;
@@ -363,7 +364,12 @@ public class App extends JFrame {
 
             @Override
             public String moodLine() {
-                return homeMoodLine();
+                return HomeMoodPool.moodAt(moodBand(), 0);
+            }
+
+            @Override
+            public HomeMoodPool.Band moodBand() {
+                return HomeMoodPool.bandForHour(java.time.LocalTime.now().getHour());
             }
 
             @Override
@@ -665,20 +671,6 @@ public class App extends JFrame {
             setSize(target.width, target.height);
         }
         rememberWindowLayout();
-    }
-
-    private static String homeMoodLine() {
-        int hour = java.time.LocalTime.now().getHour();
-        if (hour >= 5 && hour < 12) {
-            return "早安～今天也要輕鬆出發。";
-        }
-        if (hour >= 12 && hour < 17) {
-            return "午安，記得喝口水。";
-        }
-        if (hour >= 17 && hour < 23) {
-            return "辛苦了，慢慢收尾吧。";
-        }
-        return "夜深了，別太累喔。";
     }
 
     private static boolean isLocationOnScreen(int x, int y, int width, int height) {
