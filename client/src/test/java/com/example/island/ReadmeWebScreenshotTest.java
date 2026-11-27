@@ -49,7 +49,6 @@ public class ReadmeWebScreenshotTest {
                 shot(browser, wh[0], wh[1], base + "/", root.resolve("office-" + tag + ".jpg"), false, 2500);
                 shot(browser, wh[0], wh[1], base + "/download", root.resolve("download-" + tag + ".jpg"), false, 400);
                 shotLogin(browser, wh[0], wh[1], base, root.resolve("login-" + tag + ".jpg"));
-                shotAtlas(browser, wh[0], wh[1], base, root.resolve("atlas-" + tag + ".jpg"));
             }
 
             Page page = browser.newPage(new Browser.NewPageOptions().setViewportSize(1280, 720));
@@ -85,19 +84,6 @@ public class ReadmeWebScreenshotTest {
         page.navigate(base + "/login", new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
         page.waitForSelector("input[type='password']", new Page.WaitForSelectorOptions().setTimeout(15_000));
         page.waitForTimeout(300);
-        page.screenshot(new Page.ScreenshotOptions()
-                .setPath(file)
-                .setType(ScreenshotType.JPEG)
-                .setQuality(88)
-                .setFullPage(false));
-        page.close();
-    }
-
-    private static void shotAtlas(Browser browser, int w, int h, String base, Path file) {
-        Page page = browser.newPage(new Browser.NewPageOptions().setViewportSize(w, h));
-        page.navigate(base + "/atlas/tcm-3d/?set=head-neck-21",
-                new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED));
-        page.waitForTimeout(w < 500 ? 5000 : 6000);
         page.screenshot(new Page.ScreenshotOptions()
                 .setPath(file)
                 .setType(ScreenshotType.JPEG)

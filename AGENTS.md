@@ -4,16 +4,15 @@
 
 ## 這是什麼
 
-Java 多模組專案（Swing 桌面端 + Javalin 伺服器）：桌面端負責本機排程、Playwright 瀏覽器自動化、心跳與傳檔；伺服器收心跳、提供 Web 監控，遠端只能取消任務（不能建立排程）。
+Java 多模組專案（Swing 桌面端 + Javalin 伺服器）：桌面端負責本機排程、Playwright 瀏覽器自動化、心跳與傳檔；伺服器收心跳、提供 Web 監控與夜間 3D 私人秘書辦公室，遠端只能取消任務（不能建立排程）。
 
 ## 模組地圖
 
 | 路徑 | 職責 | 入口 |
 |------|------|------|
 | `client/` | 排程、UI、任務自動化、心跳、傳檔、網路工具、中繼 Proxy | `com.example.App` |
-| `server/` | 心跳、Dashboard、peer 訊息／傳檔、取消指令、經穴圖靜態站 | `com.example.server.ServerApp` |
+| `server/` | 心跳、Dashboard、公開辦公室、peer 訊息／傳檔、取消指令 | `com.example.server.ServerApp` |
 | `shared/` | 跨端共用（`PeerFileRules`、`ChatProtocol`、`ClientUpdatePolicy`） | — |
-| `atlas-src/tcm-3d/` | 中醫 3D 經絡穴道（Vite／Three.js）；本機先 `./scripts/build-atlas.sh`；角色模型 `anime-assistant.glb` | `/atlas/tcm-3d/` |
 
 **Client 常見包：**
 
@@ -25,7 +24,7 @@ Java 多模組專案（Swing 桌面端 + Javalin 伺服器）：桌面端負責�
 
 - `web` / `auth` / `store` / `health` — Dashboard、登入、Client／檔案暫存、健康指標
 
-靜態前端在 `server/src/main/resources/public/`。
+靜態前端在 `server/src/main/resources/public/`（含 Three.js 辦公室場景）。
 
 ## 技術約束
 
@@ -60,8 +59,7 @@ Java 多模組專案（Swing 桌面端 + Javalin 伺服器）：桌面端負責�
 | 桌面端自動更新 | `ClientUpdateCoordinator`、`ClientUpdateInstaller`、`HeartbeatService.parseUpdateNotice`、`ClientRelease`、`ClientUpdatePolicy`、`SourceDigest`；僅 `java -jar` 啟動才能就地更新 |
 | 傳檔／直傳 | `PeerFileClient`、`PeerFileRoutes`、`RelayRoutes`、`FileOfferStore`、`RelayStore` |
 | 菜單牆照片 | `PhotoRoutes`、`PhotoStore` |
-| Dashboard | `server/.../resources/public/` + `DashboardBroadcaster` |
-| 經穴圖／穴位課堂 | `atlas-src/tcm-3d/`、`AtlasRoutes`、`scripts/build-atlas.sh`；課堂集合在 `app/teaching.ts`；CI：`.github/workflows/atlas.yml` |
+| 公開辦公室／Dashboard | `office-page.js`、`OfficePublicRoutes`、`server/.../resources/public/` + `DashboardBroadcaster` |
 
 ## 近期方向（方便對齊歷史）
 
