@@ -12,6 +12,47 @@ import {
   tigerFromPublic
 } from './private-team-office.js';
 
+/** 首頁舞台高度與 visualViewport 同步，填滿網址列上可見區（供單測與執行期） */
+export function syncPrivateTeamPageViewport(doc, win, rootEl) {
+  if (!doc || !win || !rootEl) return;
+  const vv = win.visualViewport;
+  const fallbackH = win.innerHeight > 0 ? Math.round(win.innerHeight) : 0;
+  const h = vv && vv.height > 0 ? Math.round(vv.height) : fallbackH;
+  const top = vv && vv.offsetTop > 0 ? Math.round(vv.offsetTop) : 0;
+  if (h > 0) {
+    rootEl.style.setProperty('--pt-vv-height', h + 'px');
+  }
+  rootEl.style.setProperty('--pt-vv-offset-top', top + 'px');
+}
+
+/** 監聽 visualViewport，回傳解除綁定函式 */
+export function bindPrivateTeamPageViewport(doc, win, rootEl) {
+  const sync = () => syncPrivateTeamPageViewport(doc, win, rootEl);
+  sync();
+  const onResize = () => sync();
+  const vv = win.visualViewport;
+  if (vv && typeof vv.addEventListener === 'function') {
+    vv.addEventListener('resize', onResize);
+    vv.addEventListener('scroll', onResize);
+  }
+  if (typeof win.addEventListener === 'function') {
+    win.addEventListener('resize', onResize);
+  }
+  return () => {
+    if (vv && typeof vv.removeEventListener === 'function') {
+      vv.removeEventListener('resize', onResize);
+      vv.removeEventListener('scroll', onResize);
+    }
+    if (typeof win.removeEventListener === 'function') {
+      win.removeEventListener('resize', onResize);
+    }
+    if (rootEl && rootEl.style) {
+      rootEl.style.removeProperty('--pt-vv-height');
+      rootEl.style.removeProperty('--pt-vv-offset-top');
+    }
+  };
+}
+
 /** 登出選單貼在左上徽章下，並夾在 viewport 內（供單測與執行期） */
 export function layoutAuthMenuInViewport(doc, win, menuEl, taskBtnEl, marginPx) {
   if (!menuEl || !taskBtnEl) return;
@@ -185,6 +226,12 @@ export function mountPrivateTeamPage(opts) {
   const fetchFn = (opts && opts.fetch) || (win.fetch ? win.fetch.bind(win) : null);
   const stage = doc.querySelector('[data-private-team-stage]');
   if (!stage) return { destroy() {} };
+
+  const pageRoot =
+    (typeof doc.getElementById === 'function' && doc.getElementById('officePage')) ||
+    (stage.closest && stage.closest('.private-team-page'));
+  let unbindPageViewport =
+    pageRoot ? bindPrivateTeamPageViewport(doc, win, pageRoot) : null;
 
   let sessionAuthed = !!(win.PUNCHCLOCK_AUTHENTICATED);
   const pageHooks = (opts && opts.hooks) || {};
@@ -659,6 +706,10 @@ export function mountPrivateTeamPage(opts) {
       scene.setSceneAnimationPaused(paused);
     },
     destroy() {
+      if (unbindPageViewport) {
+        unbindPageViewport();
+        unbindPageViewport = null;
+      }
       win.clearInterval(poll);
       doc.removeEventListener('keydown', onKeyDown);
       loginModal.destroy();

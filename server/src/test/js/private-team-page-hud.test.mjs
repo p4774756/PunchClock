@@ -11,7 +11,9 @@ const {
   deployVersionLabel,
   showGuestMonitorHintToast,
   dismissGuestMonitorHintToast,
-  GUEST_MONITOR_HINT_TEXT
+  GUEST_MONITOR_HINT_TEXT,
+  syncPrivateTeamPageViewport,
+  bindPrivateTeamPageViewport
 } = await loadPublicModule('private-team-page.js');
 
 test('私人女秘書 HUD 標記與身分文案', () => {
@@ -126,6 +128,11 @@ test('左下部署版本列僅標明網站與時間', () => {
   assert.match(js, /網站 v/);
   assert.doesNotMatch(js, /App v/);
   assert.match(html, /PUNCHCLOCK_CLIENT_VERSION/);
+  assert.match(html, /viewport-fit=cover/);
+  assert.match(js, /syncPrivateTeamPageViewport/);
+  assert.match(js, /bindPrivateTeamPageViewport/);
+  assert.match(css, /\.private-team-page\.lab-office-root\.is-page[\s\S]*justify-content:\s*flex-start/);
+  assert.match(css, /--pt-vv-height/);
   assert.match(css, /\.pt-hud-deploy-ver[\s\S]*font-size:\s*0\.72rem/);
   assert.match(css, /\.pt-hud-deploy-ver[\s\S]*rgba\(248,\s*251,\s*255,\s*0\.78\)/);
   assert.match(css, /\.pt-hud-deploy-ver[\s\S]*white-space:\s*nowrap/);
@@ -148,4 +155,23 @@ test('左下部署版本列僅標明網站與時間', () => {
     deployVersionLabel({ ...win, PUNCHCLOCK_CLIENT_VERSION: '' }, { compact: true }),
     '網站 v4.0.0 · 11-23 20:16'
   );
+});
+
+test('visualViewport 同步設定首頁高度與頂部偏移', () => {
+  const root = { style: { setProperty() {}, removeProperty() {} } };
+  const calls = [];
+  root.style.setProperty = (k, v) => calls.push([k, v]);
+  const win = {
+    innerHeight: 800,
+    visualViewport: { height: 700, offsetTop: 44, addEventListener() {}, removeEventListener() {} },
+    addEventListener() {},
+    removeEventListener() {}
+  };
+  syncPrivateTeamPageViewport({ getElementById() {} }, win, root);
+  assert.ok(calls.some(([k, v]) => k === '--pt-vv-height' && v === '700px'));
+  assert.ok(calls.some(([k, v]) => k === '--pt-vv-offset-top' && v === '44px'));
+  calls.length = 0;
+  const unbind = bindPrivateTeamPageViewport({ getElementById() {} }, win, root);
+  assert.ok(calls.length >= 2);
+  unbind();
 });
