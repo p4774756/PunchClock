@@ -935,6 +935,14 @@ function makeWindowMoonlightFloorTexture() {
   ctx.strokeStyle = 'rgba(28,36,68,0.48)';
   ctx.lineWidth = 3;
   ctx.strokeRect(padX + 1, padY + 1, innerW - 2, innerH - 2);
+  const castFade = ctx.createLinearGradient(0, canvas.height * 0.48, 0, canvas.height);
+  castFade.addColorStop(0, 'rgba(0,0,0,0)');
+  castFade.addColorStop(0.72, 'rgba(0,0,0,0.35)');
+  castFade.addColorStop(1, 'rgba(0,0,0,0.92)');
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = castFade;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.globalCompositeOperation = 'source-over';
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -955,6 +963,13 @@ function makeWindowMoonlightWallTexture() {
   g.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const baseWash = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  baseWash.addColorStop(0, 'rgba(88,108,168,0.2)');
+  baseWash.addColorStop(0.35, 'rgba(72,92,152,0.14)');
+  baseWash.addColorStop(0.68, 'rgba(58,78,138,0.1)');
+  baseWash.addColorStop(1, 'rgba(48,68,128,0.08)');
+  ctx.fillStyle = baseWash;
+  ctx.fillRect(0, canvas.height * 0.22, canvas.width, canvas.height * 0.62);
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -1899,21 +1914,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
-  const windowMoonlight = new THREE.Mesh(new THREE.PlaneGeometry(2.42, 1.05), moonFloorMat);
+  const windowMoonlight = new THREE.Mesh(new THREE.PlaneGeometry(2.28, 0.9), moonFloorMat);
   windowMoonlight.rotation.x = -Math.PI / 2;
   windowMoonlight.rotation.z = 0.34;
-  windowMoonlight.position.set(0.36, 0.056, -0.9);
+  windowMoonlight.position.set(0.28, 0.056, -0.98);
   windowMoonlight.name = 'windowMoonlight';
   root.add(windowMoonlight);
-  const windowMoonlightTub = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.72, 0.52),
-    moonFloorMat.clone()
-  );
-  windowMoonlightTub.rotation.x = -Math.PI / 2;
-  windowMoonlightTub.rotation.z = 0.34;
-  windowMoonlightTub.position.set(TUB_CX - 0.42, 0.056, TUB_CZ + 0.38);
-  windowMoonlightTub.name = 'windowMoonlightTub';
-  root.add(windowMoonlightTub);
   const moonWallTex = makeWindowMoonlightWallTexture();
   const moonWallMat = new THREE.MeshBasicMaterial({
     map: moonWallTex,
@@ -1943,10 +1949,13 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlightWallLeftFlank.name = 'windowMoonlightWallLeftFlank';
   root.add(windowMoonlightWallLeftFlank);
   const leftWallMat = moonWallMat.clone();
-  leftWallMat.opacity = 0.38;
-  const windowMoonlightLeftWall = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 1.65), leftWallMat);
+  leftWallMat.opacity = 0.34;
+  const windowMoonlightLeftWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(FLOOR_SIZE - 0.14, 1.68),
+    leftWallMat
+  );
   windowMoonlightLeftWall.rotation.y = Math.PI / 2;
-  windowMoonlightLeftWall.position.set(leftX + WALL_THICK + 0.012, 1.02, -0.62);
+  windowMoonlightLeftWall.position.set(leftX + WALL_THICK + 0.012, 1.02, 0);
   windowMoonlightLeftWall.name = 'windowMoonlightLeftWall';
   root.add(windowMoonlightLeftWall);
 
