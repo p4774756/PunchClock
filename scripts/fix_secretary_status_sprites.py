@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Repair alpha on secretary status sprites (idle / typing / sleep).
+"""Repair alpha on secretary status sprites and celebrate clap frames.
 
 Removes near-white fringe pixels then inpaints interior holes from opaque neighbors.
+
+Clap sprites are checked for a clean white cardigan (no enclosed cloth holes) and
+sane size/dimensions/alpha. Natural transparent gaps between hair locks must stay
+open — do not run fill_interior_transparent / fix_clap_sprite on them.
 """
 from __future__ import annotations
 
@@ -41,6 +45,12 @@ WAIST_GAP_SPRITES = frozenset(
 )
 
 REF_WAIST_SPRITE = "secretary-clap-a.webp"
+
+CLAP_SPRITES = ("secretary-clap-a.webp", "secretary-clap-b.webp")
+CLAP_SIZE_MIN = 35_000
+CLAP_SIZE_MAX = 62_000
+# Sanity cap on all enclosed transparent pixels, including natural hair-lock gaps.
+CLAP_HAIR_GAP_MAX = 2_500
 
 # 比讚跳躍時鍵盤與大腿間的透明腰洞（與 issue 描述列區間對齊）
 CELEBRATE_WAIST_BOX = (552, 590, 80, 126)
@@ -113,6 +123,119 @@ def is_sheet_rgb(r: int, g: int, b: int) -> bool:
 
 def is_brown_rgb(r: int, g: int, b: int) -> bool:
     return (g - b) >= 12 and (r - b) >= 22 and b < 205 and r < 245
+
+
+def is_white_cloth_rgb(r: int, g: int, b: int) -> bool:
+    """Sheer / solid white cardigan (high value, low saturation)."""
+    return r >= 220 and g >= 218 and b >= 210 and (max(r, g, b) - min(r, g, b)) <= 28
+
+
+def cardigan_enclosed_hole_count(
+    alpha: np.ndarray, rgb: np.ndarray, thresh: int = 10
+) -> int:
+    """Count enclosed transparent pixels whose opaque neighbors are white cloth.
+
+    Hair-lock gaps (neighbors are pink hair or skin) are ignored so they can
+    stay transparent. A non-zero count means the white cardigan was punched.
+    """
+    holes = enclosed_holes(alpha, thresh)
+    if not int(holes.sum()):
+        return 0
+    h, w = alpha.shape
+    seen = np.zeros_like(holes)
+    total = 0
+    ys, xs = np.where(holes)
+    for y0, x0 in zip(ys, xs):
+        if seen[y0, x0]:
+            continue
+        q: deque = deque([(int(x0), int(y0))])
+        seen[y0, x0] = True
+        size = 0
+        cloth = 0
+        other = 0
+        while q:
+            x, y = q.popleft()
+            size += 1
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if not (0 <= nx < w and 0 <= ny < h):
+                    continue
+                if holes[ny, nx] and not seen[ny, nx]:
+                    seen[ny, nx] = True
+                    q.append((nx, ny))
+                elif alpha[ny, nx] >= 40:
+                    r, g, b = (int(rgb[ny, nx, 0]), int(rgb[ny, nx, 1]), int(rgb[ny, nx, 2]))
+                    if is_white_cloth_rgb(r, g, b):
+                        cloth += 1
+                    else:
+                        other += 1
+        if cloth > other and cloth >= 4:
+            total += size
+    return total
+
+
+def fill_interior_transparent(
+    alpha: np.ndarray, rgb: np.ndarray, thresh: int = 12, max_rounds: int = 500
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Fill every interior transparent pixel (including white-shirt holes)."""
+    a = alpha.copy()
+    c = rgb.copy()
+    h, w = a.shape
+    for _ in range(max_rounds):
+        transparent = a < thresh
+        interior = transparent & ~flood_from_edges(transparent)
+        if not int(interior.sum()):
+            break
+        pending = interior.copy()
+        q: deque = deque((int(x), int(y)) for y, x in zip(*np.where(pending)))
+        filled = 0
+        while q:
+            x, y = q.popleft()
+            if not pending[y, x]:
+                continue
+            n_c: List[np.ndarray] = []
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if 0 <= nx < w and 0 <= ny < h and a[ny, nx] >= thresh:
+                    n_c.append(c[ny, nx])
+            if not n_c:
+                continue
+            rr, gg, bb = map(int, np.median(np.stack(n_c, axis=0), axis=0))
+            a[y, x] = 255
+            c[y, x] = (rr, gg, bb)
+            pending[y, x] = False
+            filled += 1
+            for nx, ny in ((x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)):
+                if 0 <= nx < w and 0 <= ny < h and pending[ny, nx]:
+                    q.append((nx, ny))
+        if filled == 0:
+            break
+    return a, c
+
+
+def clear_nearwhite_fringe(alpha: np.ndarray, rgb: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    a = alpha.copy()
+    c = rgb.copy()
+    exterior = flood_from_edges(a < 12)
+
+    def semi_mask() -> np.ndarray:
+        return (
+            (a > 40)
+            & (a < 245)
+            & (c[:, :, 0] >= 230)
+            & (c[:, :, 1] >= 230)
+            & (c[:, :, 2] >= 230)
+        )
+
+    drop = semi_mask() & dilate(exterior, 2)
+    if int(drop.sum()):
+        a[drop] = 0
+    body = a > 200
+    for _ in range(8):
+        snap = semi_mask() & dilate(body, 1)
+        if not int(snap.sum()):
+            break
+        a[snap] = 255
+        body = a > 200
+    return a, c
 
 
 def inpaint_holes(alpha: np.ndarray, rgb: np.ndarray, max_passes: int = 96) -> Tuple[np.ndarray, np.ndarray]:
@@ -403,6 +526,18 @@ def snap_alpha(alpha: np.ndarray) -> np.ndarray:
     return a
 
 
+def fix_clap_sprite(im: Image.Image) -> Image.Image:
+    arr = np.array(im.convert("RGBA"))
+    rgb = arr[:, :, :3].copy()
+    alpha = arr[:, :, 3].copy()
+    alpha, rgb = repair_foot_and_fringe(alpha, rgb)
+    alpha, rgb = fill_interior_transparent(alpha, rgb)
+    alpha, rgb = repair_foot_and_fringe(alpha, rgb)
+    alpha, rgb = clear_nearwhite_fringe(alpha, rgb)
+    alpha = snap_alpha(alpha)
+    return Image.fromarray(np.dstack([rgb, alpha]).astype(np.uint8))
+
+
 def fix_sprite(im: Image.Image, name: str = "") -> Image.Image:
     arr = np.array(im.convert("RGBA"))
     rgb = arr[:, :, :3].copy()
@@ -454,9 +589,26 @@ def check_sprite(path: Path) -> List[str]:
     if int((alpha[border] > 8).sum()) > 0:
         errs.append(f"{path.name}: non-transparent image border")
     holes = interior_hole_count(alpha)
-    hole_limit = 230 if path.name == "secretary-sleep.webp" else 100
+    # Clap frames may have enclosed transparent gaps between hair locks; those
+    # must stay open. The tight check is "no holes in the white cardigan".
+    hole_limit = (
+        CLAP_HAIR_GAP_MAX
+        if path.name in CLAP_SPRITES
+        else (230 if path.name == "secretary-sleep.webp" else 100)
+    )
     if holes > hole_limit:
         errs.append(f"{path.name}: {holes} interior enclosed holes (limit {hole_limit})")
+    if path.name in CLAP_SPRITES:
+        nbytes = path.stat().st_size
+        if nbytes < CLAP_SIZE_MIN or nbytes > CLAP_SIZE_MAX:
+            errs.append(
+                f"{path.name}: file size {nbytes} bytes (want {CLAP_SIZE_MIN}-{CLAP_SIZE_MAX})"
+            )
+        cloth_holes = cardigan_enclosed_hole_count(alpha, rgb)
+        if cloth_holes > 0:
+            errs.append(
+                f"{path.name}: {cloth_holes} white-cardigan enclosed holes (limit 0)"
+            )
     waist = waist_hole_pixels(alpha)
     if waist > 120:
         errs.append(f"{path.name}: {waist} waist enclosed holes (limit 120)")
@@ -589,6 +741,22 @@ def _detached_matte_count(alpha: np.ndarray, rgb: np.ndarray, region: np.ndarray
     return count
 
 
+def run_fix_clap() -> None:
+    """Refuse to rewrite clap sprites.
+
+    fill_interior_transparent / fix_clap_sprite fills hair-lock gaps and
+    sheer-cardigan folds from opaque neighbors, which punched dark-gray
+    blotches into the white cardigan. The regenerated clap frames must be
+    left as-is; use --check instead.
+    """
+    print(
+        "refusing --clap: fix_clap_sprite fills hair gaps and stains the "
+        "white cardigan. Use --check only.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+
+
 def run_fix(extra: bool = False) -> None:
     names = list(STATUS_SPRITES)
     if extra:
@@ -605,7 +773,7 @@ def run_fix(extra: bool = False) -> None:
 
 def run_check() -> int:
     errs: List[str] = []
-    checked = set(STATUS_SPRITES) | WAIST_GAP_SPRITES
+    checked = set(STATUS_SPRITES) | WAIST_GAP_SPRITES | set(CLAP_SPRITES)
     for name in sorted(checked):
         path = ASSET_DIR / name
         if path.is_file():
@@ -620,12 +788,16 @@ def run_check() -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--check", action="store_true", help="verify status sprites only")
+    parser.add_argument("--check", action="store_true", help="verify status and clap sprites")
     parser.add_argument("--extra", action="store_true", help="also fix typing-b, wave, yeah")
+    parser.add_argument("--clap", action="store_true", help="disabled: will not rewrite clap sprites (see run_fix_clap)")
     args = parser.parse_args()
     if args.check:
         return run_check()
-    run_fix(extra=args.extra)
+    if args.clap:
+        run_fix_clap()
+    if not args.clap:
+        run_fix(extra=args.extra)
     return run_check()
 
 
