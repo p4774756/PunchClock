@@ -124,6 +124,12 @@ public final class DesktopPetSpriteLoader {
             "/pet/milu/worry/03.png",
             "/pet/milu/worry/04.png"
     };
+    private static final String[] HUNGRY = {
+            "/pet/milu/hungry/01.png",
+            "/pet/milu/hungry/02.png",
+            "/pet/milu/hungry/03.png",
+            "/pet/milu/hungry/04.png"
+    };
     private static final String[] FEED = {
             "/pet/milu/feed/01.png",
             "/pet/milu/feed/02.png",
@@ -162,6 +168,7 @@ public final class DesktopPetSpriteLoader {
         private final Sprite[] think;
         private final Sprite[] busy;
         private final Sprite[] worry;
+        private final Sprite[] hungry;
         private final Sprite[] feed;
         private final Sprite[] pat;
         private final Sprite[] play;
@@ -170,7 +177,7 @@ public final class DesktopPetSpriteLoader {
                 Sprite[] walkLeft, Sprite[] walkRight, Sprite[] wave,
                 Sprite[] sit, Sprite[] sleep, Sprite[] drag,
                 Sprite[] grab, Sprite[] struggle, Sprite[] release,
-                Sprite[] think, Sprite[] busy, Sprite[] worry,
+                Sprite[] think, Sprite[] busy, Sprite[] worry, Sprite[] hungry,
                 Sprite[] feed, Sprite[] pat, Sprite[] play) {
             this.breath = breath;
             this.blink1 = blink1;
@@ -187,6 +194,7 @@ public final class DesktopPetSpriteLoader {
             this.think = think;
             this.busy = busy;
             this.worry = worry;
+            this.hungry = hungry;
             this.feed = feed;
             this.pat = pat;
             this.play = play;
@@ -252,6 +260,10 @@ public final class DesktopPetSpriteLoader {
             return worry.length;
         }
 
+        public int hungryCount() {
+            return hungry.length;
+        }
+
         public int feedCount() {
             return feed.length;
         }
@@ -306,6 +318,10 @@ public final class DesktopPetSpriteLoader {
 
         public BufferedImage worry(int index) {
             return worry[Math.floorMod(index, worry.length)].image;
+        }
+
+        public BufferedImage hungry(int index) {
+            return hungry[Math.floorMod(index, hungry.length)].image;
         }
 
         public BufferedImage feed(int index) {
@@ -377,6 +393,12 @@ public final class DesktopPetSpriteLoader {
                 appendIdleFallback(list);
                 return list.toArray(new Sprite[0]);
             }
+            if (mode == DesktopPetAnimation.Mode.HUNGRY) {
+                addAll(list, hungry);
+                addAll(list, sit);
+                appendIdleFallback(list);
+                return list.toArray(new Sprite[0]);
+            }
             if (mode == DesktopPetAnimation.Mode.WALK) {
                 addAll(list, walkLeft);
                 addAll(list, walkRight);
@@ -434,6 +456,9 @@ public final class DesktopPetSpriteLoader {
             if (mode == DesktopPetAnimation.Mode.WORRY) {
                 return clipOrSitOrIdle(worry, animation);
             }
+            if (mode == DesktopPetAnimation.Mode.HUNGRY) {
+                return clipOrFallback(hungry, sit, animation);
+            }
             if (mode == DesktopPetAnimation.Mode.WALK) {
                 Sprite[] side = animation.facingRight() ? walkRight : walkLeft;
                 return clipOrIdleSprite(side, animation);
@@ -466,6 +491,7 @@ public final class DesktopPetSpriteLoader {
             addAll(all, think);
             addAll(all, busy);
             addAll(all, worry);
+            addAll(all, hungry);
             addAll(all, feed);
             addAll(all, pat);
             addAll(all, play);
@@ -556,6 +582,7 @@ public final class DesktopPetSpriteLoader {
             flushAll(think);
             flushAll(busy);
             flushAll(worry);
+            flushAll(hungry);
             flushAll(feed);
             flushAll(pat);
             flushAll(play);
@@ -607,6 +634,7 @@ public final class DesktopPetSpriteLoader {
                     loadOptional(THINK),
                     loadOptional(BUSY),
                     loadOptional(WORRY),
+                    loadOptional(HUNGRY, true),
                     loadOptional(FEED, true),
                     loadOptional(PAT, true),
                     loadOptional(PLAY, true));

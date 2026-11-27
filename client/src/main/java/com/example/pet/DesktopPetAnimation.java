@@ -15,7 +15,7 @@ import java.util.Random;
 public final class DesktopPetAnimation {
 
     public enum Mode {
-        IDLE, WALK, REACT, SIT, SLEEP, THINK, BUSY, WORRY, FEED, PAT, PLAY
+        IDLE, WALK, REACT, SIT, SLEEP, THINK, BUSY, WORRY, HUNGRY, FEED, PAT, PLAY
     }
 
     /** 被拎著的階段。放下回彈期間仍算被拎著，畫面依階段選圖。 */
@@ -32,12 +32,19 @@ public final class DesktopPetAnimation {
     /** 短暫困擾約與揮手同長，結束後回到 Cursor 維持狀態。 */
     public static final int WORRY_TICKS = 28;
     public static final int BUBBLE_TICKS = 40;
+    static final String[] HUNGRY_BUBBLE_PHRASES = {
+            "肚子餓了…",
+            "好想吃東西…",
+            "碗碗空了…"
+    };
     /** 事件提醒泡泡約 4 秒，落在 3～5 秒。 */
     public static final int NOTICE_TICKS = 80;
     public static final int STEP = 2;
     static final int BREATH_HOLD_TICKS = 300 / TICK_MS;
     static final int BLINK_HOLD_TICKS = 150 / TICK_MS;
     static final int ACTION_HOLD_TICKS = 150 / TICK_MS;
+    /** 餓肚子四格連播四輪，明顯長於困擾閃一下。 */
+    public static final int HUNGRY_TICKS = 4 * ACTION_HOLD_TICKS * 4;
     static final int BLINK_MIN_TICKS = 3000 / TICK_MS;
     static final int BLINK_MAX_TICKS = 7000 / TICK_MS;
     public static final int SIT_TICKS = 160;
@@ -97,6 +104,8 @@ public final class DesktopPetAnimation {
     private int careEnergy = DesktopPetCare.DEFAULT;
     /** 鍵盤操控中：暫停自主閒逛，僅由外部驅動走路。 */
     private boolean playerControl;
+    private int hungryBubbleCooldown;
+    private boolean hungryBubbleActive;
 
     public DesktopPetAnimation() {
         this(new Random());
@@ -146,6 +155,7 @@ public final class DesktopPetAnimation {
             updateFrame();
             return;
         }
+        tickHungryBubble();
         updateMilu();
         if (carried) {
             carriedTicks++;
@@ -169,6 +179,8 @@ public final class DesktopPetAnimation {
             } else if (mode == Mode.REACT && poseTicks >= REACT_TICKS) {
                 resumeAfterInterrupt();
             } else if (mode == Mode.WORRY && poseTicks >= WORRY_TICKS) {
+                resumeAfterInterrupt();
+            } else if (mode == Mode.HUNGRY && poseTicks >= HUNGRY_TICKS) {
                 resumeAfterInterrupt();
             } else if (mode == Mode.IDLE && poseTicks >= IDLE_TICKS) {
                 Mode next = nextAfterIdle();
@@ -199,7 +211,7 @@ public final class DesktopPetAnimation {
         if (carried || settling) {
             return;
         }
-        if (mode == Mode.REACT || mode == Mode.WORRY || isCarePose()) {
+        if (mode == Mode.REACT || mode == Mode.WORRY || mode == Mode.HUNGRY || isCarePose()) {
             return;
         }
         applyCursorHoldNow();
@@ -251,6 +263,9 @@ public final class DesktopPetAnimation {
             mode = Mode.PAT;
         }
         notice = false;
+        if (mode == Mode.FEED) {
+            clearHungryBubble();
+        }
         if (phrase != null && !phrase.isEmpty()) {
             bubble = phrase;
             bubbleTicks = BUBBLE_TICKS;
@@ -269,10 +284,45 @@ public final class DesktopPetAnimation {
         if (carried || settling) {
             return;
         }
-        if (mode == Mode.THINK || mode == Mode.BUSY || mode == Mode.WORRY) {
+        if (mode == Mode.THINK || mode == Mode.BUSY || mode == Mode.WORRY || mode == Mode.HUNGRY) {
             enter(Mode.IDLE);
             updateFrame();
         }
+    }
+
+    /** 飽足低時由視窗或測試觸發；被拖著時忽略。 */
+    public boolean flashHungry() {
+        if (carried || settling) {
+            return false;
+        }
+        enter(Mode.HUNGRY);
+        updateFrame();
+        return true;
+    }
+
+    public void clearHungryBubble() {
+        if (!hungryBubbleActive) {
+            return;
+        }
+        hungryBubbleActive = false;
+        bubble = null;
+        bubbleTicks = 0;
+    }
+
+    public boolean isHungryBubbleActive() {
+        return hungryBubbleActive;
+    }
+
+    static boolean isHungryBubblePhrase(String phrase) {
+        if (phrase == null || phrase.isEmpty()) {
+            return false;
+        }
+        for (String candidate : HUNGRY_BUBBLE_PHRASES) {
+            if (candidate.equals(phrase)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 固定短句泡泡，不改動作。提醒泡泡顯示中時不覆蓋。 */
@@ -569,7 +619,7 @@ public final class DesktopPetAnimation {
             bob = -6;
             return;
         }
-        if (mode == Mode.REACT || mode == Mode.WORRY || isCarePose()) {
+        if (mode == Mode.REACT || mode == Mode.WORRY || mode == Mode.HUNGRY || isCarePose()) {
             int phase = poseTicks % 16;
             frameRow = 1;
             bob = -2;
@@ -610,7 +660,16 @@ public final class DesktopPetAnimation {
         if (careIdle && careEnergy < 25 && random.nextInt(3) == 0) {
             return Mode.SLEEP;
         }
-        if (careIdle && (careHunger < 25 || careMood < 25)) {
+        if (careIdle && careHunger < 25) {
+            if (random.nextInt(4) == 0) {
+                return Mode.WALK;
+            }
+            if (random.nextInt(8) == 0) {
+                return Mode.SIT;
+            }
+            return Mode.HUNGRY;
+        }
+        if (careIdle && careMood < 25) {
             if (random.nextInt(4) == 0) {
                 return Mode.WALK;
             }
@@ -643,7 +702,8 @@ public final class DesktopPetAnimation {
     }
 
     private void updateMilu() {
-        if (carried || mode == Mode.WALK || mode == Mode.REACT || isCarePose() || isCursorPose()) {
+        if (carried || mode == Mode.WALK || mode == Mode.REACT || mode == Mode.HUNGRY
+                || isCarePose() || isCursorPose()) {
             blinking = false;
             blinkStep = 0;
             blinkHold = 0;
@@ -707,5 +767,27 @@ public final class DesktopPetAnimation {
     private void resetBlinkDelay() {
         int span = BLINK_MAX_TICKS - BLINK_MIN_TICKS + 1;
         ticksUntilBlink = BLINK_MIN_TICKS + random.nextInt(span);
+    }
+
+    private void tickHungryBubble() {
+        if (!careIdle || careHunger >= 25 || carried || settling || notice) {
+            hungryBubbleCooldown = Math.max(0, hungryBubbleCooldown - 1);
+            return;
+        }
+        if (bubble != null && !hungryBubbleActive) {
+            return;
+        }
+        if (hungryBubbleCooldown > 0) {
+            hungryBubbleCooldown--;
+            return;
+        }
+        if (bubble != null) {
+            return;
+        }
+        String phrase = HUNGRY_BUBBLE_PHRASES[random.nextInt(HUNGRY_BUBBLE_PHRASES.length)];
+        bubble = phrase;
+        bubbleTicks = BUBBLE_TICKS;
+        hungryBubbleActive = true;
+        hungryBubbleCooldown = 240 + random.nextInt(360);
     }
 }
