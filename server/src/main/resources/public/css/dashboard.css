@@ -320,6 +320,18 @@
       justify-content: center;
     }
 
+    .chip-task-active {
+      color: #fff;
+      background: #1a7a38;
+      border-color: #145c2c;
+    }
+
+    .chip-task-idle {
+      color: #444b54;
+      background: #e2e5ea;
+      border-color: #c5cad2;
+    }
+
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.35; }
@@ -367,8 +379,16 @@
       cursor: pointer;
     }
 
-    .device.device-is-collapsed:hover {
+    .device.device-tier-active.device-is-collapsed:hover {
       background: #f5f0d4;
+    }
+
+    .device.device-tier-idle.device-is-collapsed:hover {
+      background: #f5f0e8;
+    }
+
+    .device.device-tier-offline.device-is-collapsed:hover {
+      background: #dfe1e5;
     }
 
     .device-head {
@@ -384,11 +404,56 @@
       transition: background 0.15s;
     }
 
-    .device-head:hover,
-    .device-head:focus-visible {
+    .device-tier-active .device-head:hover,
+    .device-tier-active .device-head:focus-visible {
       background: #f5d868;
       outline: 3px solid #3a7ac4;
       outline-offset: -3px;
+    }
+
+    .device-tier-idle .device-head {
+      background: #f2ead8;
+    }
+
+    .device-tier-idle .device-head:hover,
+    .device-tier-idle .device-head:focus-visible {
+      background: #e6ddc8;
+      outline: 3px solid #8fa4c4;
+      outline-offset: -3px;
+    }
+
+    .device-tier-offline {
+      background: #e8eaed;
+      border-color: #b4b9c0;
+      box-shadow: 1px 2px 0 rgba(80, 85, 92, 0.12);
+    }
+
+    .device-tier-offline .device-head {
+      background: #e8eaed;
+      border-bottom-color: #b4b9c0;
+    }
+
+    .device-tier-offline .device-head:hover,
+    .device-tier-offline .device-head:focus-visible {
+      background: #dfe1e5;
+      outline: 3px solid #9aa3ad;
+      outline-offset: -3px;
+    }
+
+    .device-tier-offline .device-body {
+      background: #e8eaed;
+    }
+
+    .device-tier-offline .device-id strong {
+      color: #5c6470;
+    }
+
+    .device-tier-offline .device-chevron-slot {
+      color: #5c6470;
+    }
+
+    .device-tier-offline .app-version-hint {
+      color: #6b7280;
     }
 
     .device-id {
