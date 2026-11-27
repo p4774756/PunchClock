@@ -12,7 +12,7 @@ const { privateTeamSceneLighting, PRIVATE_TEAM_TRAY_SURFACE_Y, PRIVATE_TEAM_WATE
   await loadPublicModule('private-team-scene.js');
 
 test('privateTeamSceneLighting 夜晚暖光檯燈', () => {
-  const night = privateTeamSceneLighting();
+  const night = privateTeamSceneLighting('night');
   assert.ok(night.point > 0);
   assert.ok(night.spot > 0);
   assert.ok(night.spot < 7);

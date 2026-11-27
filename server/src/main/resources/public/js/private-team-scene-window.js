@@ -1,7 +1,89 @@
 import * as THREE from './vendor/three.module.js';
 
-export function privateTeamSceneLighting() {
-  return {
+export const PRIVATE_TEAM_WINDOW_TEXTURE_URLS = {
+  day: '/assets/private-team/window/taipei-window-day.webp',
+  sunset: '/assets/private-team/window/taipei-window-sunset.webp',
+  night: '/assets/private-team/window/taipei-window-night.webp'
+};
+
+const WINDOW_PREVIEW_MODES = ['auto', 'day', 'sunset', 'night'];
+
+/** 依 Asia/Taipei 牆鐘判定窗景時段（供單測；date 可注入）。 */
+export function privateTeamWindowPeriodFromTaipeiDate(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Taipei',
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false
+  }).formatToParts(d);
+  let hour = 0;
+  let minute = 0;
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].type === 'hour') hour = parseInt(parts[i].value, 10);
+    if (parts[i].type === 'minute') minute = parseInt(parts[i].value, 10);
+  }
+  const mins = hour * 60 + minute;
+  if (mins >= 6 * 60 && mins < 16 * 60 + 30) return 'day';
+  if (mins >= 16 * 60 + 30 && mins < 19 * 60) return 'sunset';
+  return 'night';
+}
+
+export function privateTeamWindowCyclePreviewMode(current) {
+  const idx = WINDOW_PREVIEW_MODES.indexOf(current);
+  const i = idx >= 0 ? idx : 0;
+  return WINDOW_PREVIEW_MODES[(i + 1) % WINDOW_PREVIEW_MODES.length];
+}
+
+export function privateTeamWindowPreviewToastLabel(mode) {
+  if (mode === 'day') return '窗景：白天';
+  if (mode === 'sunset') return '窗景：黃昏';
+  if (mode === 'night') return '窗景：夜晚';
+  return '窗景：自動';
+}
+
+const SCENE_LIGHTING_BY_PERIOD = {
+  day: {
+    amb: 0.56,
+    dir: 0.48,
+    point: 0.06,
+    spot: 0.28,
+    spotDistance: 7.8,
+    spotPenumbra: 0.72,
+    spotDecay: 1.25,
+    pointDistance: 4.6,
+    bulbOpacity: 0.1,
+    haloOpacity: 0.06,
+    shadeEmissive: 0.06,
+    ambColor: 0xe8f0ff,
+    dirColor: 0xc8d8f8,
+    background: 0xc8d4e8,
+    floorWash: 0.34,
+    wallWash: 0.26,
+    tubWarm: 0.05,
+    candleMul: 0.12
+  },
+  sunset: {
+    amb: 0.46,
+    dir: 0.44,
+    point: 0.42,
+    spot: 1.85,
+    spotDistance: 7.8,
+    spotPenumbra: 0.72,
+    spotDecay: 1.25,
+    pointDistance: 4.6,
+    bulbOpacity: 0.38,
+    haloOpacity: 0.22,
+    shadeEmissive: 0.28,
+    ambColor: 0xffe8d0,
+    dirColor: 0xffc888,
+    background: 0x1a1428,
+    floorWash: 0.62,
+    wallWash: 0.44,
+    tubWarm: 0.14,
+    candleMul: 0.55
+  },
+  night: {
     amb: 0.35,
     dir: 0.42,
     point: 1.05,
@@ -12,8 +94,21 @@ export function privateTeamSceneLighting() {
     pointDistance: 4.6,
     bulbOpacity: 0.84,
     haloOpacity: 0.5,
-    shadeEmissive: 0.58
-  };
+    shadeEmissive: 0.58,
+    ambColor: 0xc8d4ff,
+    dirColor: 0x8898f8,
+    background: 0x050a14,
+    floorWash: 0.9,
+    wallWash: 0.52,
+    tubWarm: 0.22,
+    candleMul: 1
+  }
+};
+
+/** 房間燈光與窗外洒光參數；period 為 day／sunset／night。 */
+export function privateTeamSceneLighting(period) {
+  const key = period === 'day' || period === 'sunset' || period === 'night' ? period : 'night';
+  return Object.assign({}, SCENE_LIGHTING_BY_PERIOD[key]);
 }
 
 /** 蠟燭點光閃爍倍率（供單測）；lowMotion 為窄螢或粗指標時較緩。 */
@@ -76,13 +171,99 @@ export function privateTeamWindowSkylineParallaxOffset(yawRad, pitchRad, paralla
   return { x: y * s * 0.38, y: p * s * 0.2 };
 }
 
-/** 飛機燈緩慢明滅係數（0.35–1）。 */
-export function privateTeamWindowAirplaneBeaconOpacity(elapsedSec, reducedMotion) {
+/** 101 航空障礙燈緩慢明滅係數（0.35–1）。 */
+export function privateTeamWindowTowerBeaconOpacity(elapsedSec, reducedMotion) {
   if (reducedMotion) return 0.85;
   const t = Number(elapsedSec);
   if (!Number.isFinite(t)) return 0.85;
-  const wave = (Math.sin(t * 1.35) + 1) / 2;
+  const wave = (Math.sin(t * 1.15) + 1) / 2;
   return 0.38 + wave * 0.58;
+}
+
+export function privateTeamWindowAirplaneBeaconOpacity(elapsedSec, reducedMotion) {
+  return privateTeamWindowTowerBeaconOpacity(elapsedSec, reducedMotion);
+}
+
+/** 窗景上 101 與近樓航空燈透明疊層。 */
+export function makeWindowTowerBeaconOverlayTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 144;
+  const ctx = canvas.getContext('2d');
+  const beacons = [
+    { x: canvas.width * 0.53, y: canvas.height * 0.21, r: 3.2 },
+    { x: canvas.width * 0.53, y: canvas.height * 0.33, r: 2.4 },
+    { x: canvas.width * 0.38, y: canvas.height * 0.54, r: 1.9 },
+    { x: canvas.width * 0.63, y: canvas.height * 0.51, r: 1.7 }
+  ];
+  const paint = (elapsedSec) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const t = Number(elapsedSec);
+    for (let i = 0; i < beacons.length; i++) {
+      const b = beacons[i];
+      const wave = Number.isFinite(t)
+        ? (Math.sin(t * 0.95 + i * 1.7) + 1) / 2
+        : 0.85;
+      const on = i === 0 ? wave > 0.42 : wave > 0.52;
+      if (!on) continue;
+      const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 5);
+      g.addColorStop(0, 'rgba(255,68,52,0.92)');
+      g.addColorStop(0.45, 'rgba(255,92,72,0.42)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(b.x - b.r * 5, b.y - b.r * 5, b.r * 10, b.r * 10);
+    }
+  };
+  paint(0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return { tex, paint, beacons };
+}
+
+/** 河岸／橋面車流光點（貼在窗景下半部）。 */
+export function makeWindowVistaTrafficOverlayTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 120;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(157);
+  const laneY = canvas.height * 0.62;
+  for (let t = 0; t < 22; t++) {
+    const tx = rand() * canvas.width;
+    const ty = laneY + (rand() - 0.5) * 14;
+    const warm = rand() > 0.28;
+    ctx.fillStyle = warm
+      ? 'rgba(255,78,62,' + (0.48 + rand() * 0.42) + ')'
+      : 'rgba(220,235,255,' + (0.32 + rand() * 0.4) + ')';
+    ctx.fillRect(tx, ty, 2 + rand() * 3.5, 1.1 + rand() * 1.2);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+/** 基隆河水面極淡波光。 */
+export function makeWindowRiverShimmerTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  g.addColorStop(0, 'rgba(180,210,255,0)');
+  g.addColorStop(0.25, 'rgba(200,225,255,0.22)');
+  g.addColorStop(0.5, 'rgba(165,195,250,0.08)');
+  g.addColorStop(0.75, 'rgba(210,230,255,0.18)');
+  g.addColorStop(1, 'rgba(180,210,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, canvas.height * 0.42, canvas.width, canvas.height * 0.22);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 export function makeNightWindowSkyTexture() {

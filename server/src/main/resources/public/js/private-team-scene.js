@@ -73,24 +73,21 @@ import {
 import {
   privateTeamSceneLighting,
   privateTeamCandleFlickerMultiplier,
-  privateTeamSeededRand,
-  makeNightWindowSkyTexture,
-  makeNightSkylineLayerTexture,
-  makeNightCloudLayerTexture,
-  makeWindowRainTexture,
-  makeWindowGlassStreakTexture,
-  makeSkylineFlickerLightsTexture,
-  makeWindowStreetTrafficTexture,
+  PRIVATE_TEAM_WINDOW_TEXTURE_URLS,
+  privateTeamWindowPeriodFromTaipeiDate,
+  privateTeamWindowCyclePreviewMode,
+  privateTeamWindowPreviewToastLabel,
   makeWindowMoonlightFloorTexture,
   makeWindowMoonlightWallTexture,
-  stepSkylineFlickerLights,
+  makeWindowTowerBeaconOverlayTexture,
+  makeWindowVistaTrafficOverlayTexture,
+  makeWindowRiverShimmerTexture,
   PRIVATE_TEAM_WINDOW_SKY_Z,
-  PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z,
   PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX,
   privateTeamWindowSkylineParallaxOffset,
   privateTeamWindowAmbientMotionEnabled,
-  privateTeamWindowAirplaneBeaconOpacity,
-  skylineLayersInFrontOfWindowSky
+  privateTeamWindowTowerBeaconOpacity,
+  privateTeamWindowAirplaneBeaconOpacity
 } from './private-team-scene-window.js';
 
 import {
@@ -193,14 +190,16 @@ export {
   privateTeamPitchMomentumTick,
   privateTeamSceneLighting,
   privateTeamCandleFlickerMultiplier,
+  PRIVATE_TEAM_WINDOW_TEXTURE_URLS,
+  privateTeamWindowPeriodFromTaipeiDate,
+  privateTeamWindowCyclePreviewMode,
+  privateTeamWindowPreviewToastLabel,
   PRIVATE_TEAM_WINDOW_SKY_Z,
-  PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z,
-  skylineLayersInFrontOfWindowSky,
   privateTeamWindowAmbientMotionEnabled,
   PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX,
   privateTeamWindowSkylineParallaxOffset,
+  privateTeamWindowTowerBeaconOpacity,
   privateTeamWindowAirplaneBeaconOpacity,
-  makeNightWindowSkyTexture,
   PRIVATE_TEAM_LEFT_POSTER_IDX_KEY,
   LEFT_WALL_POSTER_URLS,
   parseLeftPosterIndex,
@@ -228,7 +227,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   renderer.setPixelRatio(scenePixelRatio());
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x050a14);
+  const sceneNow = () => ((opts && opts.now) ? opts.now() : new Date());
+  let windowPreviewMode = 'auto';
 
   const camLook = new THREE.Vector3(0, 0.92, -0.08);
   const camBase = new THREE.Vector3(3.25, 3.5, 4.15);
@@ -323,9 +323,11 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
   applyCameraView();
 
-  const lighting = privateTeamSceneLighting();
-  const amb = new THREE.AmbientLight(0xc8d4ff, lighting.amb);
-  const dir = new THREE.DirectionalLight(0x8898f8, lighting.dir + 0.06);
+  let windowVistaPeriod = privateTeamWindowPeriodFromTaipeiDate(sceneNow());
+  const lighting = privateTeamSceneLighting(windowVistaPeriod);
+  scene.background = new THREE.Color(lighting.background);
+  const amb = new THREE.AmbientLight(lighting.ambColor, lighting.amb);
+  const dir = new THREE.DirectionalLight(lighting.dirColor, lighting.dir + 0.06);
   dir.position.set(1.4, 6.2, -7.5);
   scene.add(amb, dir);
 
@@ -521,14 +523,18 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(tubBackWarmWash);
   // 不再放天花板水平亮帶：從常用機位會看成窗戶上方的破圖橫條。暖色洗牆改由 tubBackWarmWash 承擔。
 
-  const skylineCenterY = winBottom + winH / 2;
-  const skylineParallaxTargets = [];
-  function trackSkylineParallax(mesh, bx, by, bz, parallaxScale) {
-    skylineParallaxTargets.push({ mesh, bx, by, bz, parallaxScale });
+  const coarsePointer =
+    typeof win.matchMedia === 'function' && win.matchMedia('(pointer: coarse)').matches;
+  const narrowWin = (win.innerWidth || 1024) < 640;
+
+  const vistaCenterY = winBottom + winH / 2;
+  const vistaParallaxTargets = [];
+  function trackVistaParallax(mesh, bx, by, bz, parallaxScale) {
+    vistaParallaxTargets.push({ mesh, bx, by, bz, parallaxScale });
   }
-  function syncWindowSkylineParallax() {
-    for (let ti = 0; ti < skylineParallaxTargets.length; ti++) {
-      const t = skylineParallaxTargets[ti];
+  function syncWindowVistaParallax() {
+    for (let ti = 0; ti < vistaParallaxTargets.length; ti++) {
+      const t = vistaParallaxTargets[ti];
       const off = privateTeamWindowSkylineParallaxOffset(
         yawRadians,
         pitchRadians,
@@ -539,154 +545,79 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
   }
 
-  const skyTex = makeNightWindowSkyTexture();
-  const windowSky = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.2, winH + 0.2),
-    new THREE.MeshBasicMaterial({ map: skyTex })
-  );
-  const windowSkyY = winBottom + winH / 2;
+  const vistaTex = {};
+  const vistaPeriodKeys = ['day', 'sunset', 'night'];
+  for (let vi = 0; vi < vistaPeriodKeys.length; vi++) {
+    const vk = vistaPeriodKeys[vi];
+    const vurl = PRIVATE_TEAM_WINDOW_TEXTURE_URLS[vk];
+    const vtx = texLoader.load(vurl);
+    vtx.colorSpace = THREE.SRGBColorSpace;
+    vistaTex[vk] = vtx;
+  }
+
+  const windowVistaMat = new THREE.MeshBasicMaterial({ map: vistaTex[windowVistaPeriod] });
+  const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.02, winH + 0.02), windowVistaMat);
+  const windowSkyY = vistaCenterY;
   const windowSkyZ = backZ - WALL_THICK - PRIVATE_TEAM_WINDOW_SKY_Z;
   windowSky.position.set(0, windowSkyY, windowSkyZ);
-  windowSky.name = 'windowSky';
+  windowSky.name = 'windowVista';
   root.add(windowSky);
-  trackSkylineParallax(windowSky, 0, windowSkyY, windowSkyZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.sky);
+  trackVistaParallax(windowSky, 0, windowSkyY, windowSkyZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.sky);
 
-  const skyline = new THREE.Group();
-  skyline.name = 'skyline';
-  const skylineLayers = [
-    {
-      name: 'skylineFar',
-      layer: 'far',
-      z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[0],
-      hScale: 0.98,
-      yBias: 0,
-      parallax: PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.far
-    },
-    {
-      name: 'skylineMid',
-      layer: 'mid',
-      z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[1],
-      hScale: 1,
-      yBias: 0,
-      parallax: PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.mid
-    },
-    {
-      name: 'skylineNear',
-      layer: 'near',
-      z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[2],
-      hScale: 1,
-      yBias: 0,
-      parallax: PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.near
-    }
-  ];
-  skylineLayers.forEach((cfg) => {
-    const layerTex = makeNightSkylineLayerTexture(cfg.layer);
-    const layerMat = new THREE.MeshBasicMaterial({
-      map: layerTex,
-      transparent: true,
-      depthWrite: false,
-      opacity: cfg.layer === 'far' ? 0.78 : cfg.layer === 'mid' ? 0.9 : 1
-    });
-    const layerMesh = new THREE.Mesh(
-      new THREE.PlaneGeometry(winW + 0.12, winH * cfg.hScale),
-      layerMat
-    );
-    const layerZ = backZ - WALL_THICK - cfg.z;
-    layerMesh.position.set(0, skylineCenterY + cfg.yBias, layerZ);
-    layerMesh.name = cfg.name;
-    skyline.add(layerMesh);
-    trackSkylineParallax(layerMesh, 0, skylineCenterY + cfg.yBias, layerZ, cfg.parallax);
-  });
-  root.add(skyline);
-
-  const flickerLights = makeSkylineFlickerLightsTexture();
-  const windowSkylineFlicker = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.1, winH * 0.94),
+  const towerBeacon = makeWindowTowerBeaconOverlayTexture();
+  const windowVistaBeacon = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.02, winH + 0.02),
     new THREE.MeshBasicMaterial({
-      map: flickerLights.tex,
+      map: towerBeacon.tex,
       transparent: true,
       depthWrite: false,
       opacity: 0.82,
       blending: THREE.AdditiveBlending
     })
   );
-  const flickerY = skylineCenterY + 0.02;
-  const flickerZ = backZ - WALL_THICK - 0.085;
-  windowSkylineFlicker.position.set(0, flickerY, flickerZ);
-  windowSkylineFlicker.name = 'windowSkylineFlicker';
-  root.add(windowSkylineFlicker);
-  trackSkylineParallax(
-    windowSkylineFlicker,
-    0,
-    flickerY,
-    flickerZ,
-    PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.flicker
-  );
+  const beaconZ = windowSkyZ + 0.008;
+  windowVistaBeacon.position.set(0, windowSkyY, beaconZ);
+  windowVistaBeacon.name = 'windowVistaBeacon';
+  root.add(windowVistaBeacon);
+  trackVistaParallax(windowVistaBeacon, 0, windowSkyY, beaconZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.flicker);
 
-  const cloudTex = makeNightCloudLayerTexture();
-  const windowClouds = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.16, winH * 0.52),
-    new THREE.MeshBasicMaterial({
-      map: cloudTex,
-      transparent: true,
-      depthWrite: false,
-      opacity: 0.62
-    })
-  );
-  const cloudY = skylineCenterY + winH * 0.18;
-  const cloudZ = backZ - WALL_THICK - 0.052;
-  windowClouds.position.set(0, cloudY, cloudZ);
-  windowClouds.name = 'windowClouds';
-  root.add(windowClouds);
-  trackSkylineParallax(windowClouds, 0, cloudY, cloudZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.clouds);
-
-  const coarsePointer =
-    typeof win.matchMedia === 'function' && win.matchMedia('(pointer: coarse)').matches;
-  const narrowWin = (win.innerWidth || 1024) < 640;
-  const rainLineCount = coarsePointer || narrowWin ? 44 : 86;
-  const rainTex = makeWindowRainTexture(rainLineCount);
-  const rainMat = new THREE.MeshBasicMaterial({
-    map: rainTex,
-    transparent: true,
-    opacity: 0.46,
-    depthWrite: false
-  });
-  const windowRainBack = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.04, winH - 0.06), rainMat);
-  windowRainBack.position.set(0, skylineCenterY, backZ - WALL_THICK - 0.032);
-  windowRainBack.visible = false;
-  windowRainBack.name = 'windowRainBack';
-  root.add(windowRainBack);
-
-  const streakTex = makeWindowGlassStreakTexture();
-  const windowGlassStreaks = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.02, winH - 0.1),
-    new THREE.MeshBasicMaterial({
-      map: streakTex,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false
-    })
-  );
-  windowGlassStreaks.visible = false;
-  windowGlassStreaks.name = 'windowGlassStreaks';
-
-  const streetTrafficTex = makeWindowStreetTrafficTexture();
+  const streetTrafficTex = makeWindowVistaTrafficOverlayTexture();
   const windowStreetTraffic = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.06, winH * 0.24),
+    new THREE.PlaneGeometry(winW + 0.02, winH * 0.32),
     new THREE.MeshBasicMaterial({
       map: streetTrafficTex,
       transparent: true,
       depthWrite: false,
-      opacity: 0.9,
+      opacity: 0.72,
       blending: THREE.AdditiveBlending
     })
   );
-  windowStreetTraffic.position.set(0, winBottom + winH * 0.14, backZ - WALL_THICK - 0.047);
+  const trafficY = winBottom + winH * 0.18;
+  const trafficZ = beaconZ + 0.006;
+  windowStreetTraffic.position.set(0, trafficY, trafficZ);
   windowStreetTraffic.name = 'windowStreetTraffic';
   root.add(windowStreetTraffic);
+  trackVistaParallax(windowStreetTraffic, 0, trafficY, trafficZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.near);
+
+  const riverShimmerTex = makeWindowRiverShimmerTexture();
+  const windowVistaRiver = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.02, winH * 0.18),
+    new THREE.MeshBasicMaterial({
+      map: riverShimmerTex,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.38,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  const riverY = winBottom + winH * 0.08;
+  const riverZ = trafficZ + 0.004;
+  windowVistaRiver.position.set(0, riverY, riverZ);
+  windowVistaRiver.name = 'windowVistaRiver';
+  root.add(windowVistaRiver);
+  trackVistaParallax(windowVistaRiver, 0, riverY, riverZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.mid);
 
   const glassY = winBottom + winH / 2;
-
   const glassMat = new THREE.MeshLambertMaterial({
     color: 0x6e88c8,
     emissive: 0x243878,
@@ -697,34 +628,22 @@ export function mountPrivateTeamScene(canvas, opts) {
   });
   const paneW = (winW - 0.12) / 3;
   const glassZ = backZ + 0.02;
-  windowGlassStreaks.position.set(0, glassY, glassZ + 0.012);
-  root.add(windowGlassStreaks);
-
-  const airplaneGroup = new THREE.Group();
-  airplaneGroup.name = 'windowAirplane';
-  airplaneGroup.visible = false;
-  const planeBodyMat = new THREE.MeshBasicMaterial({ color: 0xfff4e0, transparent: true, opacity: 0.95 });
-  const planeBody = new THREE.Mesh(new THREE.SphereGeometry(0.01, 4, 4), planeBodyMat);
-  const planeWingMat = new THREE.MeshBasicMaterial({ color: 0xffeecc, transparent: true, opacity: 0.75 });
-  const planeWing = new THREE.Mesh(new THREE.SphereGeometry(0.007, 4, 4), planeWingMat);
-  planeWing.position.set(-0.022, 0, 0);
-  const planeTailMat = new THREE.MeshBasicMaterial({ color: 0xffe8b8, transparent: true, opacity: 0.7 });
-  const planeTail = new THREE.Mesh(new THREE.SphereGeometry(0.006, 4, 4), planeTailMat);
-  planeTail.position.set(0.018, 0.006, 0);
-  airplaneGroup.add(planeBody, planeWing, planeTail);
-  airplaneGroup.position.set(winLeft, winTop - 0.22, backZ - WALL_THICK - 0.19);
-  root.add(airplaneGroup);
+  const windowVistaClickables = [];
   [-paneW - 0.04, 0, paneW + 0.04].forEach((px) => {
     const glass = new THREE.Mesh(new THREE.BoxGeometry(paneW, winH - 0.08, 0.02), glassMat);
     glass.position.set(px, glassY, glassZ);
     glass.name = 'windowGlass';
+    glass.userData.pickRole = 'windowVista';
     root.add(glass);
+    windowVistaClickables.push(glass);
   });
 
   function frameBar(w, h, x, y) {
     const m = box(w, h, 0.09, COL.frame);
     m.position.set(x, y, backZ + 0.06);
+    m.userData.pickRole = 'windowVista';
     root.add(m);
+    windowVistaClickables.push(m);
   }
   frameBar(0.11, winH, winLeft - 0.055, glassY);
   frameBar(0.11, winH, winRight + 0.055, glassY);
@@ -1019,6 +938,76 @@ export function mountPrivateTeamScene(canvas, opts) {
   let lampPointBase = lighting.point;
   let lampSpotBase = lighting.spot;
   let lampHaloBase = lighting.haloOpacity;
+  let candlePeriodMul = lighting.candleMul;
+  let lastAutoPeriodCheckMs = 0;
+  let vistaToastEl = null;
+  let vistaToastTimer = 0;
+
+  function resolveVistaPeriod() {
+    if (windowPreviewMode === 'auto') {
+      return privateTeamWindowPeriodFromTaipeiDate(sceneNow());
+    }
+    return windowPreviewMode;
+  }
+
+  function showWindowVistaToast(mode) {
+    const stage = canvas.parentElement;
+    if (!stage) return;
+    if (vistaToastTimer) {
+      win.clearTimeout(vistaToastTimer);
+      vistaToastTimer = 0;
+    }
+    if (!vistaToastEl) {
+      vistaToastEl = doc.createElement('div');
+      vistaToastEl.className = 'pt-window-vista-toast';
+      vistaToastEl.setAttribute('role', 'status');
+      vistaToastEl.setAttribute('aria-live', 'polite');
+      stage.appendChild(vistaToastEl);
+    }
+    vistaToastEl.textContent = privateTeamWindowPreviewToastLabel(mode);
+    vistaToastEl.hidden = false;
+    vistaToastTimer = win.setTimeout(() => {
+      if (vistaToastEl) vistaToastEl.hidden = true;
+      vistaToastTimer = 0;
+    }, 1800);
+  }
+
+  function applyWindowScenePeriod(period) {
+    const lt = privateTeamSceneLighting(period);
+    windowVistaPeriod = period;
+    amb.color.setHex(lt.ambColor);
+    amb.intensity = lt.amb;
+    dir.color.setHex(lt.dirColor);
+    dir.intensity = lt.dir + 0.06;
+    if (scene.background && scene.background.isColor) {
+      scene.background.setHex(lt.background);
+    }
+    if (vistaTex[period]) {
+      windowVistaMat.map = vistaTex[period];
+      windowVistaMat.needsUpdate = true;
+    }
+    moonFloorMat.opacity = lt.floorWash;
+    moonWallMat.opacity = lt.wallWash;
+    windowMoonlightWallRight.material.opacity = lt.wallWash * 0.78;
+    windowMoonlightWallLeftFlank.material.opacity = lt.wallWash * 0.78;
+    windowMoonlightLeftWall.material.opacity = lt.wallWash * 0.66;
+    tubBackWarmWash.material.opacity = lt.tubWarm;
+    lampPointBase = lt.point;
+    lampSpotBase = lt.spot;
+    lampHaloBase = lt.haloOpacity;
+    lampShadeMat.emissiveIntensity = lt.shadeEmissive;
+    lampBulbMat.opacity = lt.bulbOpacity;
+    lampPoint.intensity = lt.point;
+    lampSpot.intensity = lt.spot;
+    lampHaloMat.opacity = lt.haloOpacity;
+    candlePeriodMul = lt.candleMul;
+    windowVistaBeacon.visible = period === 'night' || period === 'sunset';
+    const riverOp = period === 'day' ? 0.22 : period === 'sunset' ? 0.32 : 0.38;
+    windowVistaRiver.material.opacity = riverOp;
+    windowStreetTraffic.material.opacity = period === 'day' ? 0.55 : 0.72;
+  }
+
+  applyWindowScenePeriod(windowVistaPeriod);
 
   let reducedMotion = false;
   let lastFrameMs = 0;
@@ -1276,6 +1265,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(bubble);
 
   const clickables = [windowSillHandheld.group, bubble, leftPosterGroup];
+  for (let wi = 0; wi < windowVistaClickables.length; wi++) {
+    clickables.push(windowVistaClickables[wi]);
+  }
   for (let mi = 0; mi < monitors.length; mi++) {
     clickables.push(monitors[mi].group);
   }
@@ -1422,6 +1414,12 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function activatePickRole(target) {
     if (!target) return;
+    if (target === 'windowVista') {
+      windowPreviewMode = privateTeamWindowCyclePreviewMode(windowPreviewMode);
+      showWindowVistaToast(windowPreviewMode);
+      applyWindowScenePeriod(resolveVistaPeriod());
+      return;
+    }
     if (target === 'leftPoster') {
       leftPosterIndex = nextLeftPosterIndex(leftPosterIndex);
       if (posterTextures[leftPosterIndex]) posterMat.map = posterTextures[leftPosterIndex];
@@ -1668,14 +1666,6 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
   let raf = 0;
   let t0 = performance.now();
-  let windowRainActive = Math.random() > 0.45;
-  let windowRainToggleAt = t0 + 52000 + Math.random() * 80000;
-  let lastSkylineFlickerMs = 0;
-  let airplaneActive = false;
-  let airplaneStartMs = 0;
-  let airplaneNextAt = t0 + 22000 + Math.random() * 36000;
-  const WINDOW_AIRPLANE_MS = 4800;
-
   function resize() {
     const parent = canvas.parentElement;
     const w = parent ? parent.clientWidth : 1;
@@ -1839,7 +1829,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     for (let ci = 0; ci < romanceCandles.length; ci++) {
       const c = romanceCandles[ci];
       const flick = privateTeamCandleFlickerMultiplier(elapsed + ci * 0.37, reducedMotion, candleLowMotion);
-      c.glow.intensity = c.baseIntensity * flick;
+      c.glow.intensity = c.baseIntensity * candlePeriodMul * flick;
       c.flameMat.opacity = reducedMotion ? 0.75 : 0.82 + (flick - 0.76) * 0.35;
     }
 
@@ -1851,60 +1841,28 @@ export function mountPrivateTeamScene(canvas, opts) {
         lampHaloBase * (reducedMotion ? 1 : 0.88 + ((Math.sin(elapsed * 3.6 + 0.8) + 1) / 2) * 0.12);
     }
 
-    if (now >= windowRainToggleAt) {
-      windowRainActive = !windowRainActive;
-      windowRainToggleAt = now + 72000 + Math.random() * 96000;
-    }
-    windowRainBack.visible = windowRainActive;
-    windowGlassStreaks.visible = windowRainActive;
-    if (windowRainActive) {
-      if (privateTeamWindowAmbientMotionEnabled(reducedMotion)) {
-        rainTex.offset.y = (elapsed * 0.9) % 1;
-      } else {
-        rainTex.offset.y = 0.28;
+    if (windowPreviewMode === 'auto' && now - lastAutoPeriodCheckMs >= 60000) {
+      lastAutoPeriodCheckMs = now;
+      const autoPeriod = privateTeamWindowPeriodFromTaipeiDate(sceneNow());
+      if (autoPeriod !== windowVistaPeriod) {
+        applyWindowScenePeriod(autoPeriod);
       }
     }
 
     if (privateTeamWindowAmbientMotionEnabled(reducedMotion)) {
-      streetTrafficTex.offset.x = (elapsed * 0.06) % 1;
-      cloudTex.offset.x = (elapsed * 0.014) % 1;
-      flickerLights.antenna.on = (Math.sin(elapsed * 0.48 + 0.6) + 1) / 2 > 0.58;
-      if (now - lastSkylineFlickerMs >= 420) {
-        lastSkylineFlickerMs = now;
-        stepSkylineFlickerLights(flickerLights);
-        flickerLights.paint();
-        flickerLights.tex.needsUpdate = true;
-      } else if (flickerLights.antenna.on !== flickerLights._antennaWas) {
-        flickerLights._antennaWas = flickerLights.antenna.on;
-        flickerLights.paint();
-        flickerLights.tex.needsUpdate = true;
-      }
-      windowSkylineFlicker.visible = true;
-      if (!airplaneActive && now >= airplaneNextAt) {
-        airplaneActive = true;
-        airplaneStartMs = now;
-        airplaneGroup.visible = true;
-        airplaneGroup.position.set(winLeft + 0.08, winTop - 0.22, backZ - WALL_THICK - 0.19);
-      }
-      if (airplaneActive) {
-        const ap = (now - airplaneStartMs) / WINDOW_AIRPLANE_MS;
-        if (ap >= 1) {
-          airplaneActive = false;
-          airplaneGroup.visible = false;
-          airplaneNextAt = now + 40000 + Math.random() * 55000;
-        } else {
-          airplaneGroup.position.x = winLeft + 0.08 + ap * (winW + 0.28);
-        }
-        const beacon = privateTeamWindowAirplaneBeaconOpacity(elapsed, reducedMotion);
-        planeBodyMat.opacity = beacon;
-        planeWingMat.opacity = beacon * 0.82;
-        planeTailMat.opacity = beacon * 0.72;
-      }
+      streetTrafficTex.offset.x = (elapsed * 0.048) % 1;
+      riverShimmerTex.offset.x = (elapsed * 0.02) % 1;
+      towerBeacon.paint(elapsed);
+      towerBeacon.tex.needsUpdate = true;
+      const beaconOp = privateTeamWindowTowerBeaconOpacity(elapsed, reducedMotion);
+      windowVistaBeacon.material.opacity =
+        windowVistaPeriod === 'day' ? 0 : beaconOp * (windowVistaPeriod === 'sunset' ? 0.62 : 0.82);
     } else {
-      cloudTex.offset.x = 0;
-      windowSkylineFlicker.visible = false;
-      airplaneGroup.visible = false;
-      airplaneActive = false;
+      streetTrafficTex.offset.x = 0;
+      riverShimmerTex.offset.x = 0;
+      towerBeacon.paint(null);
+      towerBeacon.tex.needsUpdate = true;
+      windowVistaBeacon.material.opacity = windowVistaPeriod === 'night' ? 0.72 : 0;
     }
 
     if (
@@ -1951,7 +1909,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       applyCameraView();
     }
 
-    syncWindowSkylineParallax();
+    syncWindowVistaParallax();
 
     bubble.lookAt(camera.position);
     lampHalo.lookAt(camera.position);
