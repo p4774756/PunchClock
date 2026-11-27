@@ -1222,12 +1222,16 @@ function addWindowSillHandheld(root, sillY, sillZ, mugX) {
   const group = new THREE.Group();
   group.userData.pickRole = 'handheld';
   const gx = mugX + 0.11;
-  group.position.set(gx, sillY + 0.062, sillZ + 0.055);
-  group.rotation.y = -0.38;
-  group.scale.set(1.4, 1.4, 1.4);
+  group.position.set(gx, sillY + 0.078, sillZ + 0.098);
+  group.rotation.y = -0.3;
+  group.scale.set(1.9, 1.9, 1.9);
 
-  const bodyMat = new THREE.MeshLambertMaterial({ color: 0xb4c870 });
-  const body = box(0.052, 0.092, 0.026, bodyMat);
+  const bodyMat = new THREE.MeshLambertMaterial({
+    color: 0xc8dc88,
+    emissive: 0x1e542e,
+    emissiveIntensity: 0.28
+  });
+  const body = box(0.056, 0.098, 0.03, bodyMat);
   body.name = 'windowSillHandheldBody';
   group.add(body);
 
@@ -1236,27 +1240,31 @@ function addWindowSillHandheld(root, sillY, sillZ, mugX) {
     map: lcdTex,
     toneMapped: false
   });
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.04), screenMat);
-  screen.position.set(0, 0.018, 0.014);
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.046), screenMat);
+  screen.position.set(0, 0.02, 0.016);
   screen.name = 'windowSillHandheldScreen';
   group.add(screen);
 
   const lens = box(0.008, 0.008, 0.004, 0x302018, true);
-  lens.position.set(-0.014, -0.028, 0.014);
+  lens.position.set(-0.015, -0.03, 0.016);
   lens.name = 'windowSillHandheldLens';
   group.add(lens);
 
   const pickMat = new THREE.MeshBasicMaterial({
     transparent: true,
     opacity: 0,
-    depthWrite: false
+    depthWrite: false,
+    depthTest: false
   });
-  const pick = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.14, 0.08), pickMat);
+  const pick = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.26, 0.16), pickMat);
+  pick.position.set(0, 0.01, 0.04);
   pick.name = 'windowSillHandheldPick';
+  pick.userData.pickRole = 'handheld';
+  pick.renderOrder = 10;
   group.add(pick);
 
-  const glow = new THREE.PointLight(0x5ec87a, 0.34, 0.62, 2);
-  glow.position.set(0, 0.02, 0.03);
+  const glow = new THREE.PointLight(0x5ec87a, 0.62, 1.05, 2);
+  glow.position.set(0, 0.024, 0.038);
   glow.name = 'windowSillHandheldGlow';
   group.add(glow);
 
@@ -2251,7 +2259,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   bubble.userData.pickRole = 'secretary';
   root.add(bubble);
 
-  const clickables = [bubble, windowSillHandheld.group];
+  const clickables = [windowSillHandheld.group, bubble];
   for (let mi = 0; mi < monitors.length; mi++) {
     clickables.push(monitors[mi].group);
   }
@@ -2306,6 +2314,18 @@ export function mountPrivateTeamScene(canvas, opts) {
     return null;
   }
 
+  /** 多重重疊時優先回傳掌機，避免窗台區被對話泡泡等較近 pick 搶走。 */
+  function pickRoleFromHits(hits) {
+    let fallback = null;
+    for (let i = 0; i < hits.length; i++) {
+      const role = pickRoleFromObject(hits[i].object);
+      if (!role) continue;
+      if (role === 'handheld') return 'handheld';
+      if (!fallback) fallback = role;
+    }
+    return fallback;
+  }
+
   const activePointers = new Map();
   let pinchActive = false;
   let pinchStartDist = 0;
@@ -2337,7 +2357,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     raycaster.setFromCamera(pointer, camera);
     const hits = raycaster.intersectObjects(clickables, true);
     if (!hits.length) return null;
-    return pickRoleFromObject(hits[0].object);
+    return pickRoleFromHits(hits);
   }
 
   function resetOrbitGesture() {

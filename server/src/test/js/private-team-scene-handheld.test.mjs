@@ -17,7 +17,11 @@ test('窗台馬克杯右側立放 Game Boy，可點擊 handheld', () => {
   assert.match(src, /windowSillHandheldPick/);
   assert.match(src, /PointLight/);
   assert.match(src, /NearestFilter/);
-  assert.match(src, /clickables\.push\(monitors\[mi\]\.group\)|clickables = \[bubble, windowSillHandheld\.group\]/);
+  assert.match(
+    src,
+    /clickables\.push\(monitors\[mi\]\.group\)|clickables = \[(?:bubble, windowSillHandheld\.group|windowSillHandheld\.group, bubble)\]/
+  );
+  assert.match(src, /pickRoleFromHits/);
 });
 
 test('掌機 hover 與啟動回呼', () => {
