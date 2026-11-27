@@ -334,9 +334,8 @@ public class DesktopPetTest {
             assertFalse(refs.desktopPetSwitch.isSelected());
             assertEquals("桌面寵物", refs.desktopPetSwitch.getAccessibleContext().getAccessibleName());
             assertTrue(refs.desktopPetSwitch.getToolTipText().contains("最小化"));
-            assertTrue(tabs.getToolTipTextAt(1).contains("寵物"));
-            assertNotNull(refs.windowTransparencySlider);
-            assertNotNull(refs.windowTransparencyValueLabel);
+            assertTrue(tabs.getToolTipTextAt(1).contains("Dock"));
+            assertNull(refs.windowTransparencySlider);
             assertEquals("養成", refs.desktopPetCare.getAccessibleContext().getAccessibleName());
             assertTrue(refs.desktopPetCare.isSelected());
             assertFalse(refs.desktopPetCare.isEnabled());
