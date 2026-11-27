@@ -253,7 +253,7 @@ export function privateTeamYawFromDragDelta(deltaX, canvasWidth, startYaw, canva
   const maxRad =
     Number.isFinite(h) && h > 0 ? privateTeamYawMaxRadians(w, h) : PRIVATE_TEAM_YAW_MAX_RAD;
   const scale = (2 * maxRad) / w;
-  const next = (Number.isFinite(base) ? base : 0) + Number(deltaX) * scale;
+  const next = (Number.isFinite(base) ? base : 0) - Number(deltaX) * scale;
   if (Number.isFinite(h) && h > 0) return clampPrivateTeamYawViewport(next, w, h);
   return clampPrivateTeamYaw(next);
 }
@@ -272,7 +272,7 @@ export function privateTeamYawDragVelocityRadPerMs(deltaPx, dtMs, canvasWidth, c
   if (!(h > 0)) return 0;
   const maxRad = privateTeamYawMaxRadians(w, h);
   const scale = (2 * maxRad) / w;
-  return (dx / dt) * scale * 0.38;
+  return (-dx / dt) * scale * 0.38;
 }
 
 export function privateTeamYawMomentumTick(yaw, velRadPerMs, dtMs, canvasWidth, canvasHeight) {
