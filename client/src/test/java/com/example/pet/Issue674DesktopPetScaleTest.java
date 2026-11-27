@@ -2,7 +2,10 @@ package com.example.pet;
 
 import org.junit.Test;
 
+import java.awt.Graphics2D;
 import java.awt.Rectangle;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -77,6 +80,52 @@ public class Issue674DesktopPetScaleTest {
             }
         }
         assertTrue(walked);
+    }
+
+    @Test
+    public void retinaStageGraphicsShowsFullMiluAfterBlit() {
+        assertRetinaStageBlitShowsFullMilu(new DesktopPetAnimation());
+    }
+
+    @Test
+    public void retinaStageGraphicsShowsFullMiluAfterBlitWhenWalking() {
+        DesktopPetAnimation anim = new DesktopPetAnimation();
+        anim.forceWalk(1);
+        anim.tick();
+        assertRetinaStageBlitShowsFullMilu(anim);
+    }
+
+    @Test
+    public void retinaStageGraphicsShowsFullMiluAfterBlitWhenPoked() {
+        DesktopPetAnimation anim = new DesktopPetAnimation();
+        anim.poke();
+        assertRetinaStageBlitShowsFullMilu(anim);
+    }
+
+    private static void assertRetinaStageBlitShowsFullMilu(DesktopPetAnimation anim) {
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        Rectangle view = DesktopPetWindow.stableShellFor(frames);
+        double pixelScale = 2;
+        int bw = DesktopPetMiluLayout.bufferPixelWidth(view.width, pixelScale);
+        int bh = DesktopPetMiluLayout.bufferPixelHeight(view.height, pixelScale);
+        BufferedImage frame = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
+        DesktopPetWindow.paintMiluViewport(frame, view, frames, anim, 0, 0, 0, 1, pixelScale);
+        BufferedImage viewport = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = viewport.createGraphics();
+        try {
+            g.setTransform(AffineTransform.getScaleInstance(pixelScale, pixelScale));
+            DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, false);
+        } finally {
+            g.dispose();
+        }
+        Rectangle logical = DesktopPetMiluLayout.logicalCoverage(view.width, view.height, bw, bh, pixelScale);
+        DesktopPetWindow.assertOpaqueWithinViewport(viewport, 16);
+        Rectangle opaque = DesktopPetWindow.opaqueBounds(viewport, 16);
+        assertTrue("milu should span most of the viewport width", opaque.width >= logical.width * pixelScale * 2 / 3);
+        assertTrue(
+                "milu feet or body should reach below mid-height",
+                opaque.y + opaque.height >= logical.height * pixelScale / 2);
     }
 
     @Test
