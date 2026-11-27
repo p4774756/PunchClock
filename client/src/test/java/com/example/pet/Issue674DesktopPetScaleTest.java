@@ -84,10 +84,28 @@ public class Issue674DesktopPetScaleTest {
 
     @Test
     public void retinaStageGraphicsShowsFullMiluAfterBlit() {
+        assertRetinaStageBlitShowsFullMilu(new DesktopPetAnimation());
+    }
+
+    @Test
+    public void retinaStageGraphicsShowsFullMiluAfterBlitWhenWalking() {
+        DesktopPetAnimation anim = new DesktopPetAnimation();
+        anim.forceWalk(1);
+        anim.tick();
+        assertRetinaStageBlitShowsFullMilu(anim);
+    }
+
+    @Test
+    public void retinaStageGraphicsShowsFullMiluAfterBlitWhenPoked() {
+        DesktopPetAnimation anim = new DesktopPetAnimation();
+        anim.poke();
+        assertRetinaStageBlitShowsFullMilu(anim);
+    }
+
+    private static void assertRetinaStageBlitShowsFullMilu(DesktopPetAnimation anim) {
         DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
         assertNotNull(frames);
         Rectangle view = DesktopPetWindow.stableShellFor(frames);
-        DesktopPetAnimation anim = new DesktopPetAnimation();
         double pixelScale = 2;
         int bw = DesktopPetMiluLayout.bufferPixelWidth(view.width, pixelScale);
         int bh = DesktopPetMiluLayout.bufferPixelHeight(view.height, pixelScale);
