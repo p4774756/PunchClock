@@ -42,7 +42,6 @@ import {
   privateTeamPinchZoomFactor,
   PRIVATE_TEAM_DRAG_THRESHOLD_PX,
   PRIVATE_TEAM_PAN_HINT_DISMISS_KEY,
-  privateTeamOrbitYawReturnEnabled,
   privateTeamDragExceedsThreshold,
   privateTeamYawFromDragDelta,
   privateTeamPanHintShouldShow,
@@ -50,8 +49,6 @@ import {
   privateTeamPitchDragVelocityRadPerMs,
   privateTeamYawMomentumTick,
   privateTeamPitchMomentumTick,
-  privateTeamYawReturnProgress,
-  privateTeamYawAtReturn,
   privateTeamPitchFromDragDelta,
   PRIVATE_TEAM_TRAY_SURFACE_Y,
   PRIVATE_TEAM_WATER_Y,
@@ -59,7 +56,6 @@ import {
   PRIVATE_TEAM_ZOOM_MAX,
   PRIVATE_TEAM_YAW_MAX_DEG,
   PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT,
-  PRIVATE_TEAM_YAW_RETURN_MS,
   privateTeamYawMaxRadians,
   clampPrivateTeamYaw,
   clampPrivateTeamYawViewport,
@@ -169,10 +165,8 @@ export {
   PRIVATE_TEAM_YAW_MAX_DEG,
   PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT,
   PRIVATE_TEAM_DRAG_THRESHOLD_PX,
-  PRIVATE_TEAM_YAW_RETURN_MS,
   PRIVATE_TEAM_PAN_HINT_DISMISS_KEY,
   privateTeamYawMaxRadians,
-  privateTeamOrbitYawReturnEnabled,
   clampPrivateTeamYaw,
   clampPrivateTeamYawViewport,
   privateTeamDragExceedsThreshold,
@@ -180,8 +174,6 @@ export {
   privateTeamPanHintShouldShow,
   privateTeamYawDragVelocityRadPerMs,
   privateTeamYawMomentumTick,
-  privateTeamYawReturnProgress,
-  privateTeamYawAtReturn,
   PRIVATE_TEAM_PITCH_MAX_UP_DEG,
   PRIVATE_TEAM_PITCH_MAX_DOWN_DEG,
   clampPrivateTeamPitch,
@@ -239,9 +231,6 @@ export function mountPrivateTeamScene(canvas, opts) {
   let defaultZoomApplied = false;
   let yawRadians = 0;
   let pitchRadians = 0;
-  let yawReturnFrom = 0;
-  let pitchReturnFrom = 0;
-  let yawReturnStartMs = null;
   let yawMomentumVel = 0;
   let pitchMomentumVel = 0;
   const camOrbitDir = new THREE.Vector3();
@@ -1462,7 +1451,6 @@ export function mountPrivateTeamScene(canvas, opts) {
     orbitLastMoveMs = performance.now();
     orbitLastClientX = ev.clientX;
     orbitLastClientY = ev.clientY;
-    yawReturnStartMs = null;
     yawMomentumVel = 0;
     pitchMomentumVel = 0;
     if (orbitPendingRole) {
@@ -1572,19 +1560,9 @@ export function mountPrivateTeamScene(canvas, opts) {
         activatePickRole(orbitPendingRole);
       } else if (orbitDragged) {
         dismissPanHint(true);
-        const vp = sceneViewportSize();
-        const rect = canvas.getBoundingClientRect();
-        const orbitNeedsReturn =
-          privateTeamOrbitYawReturnEnabled(vp.w, vp.h) &&
-          (Math.abs(yawRadians) > 1e-6 || Math.abs(pitchRadians) > 1e-6);
-        if (orbitNeedsReturn) {
-          yawReturnFrom = yawRadians;
-          pitchReturnFrom = pitchRadians;
-          yawReturnStartMs = performance.now();
-        } else if (
-          privateTeamNarrowPortrait(vp.w, vp.h) &&
-          !reducedMotion
-        ) {
+        if (!reducedMotion) {
+          const vp = sceneViewportSize();
+          const rect = canvas.getBoundingClientRect();
           const dt = Math.max(performance.now() - orbitLastMoveMs, 16);
           const canvasH = vp.h || rect.height;
           const recentDx = ev.clientX - orbitLastClientX;
@@ -1870,42 +1848,23 @@ export function mountPrivateTeamScene(canvas, opts) {
       (Math.abs(yawMomentumVel) > 1e-6 || Math.abs(pitchMomentumVel) > 1e-6)
     ) {
       const vp = sceneViewportSize();
-      if (privateTeamNarrowPortrait(vp.w, vp.h)) {
-        const yawMotion = privateTeamYawMomentumTick(
-          yawRadians,
-          yawMomentumVel,
-          frameDt,
-          vp.w,
-          vp.h
-        );
-        yawRadians = yawMotion.yaw;
-        yawMomentumVel = yawMotion.vel;
-        const pitchMotion = privateTeamPitchMomentumTick(
-          pitchRadians,
-          pitchMomentumVel,
-          frameDt,
-          vp.h
-        );
-        pitchRadians = pitchMotion.pitch;
-        pitchMomentumVel = pitchMotion.vel;
-        applyCameraView();
-      } else {
-        yawMomentumVel = 0;
-        pitchMomentumVel = 0;
-      }
-    }
-
-    if (yawReturnStartMs != null) {
-      const progress = privateTeamYawReturnProgress(now - yawReturnStartMs, reducedMotion);
-      yawRadians = privateTeamYawAtReturn(yawReturnFrom, progress);
-      pitchRadians = privateTeamYawAtReturn(pitchReturnFrom, progress);
-      if (progress >= 1) {
-        yawRadians = 0;
-        pitchRadians = 0;
-        yawReturnStartMs = null;
-        yawReturnFrom = 0;
-        pitchReturnFrom = 0;
-      }
+      const yawMotion = privateTeamYawMomentumTick(
+        yawRadians,
+        yawMomentumVel,
+        frameDt,
+        vp.w,
+        vp.h
+      );
+      yawRadians = yawMotion.yaw;
+      yawMomentumVel = yawMotion.vel;
+      const pitchMotion = privateTeamPitchMomentumTick(
+        pitchRadians,
+        pitchMomentumVel,
+        frameDt,
+        vp.h
+      );
+      pitchRadians = pitchMotion.pitch;
+      pitchMomentumVel = pitchMotion.vel;
       applyCameraView();
     }
 
