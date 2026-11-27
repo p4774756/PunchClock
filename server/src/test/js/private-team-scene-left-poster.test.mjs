@@ -49,4 +49,6 @@ test('左牆海報靜態資源與場景掛載', () => {
   assert.match(src, /PRIVATE_TEAM_LEFT_POSTER_IDX_KEY/);
   assert.match(src, /clickables = \[windowSillHandheld\.group, bubble, leftPosterGroup\]/);
   assert.match(src, /target === 'leftPoster'/);
+  assert.match(src, /LEFT_POSTER_W = 1\.31/);
+  assert.match(src, /brassPic/);
 });
