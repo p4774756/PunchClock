@@ -248,9 +248,9 @@ export function drawPocketMaryLcd(ctx, state, frame) {
   ctx.font = 'bold 8px monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('C' + Math.max(0, Math.floor(st.credit)), 4, 3);
+  ctx.fillText('CREDIT ' + Math.max(0, Math.floor(st.credit)), 4, 3);
   ctx.textAlign = 'right';
-  ctx.fillText('W' + Math.max(0, Math.floor(st.pendingWin)), POCKET_LCD_W - 4, 3);
+  ctx.fillText('WIN ' + Math.max(0, Math.floor(st.pendingWin)), POCKET_LCD_W - 4, 3);
 
   for (let i = 0; i < POCKET_MARY_RING_LEN; i++) {
     drawRingCell(ctx, i, lit, flashOn);
