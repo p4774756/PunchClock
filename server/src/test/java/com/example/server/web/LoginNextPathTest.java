@@ -16,9 +16,6 @@ public class LoginNextPathTest {
         assertEquals("/console?open=roadmap", LoginNextPath.sanitize("/console?open=roadmap"));
         assertEquals("/?open=roadmap", LoginNextPath.sanitize("/?open=roadmap"));
         assertEquals("/?open=tasks", LoginNextPath.sanitize("/?open=tasks"));
-        assertEquals("/?open=atlas-login", LoginNextPath.sanitize("/?open=atlas-login"));
-        assertEquals("/atlas/tcm-3d", LoginNextPath.sanitize("/atlas/tcm-3d"));
-        assertEquals("/atlas/tcm-3d/", LoginNextPath.sanitize("/atlas/tcm-3d/"));
     }
 
     @Test
@@ -44,6 +41,9 @@ public class LoginNextPathTest {
         assertNull(LoginNextPath.sanitize("/console#evil"));
         assertNull(LoginNextPath.sanitize("/dev-status"));
         assertNull(LoginNextPath.sanitize("/dev-status?open=roadmap"));
+        assertNull(LoginNextPath.sanitize("/?open=atlas-login"));
+        assertNull(LoginNextPath.sanitize("/atlas/tcm-3d"));
+        assertNull(LoginNextPath.sanitize("/atlas/tcm-3d/"));
         assertNull(LoginNextPath.sanitize("/atlas/other"));
         assertNull(LoginNextPath.sanitize("/atlas/tcm-3d?set=head-neck-21"));
         assertNull(LoginNextPath.sanitize("/atlas/tcm-3d#evil"));

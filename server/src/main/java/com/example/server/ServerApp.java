@@ -15,7 +15,6 @@ import com.example.server.store.GraffitiStore;
 import com.example.server.store.RoadmapService;
 import com.example.server.store.RelayStore;
 import com.example.server.util.IpResolver;
-import com.example.server.web.AtlasRoutes;
 import com.example.server.web.ChatRoutes;
 import com.example.server.web.DashboardBroadcaster;
 import com.example.server.web.GraffitiRoutes;
@@ -70,7 +69,6 @@ public final class ServerApp {
     private final OfficePublicRoutes officePublicRoutes;
     private final DevMachineStore devMachineStore;
     private final DevMachineRoutes devMachineRoutes;
-    private final AtlasRoutes atlasRoutes;
     private final ClientReleaseService clientReleaseService;
 
     public ServerApp() {
@@ -120,7 +118,6 @@ public final class ServerApp {
         this.devStatusRoutes = new DevStatusRoutes(status, devMachineStore);
         this.officePublicRoutes = new OfficePublicRoutes(devMachineStore, status);
         this.devMachineRoutes = new DevMachineRoutes(this.authService, devMachineStore, status, gson);
-        this.atlasRoutes = new AtlasRoutes(this.authService);
         this.roadmapRoutes = new RoadmapRoutes(roadmapService != null
                 ? roadmapService
                 : defaultRoadmapService());
@@ -160,13 +157,6 @@ public final class ServerApp {
                 sf.directory = "/public/assets";
                 sf.location = Location.CLASSPATH;
                 sf.mimeTypes.add("image/webp", "webp");
-                applyStaticCache(sf, "public, max-age=86400");
-            });
-            config.staticFiles.add(sf -> {
-                sf.hostedPath = "/models";
-                sf.directory = "/public/models";
-                sf.location = Location.CLASSPATH;
-                sf.mimeTypes.add("model/gltf-binary", "glb");
                 applyStaticCache(sf, "public, max-age=86400");
             });
             config.showJavalinBanner = false;
@@ -221,7 +211,6 @@ public final class ServerApp {
         roadmapRoutes.register(app);
         devStatusRoutes.register(app);
         devMachineRoutes.register(app);
-        atlasRoutes.register(app);
         PublicFaviconRoutes.register(app);
         app.get("/api/status", this::status);
         app.post("/api/clients/{clientId}/cancel-schedule", this::cancelSchedule);
@@ -254,10 +243,6 @@ public final class ServerApp {
         String nextSafe = LoginNextPath.sanitize(ctx.queryParam("next"));
         if (authService.isAuth(ctx)) {
             ctx.redirect(nextSafe != null ? nextSafe : "/");
-            return;
-        }
-        if (nextSafe != null && nextSafe.startsWith("/atlas/tcm-3d")) {
-            ctx.redirect("/?open=atlas-login");
             return;
         }
         String ip = IpResolver.clientIp(ctx);

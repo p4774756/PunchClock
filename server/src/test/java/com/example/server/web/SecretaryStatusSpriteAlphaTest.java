@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-/** 三張秘書狀態立繪的 alpha 檢查（PIL）。 */
+/** 秘書狀態與拍手慶祝立繪的 alpha 檢查（PIL）。 */
 public class SecretaryStatusSpriteAlphaTest {
 
     @Test

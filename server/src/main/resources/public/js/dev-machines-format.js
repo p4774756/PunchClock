@@ -307,10 +307,6 @@ export function shouldOpenTasksFromSearch(search) {
   return parseRoadmapOpenParam(search) === 'tasks';
 }
 
-export function shouldOpenAtlasLoginFromSearch(search) {
-  return parseRoadmapOpenParam(search) === 'atlas-login';
-}
-
 export function shouldOpenDownloadFromSearch(search) {
   return parseRoadmapOpenParam(search) === 'download';
 }
@@ -353,24 +349,6 @@ export function applyDownloadOpenParam(win, openDownloadFn) {
   if (!shouldOpenDownloadFromSearch(win.location.search)) return false;
   openDownloadFn();
   stripOpenSearchFromUrl(win);
-  return true;
-}
-
-/** 帶 open=atlas-login 時開登入彈窗或已登入直進研習室，並清掉 query。 */
-export function applyAtlasLoginOpenParam(win, opts) {
-  if (!win || !win.location) return false;
-  if (!shouldOpenAtlasLoginFromSearch(win.location.search)) return false;
-  const hooks = opts && typeof opts === 'object' ? opts : {};
-  const isAuthed = typeof hooks.isAuthed === 'function' ? hooks.isAuthed : () => false;
-  const openAtlas = typeof hooks.openAtlas === 'function' ? hooks.openAtlas : null;
-  const openLoginForAtlas =
-    typeof hooks.openLoginForAtlas === 'function' ? hooks.openLoginForAtlas : null;
-  stripOpenSearchFromUrl(win);
-  if (isAuthed()) {
-    if (openAtlas) openAtlas();
-  } else if (openLoginForAtlas) {
-    openLoginForAtlas();
-  }
   return true;
 }
 

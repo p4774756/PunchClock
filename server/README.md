@@ -6,13 +6,12 @@ Worker 走 HTTP 心跳。主控台以 REST 下指令，WebSocket `/ws/dashboard`
 
 ## 路由
 
-實作在 `ServerApp.registerRoutes`，以及 `web` 套件的 `PeerFileRoutes`、`RelayRoutes`、`ChatRoutes`、`AtlasRoutes` 等。
+實作在 `ServerApp.registerRoutes`，以及 `web` 套件的 `PeerFileRoutes`、`RelayRoutes`、`ChatRoutes` 等。
 
 | 方法與路徑 | 誰可以呼叫 | 用途 |
 | ------------ | ------------ | ------ |
-| `GET /` | 任何人 | 公開虛擬辦公室（2D） |
+| `GET /` | 任何人 | 夜間 3D 私人秘書辦公室 |
 | `GET /download`、`GET /download/app.jar`、`GET /download/SKLbaby.jar` | 任何人 | 下載頁與 jar 導向 |
-| `GET /atlas/tcm-3d/` 與子路徑 | 任何人 | 經絡研習室靜態站（須先建置 atlas） |
 | `GET /login`、`POST /login`、`GET /logout` | 瀏覽器 | 登入／登出 |
 | `GET /console` | 瀏覽器（任務等需登入） | 管理主控台 |
 | `GET /ping` | 任何人 | 存活與版號 |

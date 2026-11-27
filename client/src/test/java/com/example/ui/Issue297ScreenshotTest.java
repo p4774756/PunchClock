@@ -99,11 +99,7 @@ public class Issue297ScreenshotTest {
                         false,
                         java.awt.event.MouseEvent.BUTTON1));
                 JScrollPane scroll = new JScrollPane(panel);
-                scroll.setSize(320, 260);
-                BufferedImage shot = new BufferedImage(320, 260, BufferedImage.TYPE_INT_RGB);
-                Graphics2D g = shot.createGraphics();
-                scroll.paint(g);
-                g.dispose();
+                BufferedImage shot = WindowChrome.renderOffscreen(scroll, 320, 260, null);
                 write(name, shot);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
