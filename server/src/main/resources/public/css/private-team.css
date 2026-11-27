@@ -765,6 +765,64 @@ button.pt-hud-id-plate {
   color: var(--maple-blue, #3a7ac4);
 }
 
+.pt-status-sys {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-width: 100%;
+}
+
+.pt-status-sys-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.pt-status-sys-label {
+  flex: 0 0 auto;
+  color: var(--maple-blue, #3a7ac4);
+}
+
+.pt-status-sys-value {
+  flex: 1 1 auto;
+  text-align: right;
+  color: #4a5568;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pt-status-sys-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(58, 122, 196, 0.18);
+  overflow: hidden;
+}
+
+.pt-status-sys-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6ba8e8, #3a7ac4);
+  transition: width 0.35s ease;
+}
+
+.pt-status-sys-warn .pt-status-sys-fill {
+  background: linear-gradient(90deg, #f6ad55, #e53e3e);
+}
+
+.pt-status-sys-warn .pt-status-sys-value,
+.pt-status-sys-warn .pt-status-sys-label {
+  color: #c05621;
+}
+
 .pt-status-phrase {
   margin: 0 0 0.35rem;
   font-size: 0.92rem;

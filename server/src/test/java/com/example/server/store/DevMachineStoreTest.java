@@ -258,6 +258,56 @@ public class DevMachineStoreTest {
         assertEquals("家用", row.get("location"));
     }
 
+    @Test
+    public void systemMetricsOptionalAndListedWhenOnline() {
+        AtomicLong clock = new AtomicLong(100_000L);
+        DevMachineStore store = new DevMachineStore(clock::get);
+        Map<String, Object> body = payload("tiger", 745, "ai/issue-745", 90_000L);
+        body.put("cpuPercent", 38.5);
+        body.put("ramUsedGb", 11.4);
+        body.put("ramTotalGb", 16);
+        body.put("ramPercent", 71);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        DevMachineStore.Snapshot snap = store.machineSnapshots().get(0);
+        assertEquals(38.5, snap.cpuPercent, 0.01);
+        assertEquals(11.4, snap.ramUsedGb, 0.01);
+        assertEquals(16.0, snap.ramTotalGb, 0.01);
+        assertEquals(Integer.valueOf(71), snap.ramPercent);
+
+        Map<String, Object> row = store.listForApi(clock.get(), issue -> "").get(0);
+        assertEquals(38.5, row.get("cpuPercent"));
+        assertEquals(11.4, row.get("ramUsedGb"));
+        assertEquals(16.0, row.get("ramTotalGb"));
+        assertEquals(71, row.get("ramPercent"));
+
+        clock.set(100_000L + DevMachineStore.ONLINE_WINDOW_MS + 1);
+        Map<String, Object> offline = store.listForApi(clock.get(), issue -> "").get(0);
+        assertFalse((Boolean) offline.get("online"));
+        assertNull(offline.get("cpuPercent"));
+        assertNull(offline.get("ramPercent"));
+    }
+
+    @Test
+    public void systemMetricsMissingIsOk() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = new HashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", body));
+        DevMachineStore.Snapshot snap = store.machineSnapshots().get(0);
+        assertNull(snap.cpuPercent);
+        assertNull(snap.ramUsedGb);
+    }
+
+    @Test
+    public void rejectsInvalidSystemMetrics() {
+        DevMachineStore store = new DevMachineStore();
+        Map<String, Object> body = new HashMap<>();
+        body.put("machine", "tiger");
+        body.put("cpuPercent", 150);
+        assertEquals(DevMachineStore.ApplyResult.BAD_BODY, store.applyHeartbeat("tiger", body));
+    }
+
     private static Map<String, Object> payload(String machine, Integer issue, String branch, long runStartedAt) {
         Map<String, Object> m = new HashMap<>();
         m.put("machine", machine);

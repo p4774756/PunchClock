@@ -100,6 +100,10 @@ public final class DevMachineStore {
         public final String commit;
         public final Integer battery;
         public final Boolean charging;
+        public final Double cpuPercent;
+        public final Double ramUsedGb;
+        public final Double ramTotalGb;
+        public final Integer ramPercent;
         public final List<RunEntry> runs;
         public final String role;
         public final Integer round;
@@ -115,11 +119,13 @@ public final class DevMachineStore {
                  List<RunEntry> runs, String role, Integer round, String model, String verdict,
                  List<QueuedEntry> queued) {
             this(machine, displayName, location, lastSeen, issue, branch, runStartedAt, agentRunning, commit,
-                    battery, charging, runs, role, round, model, verdict, queued, null, null, null);
+                    battery, charging, null, null, null, null, runs, role, round, model, verdict, queued,
+                    null, null, null);
         }
 
         Snapshot(String machine, String displayName, String location, long lastSeen, Integer issue, String branch,
                  Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
+                 Double cpuPercent, Double ramUsedGb, Double ramTotalGb, Integer ramPercent,
                  List<RunEntry> runs, String role, Integer round, String model, String verdict,
                  List<QueuedEntry> queued, String stage, Long stageStartedAt, String chain) {
             this.machine = machine;
@@ -133,6 +139,10 @@ public final class DevMachineStore {
             this.commit = commit;
             this.battery = battery;
             this.charging = charging;
+            this.cpuPercent = cpuPercent;
+            this.ramUsedGb = ramUsedGb;
+            this.ramTotalGb = ramTotalGb;
+            this.ramPercent = ramPercent;
             this.runs = runs == null ? List.of() : List.copyOf(runs);
             this.role = role;
             this.round = round;
@@ -251,6 +261,10 @@ public final class DevMachineStore {
                 parsed.commit,
                 parsed.battery,
                 parsed.charging,
+                parsed.cpuPercent,
+                parsed.ramUsedGb,
+                parsed.ramTotalGb,
+                parsed.ramPercent,
                 parsed.runs,
                 parsed.role,
                 parsed.round,
@@ -349,6 +363,18 @@ public final class DevMachineStore {
                 }
                 if (snap.charging != null) {
                     row.put("charging", snap.charging);
+                }
+                if (snap.cpuPercent != null) {
+                    row.put("cpuPercent", snap.cpuPercent);
+                }
+                if (snap.ramUsedGb != null) {
+                    row.put("ramUsedGb", snap.ramUsedGb);
+                }
+                if (snap.ramTotalGb != null) {
+                    row.put("ramTotalGb", snap.ramTotalGb);
+                }
+                if (snap.ramPercent != null) {
+                    row.put("ramPercent", snap.ramPercent);
                 }
                 if (snap.role != null) {
                     row.put("role", snap.role);
@@ -479,6 +505,10 @@ public final class DevMachineStore {
         final String commit;
         final Integer battery;
         final Boolean charging;
+        final Double cpuPercent;
+        final Double ramUsedGb;
+        final Double ramTotalGb;
+        final Integer ramPercent;
         final List<RunEntry> runs;
         final String role;
         final Integer round;
@@ -491,6 +521,7 @@ public final class DevMachineStore {
 
         private Parsed(boolean valid, String displayName, String location, Integer issue, String branch,
                        Long runStartedAt, boolean agentRunning, String commit, Integer battery, Boolean charging,
+                       Double cpuPercent, Double ramUsedGb, Double ramTotalGb, Integer ramPercent,
                        List<RunEntry> runs, String role, Integer round, String model, String verdict,
                        List<QueuedEntry> queued, String stage, Long stageStartedAt, String chain) {
             this.valid = valid;
@@ -503,6 +534,10 @@ public final class DevMachineStore {
             this.commit = commit;
             this.battery = battery;
             this.charging = charging;
+            this.cpuPercent = cpuPercent;
+            this.ramUsedGb = ramUsedGb;
+            this.ramTotalGb = ramTotalGb;
+            this.ramPercent = ramPercent;
             this.runs = runs == null ? List.of() : runs;
             this.role = role;
             this.round = round;
@@ -605,9 +640,25 @@ public final class DevMachineStore {
                 Object raw = fields.get("charging");
                 if (raw instanceof Boolean) {
                     charging = (Boolean) raw;
-                } else {
+                } else if (raw != null) {
                     return invalid();
                 }
+            }
+            Double cpuPercent = parseBoundedDouble(fields.get("cpuPercent"), 0, 100);
+            if (fields.containsKey("cpuPercent") && cpuPercent == null && fields.get("cpuPercent") != null) {
+                return invalid();
+            }
+            Double ramUsedGb = parseBoundedDouble(fields.get("ramUsedGb"), 0, 2048);
+            if (fields.containsKey("ramUsedGb") && ramUsedGb == null && fields.get("ramUsedGb") != null) {
+                return invalid();
+            }
+            Double ramTotalGb = parseBoundedDouble(fields.get("ramTotalGb"), 0, 2048);
+            if (fields.containsKey("ramTotalGb") && ramTotalGb == null && fields.get("ramTotalGb") != null) {
+                return invalid();
+            }
+            Integer ramPercent = parseBoundedInt(fields.get("ramPercent"), 0, 100);
+            if (fields.containsKey("ramPercent") && ramPercent == null && fields.get("ramPercent") != null) {
+                return invalid();
             }
             List<RunEntry> runs = List.of();
             if (fields.containsKey("runs")) {
@@ -669,13 +720,46 @@ public final class DevMachineStore {
                 return invalid();
             }
             return new Parsed(true, displayName, location, issue, branch, runStartedAt, agentRunning, commit, battery,
-                    charging, runs, role, round, model, verdict, queued, stage, stageStartedAt, chain);
+                    charging, cpuPercent, ramUsedGb, ramTotalGb, ramPercent, runs, role, round, model, verdict,
+                    queued, stage, stageStartedAt, chain);
         }
 
         static Parsed invalid() {
-            return new Parsed(false, null, null, null, null, null, false, null, null, null, List.of(),
-                    null, null, null, null, List.of(), null, null, null);
+            return new Parsed(false, null, null, null, null, null, false, null, null, null, null, null, null, null,
+                    List.of(), null, null, null, null, List.of(), null, null, null);
         }
+    }
+
+    private static Double parseBoundedDouble(Object raw, double min, double max) {
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof Number)) {
+            return null;
+        }
+        double n = ((Number) raw).doubleValue();
+        if (!Double.isFinite(n) || n < min || n > max) {
+            return null;
+        }
+        return Math.round(n * 10.0) / 10.0;
+    }
+
+    private static Integer parseBoundedInt(Object raw, int min, int max) {
+        if (raw == null) {
+            return null;
+        }
+        if (!(raw instanceof Number)) {
+            return null;
+        }
+        Number num = (Number) raw;
+        if (!isWholeNumber(num)) {
+            return null;
+        }
+        int n = num.intValue();
+        if (n < min || n > max) {
+            return null;
+        }
+        return n;
     }
 
     private static final class ParseQueued {

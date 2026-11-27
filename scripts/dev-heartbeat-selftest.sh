@@ -22,6 +22,25 @@ assert_eq() {
   fi
 }
 
+# --- CPU / RAM helpers ---
+top_sample='Processes: 100 total, 5 running, 95 sleeping
+CPU usage: 12.3% user, 9.1% sys, 78.6% idle'
+assert_eq "$(parse_cpu_percent_from_top "$top_sample")" "21.4" "cpu from top idle"
+assert_eq "$(parse_cpu_percent_from_top 'no cpu here')" "" "cpu top missing"
+
+vm_sample='Mach Virtual Memory Statistics: (pages free: 1024)
+Pages free:                               1000.
+Pages active:                            200000.
+Pages wired down:                         50000.
+Pages occupied by compressor:              5000.'
+ram_line=$(compute_ram_usage_gb "$vm_sample" 4096 17179869184)
+assert_eq "$(printf '%s' "$ram_line" | cut -d'|' -f2)" "6" "ram percent from vm_stat"
+payload_sys=$(printf '{"machine":"t","agentRunning":false%s}' ',"cpuPercent":38.5,"ramUsedGb":11.4,"ramTotalGb":16,"ramPercent":71')
+case "$payload_sys" in
+  *'"cpuPercent":38.5'*) ;;
+  *) fail "system metrics payload fragment" ;;
+esac
+
 # --- battery % (item 2) ---
 line1=' -InternalBattery-0 (id=1234)	85%; discharging; 3:20 remaining present: true'
 assert_eq "$(parse_battery_pct "$line1")" "85" "pmset id=1234 tab line"

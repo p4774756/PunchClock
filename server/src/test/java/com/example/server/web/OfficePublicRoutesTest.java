@@ -45,6 +45,8 @@ public class OfficePublicRoutesTest {
             "ai/issue-|/Users/|battery|charging|worktree", Pattern.CASE_INSENSITIVE);
     private static final Set<String> ALLOWED_TOP = Set.of("success", "characters");
     private static final Set<String> ALLOWED_CHAR_BASE = Set.of("status", "updatedAt");
+    private static final Set<String> ALLOWED_TIGER_EXTRA = Set.of(
+            "active", "completedToday", "queue", "cpuPercent", "ramUsedGb", "ramTotalGb", "ramPercent");
     private static final Pattern TIGER_STATUS = Pattern.compile("^(工作中( ×\\d+)?|待命中|休息中)$");
     private static final Pattern REVIEWER_STATUS = Pattern.compile("^(審核中( ×\\d+)?|待機)$");
 
@@ -281,6 +283,8 @@ public class OfficePublicRoutesTest {
         assertEquals("休息中", tiger.get("status").getAsString());
         assertTrue(TIGER_STATUS.matcher(tiger.get("status").getAsString()).matches());
         assertEquals(0, tiger.getAsJsonArray("active").size());
+        assertFalse(tiger.has("cpuPercent"));
+        assertFalse(tiger.has("ramPercent"));
     }
 
     @Test
@@ -723,6 +727,24 @@ public class OfficePublicRoutesTest {
     }
 
     @Test
+    public void tigerSystemMetricsWhenOnline() throws Exception {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("cpuPercent", 38);
+        body.put("ramUsedGb", 11.4);
+        body.put("ramTotalGb", 16);
+        body.put("ramPercent", 71);
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals(38.0, tiger.get("cpuPercent").getAsDouble(), 0.01);
+        assertEquals(11.4, tiger.get("ramUsedGb").getAsDouble(), 0.01);
+        assertEquals(16.0, tiger.get("ramTotalGb").getAsDouble(), 0.01);
+        assertEquals(71, tiger.get("ramPercent").getAsInt());
+    }
+
+    @Test
     public void publicOfficeWhitelistWithoutSecrets() throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("machine", "tiger");
@@ -750,7 +772,7 @@ public class OfficePublicRoutesTest {
             JsonObject row = chars.getAsJsonObject(id);
             for (String key : row.keySet()) {
                 boolean ok = ALLOWED_CHAR_BASE.contains(key)
-                        || ("tiger".equals(id) && ("active".equals(key) || "completedToday".equals(key) || "queue".equals(key)));
+                        || ("tiger".equals(id) && ALLOWED_TIGER_EXTRA.contains(key));
                 assertTrue("unexpected char field: " + key, ok);
             }
             String st = row.get("status").getAsString();

@@ -83,6 +83,7 @@ public final class OfficePublicRoutes {
                     row.put("active", buildActive(now, store, machineId, tiger, doc, github, repo, devStatusService));
                     row.put("queue", buildTigerQueue(now, store, machineId, tiger, doc, github, repo, devStatusService));
                     row.put("completedToday", buildCompletedToday(now, store, machines, github, repo));
+                    appendTigerSystemMetrics(row, tiger, now);
                 }
                 characters.put(id, row);
             }
@@ -329,6 +330,24 @@ public final class OfficePublicRoutes {
                 }
             }
             return row;
+        }
+
+        private static void appendTigerSystemMetrics(Map<String, Object> row, DevMachineStore.Snapshot tiger, long now) {
+            if (row == null || tiger == null || !isOnline(tiger, now)) {
+                return;
+            }
+            if (tiger.cpuPercent != null) {
+                row.put("cpuPercent", tiger.cpuPercent);
+            }
+            if (tiger.ramUsedGb != null) {
+                row.put("ramUsedGb", tiger.ramUsedGb);
+            }
+            if (tiger.ramTotalGb != null) {
+                row.put("ramTotalGb", tiger.ramTotalGb);
+            }
+            if (tiger.ramPercent != null) {
+                row.put("ramPercent", tiger.ramPercent);
+            }
         }
 
         private static String secretaryMachineId(DevMachineStore.Snapshot tiger) {

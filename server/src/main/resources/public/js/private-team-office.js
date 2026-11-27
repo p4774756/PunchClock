@@ -34,6 +34,13 @@ export function hasNewCompletedToday(previousKeys, completedToday) {
   return nextKeys.some((k) => previousKeys.indexOf(k) === -1);
 }
 
+function parseMetricNumber(raw, min, max) {
+  if (raw == null || raw === '') return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < min || n > max) return null;
+  return n;
+}
+
 export function tigerFromPublic(body) {
   if (!body || body.success !== true || !body.characters) return null;
   const tiger = body.characters.tiger;
@@ -42,8 +49,69 @@ export function tigerFromPublic(body) {
     status: tiger.status == null ? '' : String(tiger.status).trim(),
     active: Array.isArray(tiger.active) ? tiger.active : [],
     completedToday: Array.isArray(tiger.completedToday) ? tiger.completedToday : [],
-    queue: Array.isArray(tiger.queue) ? tiger.queue : []
+    queue: Array.isArray(tiger.queue) ? tiger.queue : [],
+    cpuPercent: parseMetricNumber(tiger.cpuPercent, 0, 100),
+    ramUsedGb: parseMetricNumber(tiger.ramUsedGb, 0, 2048),
+    ramTotalGb: parseMetricNumber(tiger.ramTotalGb, 0, 2048),
+    ramPercent: parseMetricNumber(tiger.ramPercent, 0, 100)
   };
+}
+
+export function secretarySystemMetricsVisible(tiger) {
+  if (!tiger || typeof tiger !== 'object') return false;
+  return tiger.cpuPercent != null || tiger.ramPercent != null
+    || (tiger.ramUsedGb != null && tiger.ramTotalGb != null);
+}
+
+function formatMetricOneDecimal(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '--';
+  if (Math.abs(v - Math.round(v)) < 0.05) return String(Math.round(v));
+  return v.toFixed(1);
+}
+
+function renderSystemMetrics(doc, tiger) {
+  const wrap = el(doc, 'div', 'pt-status-sys');
+  const cpu = tiger.cpuPercent;
+  const ramPct = tiger.ramPercent;
+  const hasRam = tiger.ramUsedGb != null && tiger.ramTotalGb != null;
+  const showCpu = cpu != null;
+  const showRam = hasRam || ramPct != null;
+
+  if (showCpu) {
+    wrap.appendChild(renderMetricBar(doc, 'CPU', cpu, cpu + '%', cpu));
+  }
+  if (showRam) {
+    let pct = ramPct;
+    if (pct == null && hasRam && tiger.ramTotalGb > 0) {
+      pct = Math.round((tiger.ramUsedGb / tiger.ramTotalGb) * 100);
+    }
+    const valueText = hasRam
+      ? formatMetricOneDecimal(tiger.ramUsedGb) + ' / ' + formatMetricOneDecimal(tiger.ramTotalGb)
+        + 'G' + (pct != null ? ' (' + Math.round(pct) + '%)' : '')
+      : (pct != null ? Math.round(pct) + '%' : '--');
+    wrap.appendChild(renderMetricBar(doc, 'RAM', pct, valueText, pct));
+  }
+  return wrap;
+}
+
+function renderMetricBar(doc, shortLabel, fraction, text, warnAt) {
+  const block = el(doc, 'div', 'pt-status-sys-row');
+  const head = el(doc, 'div', 'pt-status-sys-head');
+  const label = shortLabel.startsWith('RAM') ? 'RAM' : shortLabel;
+  head.appendChild(el(doc, 'span', 'pt-status-sys-label', label));
+  head.appendChild(el(doc, 'span', 'pt-status-sys-value', text));
+  block.appendChild(head);
+  const track = el(doc, 'div', 'pt-status-sys-track');
+  const fill = el(doc, 'span', 'pt-status-sys-fill');
+  const pct = fraction == null ? 0 : Math.min(100, Math.max(0, Number(fraction)));
+  fill.style.width = fraction == null ? '0%' : pct + '%';
+  if (warnAt != null && Number(warnAt) > 85) {
+    block.className = 'pt-status-sys-row pt-status-sys-warn';
+  }
+  track.appendChild(fill);
+  block.appendChild(track);
+  return block;
 }
 
 /** 合併 GitHub 與辦公室公開 API 的排隊列（以 issue 去重，心跳 waiter 優先補洞）。 */
@@ -516,6 +584,9 @@ export function fillStatusCard(doc, bodyEl, view, opts) {
   stateWrap.appendChild(el(doc, 'h3', 'pt-status-heading', '狀態'));
   const statusText = tiger.status == null || tiger.status === '' ? '待命中' : String(tiger.status);
   stateWrap.appendChild(el(doc, 'p', 'pt-status-state', statusText));
+  if (secretarySystemMetricsVisible(tiger)) {
+    stateWrap.appendChild(renderSystemMetrics(doc, tiger));
+  }
   bodyEl.appendChild(stateWrap);
 
   const activeWrap = el(doc, 'section', 'pt-status-section');

@@ -445,6 +445,127 @@ read_battery() {
   BATTERY_JSON=",\"battery\":$pct,\"charging\":$charging"
 }
 
+# 供 self-test 使用：從 top -l 1 擷取 CPU 使用率（100 - idle%）
+parse_cpu_percent_from_top() {
+  top_out=$1
+  idle=$(printf '%s\n' "$top_out" | sed -n 's/.* \([0-9][0-9]*\.[0-9][0-9]*\)% idle.*/\1/p' | head -n1)
+  if [ -z "$idle" ]; then
+    idle=$(printf '%s\n' "$top_out" | sed -n 's/.* \([0-9][0-9]*\)% idle.*/\1/p' | head -n1)
+  fi
+  if [ -z "$idle" ]; then
+    return
+  fi
+  awk -v idle="$idle" 'BEGIN {
+    used = 100 - idle + 0;
+    if (used < 0) used = 0;
+    if (used > 100) used = 100;
+    printf "%.1f", used;
+  }'
+}
+
+# 供 self-test 使用：vm_stat 單一計數欄位（不含尾端句點）
+parse_vm_stat_pages() {
+  key=$1
+  vm_out=$2
+  printf '%s\n' "$vm_out" | sed -n "s/^[[:space:]]*${key}:[[:space:]]*\([0-9][0-9]*\).*/\1/p" | head -n1
+}
+
+# 供 self-test 使用：依 vm_stat 估算已用 RAM（GB）與百分比
+compute_ram_usage_gb() {
+  vm_out=$1
+  page_size=$2
+  total_bytes=$3
+  active=$(parse_vm_stat_pages "Pages active" "$vm_out")
+  wired=$(parse_vm_stat_pages "Pages wired down" "$vm_out")
+  compressed=$(parse_vm_stat_pages "Pages occupied by compressor" "$vm_out")
+  if [ -z "$active" ] || [ -z "$wired" ] || [ -z "$total_bytes" ]; then
+    return
+  fi
+  used_pages=$((active + wired + compressed))
+  awk -v used="$used_pages" -v ps="$page_size" -v total="$total_bytes" 'BEGIN {
+    used_b = used * ps;
+    used_gb = used_b / 1073741824;
+    pct = (total > 0) ? (used_b * 100 / total) : 0;
+    if (used_gb < 0) used_gb = 0;
+    if (pct < 0) pct = 0;
+    if (pct > 100) pct = 100;
+    printf "%.1f|%.0f", used_gb, pct;
+  }'
+}
+
+format_ram_total_gb() {
+  bytes=$1
+  awk -v b="$bytes" 'BEGIN { printf "%.1f", b / 1073741824 }'
+}
+
+json_metric_number() {
+  raw=$1
+  if [ -z "$raw" ]; then
+    return
+  fi
+  case "$raw" in
+    *[!0-9.]*|'') return ;;
+  esac
+  printf '%s' "$raw"
+}
+
+read_system_stats() {
+  SYSTEM_JSON=""
+  if ! command -v sysctl >/dev/null 2>&1; then
+    return
+  fi
+  mem_bytes=$(sysctl -n hw.memsize 2>/dev/null) || return
+  ram_total_gb=$(format_ram_total_gb "$mem_bytes")
+  cpu_pct=""
+  if command -v top >/dev/null 2>&1; then
+    top_out=$(top -l 1 -s 0 -n 0 2>/dev/null) || top_out=""
+    cpu_pct=$(parse_cpu_percent_from_top "$top_out")
+  fi
+  ram_used_gb=""
+  ram_pct=""
+  if command -v vm_stat >/dev/null 2>&1; then
+    vm_out=$(vm_stat 2>/dev/null) || vm_out=""
+    page_size=$(sysctl -n hw.pagesize 2>/dev/null) || page_size=4096
+    if [ -n "$vm_out" ]; then
+      ram_pair=$(compute_ram_usage_gb "$vm_out" "$page_size" "$mem_bytes")
+      if [ -n "$ram_pair" ]; then
+        ram_used_gb=$(printf '%s' "$ram_pair" | cut -d'|' -f1)
+        ram_pct=$(printf '%s' "$ram_pair" | cut -d'|' -f2)
+      fi
+    fi
+  fi
+  parts=""
+  if [ -n "$cpu_pct" ]; then
+    cpu_json=$(json_metric_number "$cpu_pct")
+    if [ -n "$cpu_json" ]; then
+      parts="${parts}\"cpuPercent\":$cpu_json,"
+    fi
+  fi
+  if [ -n "$ram_used_gb" ]; then
+    used_json=$(json_metric_number "$ram_used_gb")
+    if [ -n "$used_json" ]; then
+      parts="${parts}\"ramUsedGb\":$used_json,"
+    fi
+  fi
+  if [ -n "$ram_total_gb" ]; then
+    total_json=$(json_metric_number "$ram_total_gb")
+    if [ -n "$total_json" ]; then
+      parts="${parts}\"ramTotalGb\":$total_json,"
+    fi
+  fi
+  if [ -n "$ram_pct" ]; then
+    pct_json=$(json_metric_number "$ram_pct")
+    if [ -n "$pct_json" ]; then
+      parts="${parts}\"ramPercent\":$pct_json,"
+    fi
+  fi
+  if [ -z "$parts" ]; then
+    return
+  fi
+  parts=$(printf '%s' "$parts" | sed 's/,$//')
+  SYSTEM_JSON=",$parts"
+}
+
 # 第 3 行可為 epoch 毫秒或 ISO 8601（dev-run-mark.sh 寫入後者）
 parse_run_started_ms() {
   raw=$1
@@ -1024,8 +1145,10 @@ do_beat() {
     fi
   fi
   BATTERY_JSON=""
+  SYSTEM_JSON=""
   COMMIT_JSON=""
   read_battery
+  read_system_stats
   git_commit
   AGENT_LIVE=false
   if agent_running; then
@@ -1091,10 +1214,10 @@ do_beat() {
   display_json=$(json_display_field "$display_name")
   location_json=$(json_display_field "$location_tag")
   queued_json="${QUEUED_JSON:-[]}"
-  payload=$(printf '{"machine":"%s","displayName":%s,"location":%s,"issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"role":%s,"round":%s,"model":%s,"verdict":%s,"runs":%s,"queued":%s%s%s}' \
+  payload=$(printf '{"machine":"%s","displayName":%s,"location":%s,"issue":%s,"branch":%s,"runStartedAt":%s,"agentRunning":%s,"role":%s,"round":%s,"model":%s,"verdict":%s,"runs":%s,"queued":%s%s%s%s}' \
     "$machine" "$display_json" "$location_json" "$issue_json" "$branch_json" "$started_json" "$agent" \
     "$role_json" "$round_json" "$model_json" "$verdict_json" \
-    "$runs_json" "$queued_json" "$COMMIT_JSON" "$BATTERY_JSON")
+    "$runs_json" "$queued_json" "$COMMIT_JSON" "$BATTERY_JSON" "$SYSTEM_JSON")
   if [ "$RUNS_LIVE" = "true" ] && [ -n "$RUNS_JSON" ] && [ "$RUNS_JSON" != "[]" ]; then
     now_ms=$(date +%s)000
     write_lag_file "$RUNS_JSON" "$agent" "$((now_ms + LAG_MS))"

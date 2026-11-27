@@ -9,6 +9,7 @@ const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/res
 
 const {
   tigerFromPublic,
+  secretarySystemMetricsVisible,
   bubbleTextForStatus,
   capsulesForActive,
   devQueueFromStatus,
@@ -79,6 +80,25 @@ test('taskProgressFromTiger 以進行中與今日完成計算', () => {
     completedToday: [{ issue: 2 }, { issue: 3 }]
   });
   assert.deepEqual(p, { completed: 2, total: 3, fraction: 2 / 3 });
+});
+
+test('tigerFromPublic 含 CPU RAM', () => {
+  const t = tigerFromPublic({
+    success: true,
+    characters: {
+      tiger: {
+        status: '待命中',
+        cpuPercent: 38,
+        ramUsedGb: 11.4,
+        ramTotalGb: 16,
+        ramPercent: 71
+      }
+    }
+  });
+  assert.equal(t.cpuPercent, 38);
+  assert.equal(t.ramUsedGb, 11.4);
+  assert.equal(t.ramPercent, 71);
+  assert.equal(secretarySystemMetricsVisible(t), true);
 });
 
 test('tigerFromPublic 解析公開欄位', () => {
@@ -268,6 +288,55 @@ test('devQueueFromStatus 解析排隊', () => {
   });
   assert.equal(q.length, 2);
   assert.equal(q[0].title, '甲');
+});
+
+test('fillStatusCard CPU RAM 進度條與警示', () => {
+  const doc = {
+    createElement(tag) {
+      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '', style: {}, attributes: {} };
+      node.appendChild = (c) => node.childNodes.push(c);
+      node.setAttribute = (k, v) => { node.attributes[k] = v; };
+      node.replaceChildren = () => { node.childNodes = []; };
+      return node;
+    }
+  };
+  const body = doc.createElement('div');
+  fillStatusCard(doc, body, {
+    tiger: {
+      status: '待命中',
+      cpuPercent: 90,
+      ramUsedGb: 14,
+      ramTotalGb: 16,
+      ramPercent: 88,
+      active: [],
+      completedToday: []
+    },
+    queue: []
+  });
+  const flat = JSON.stringify(body);
+  assert.ok(flat.includes('pt-status-sys'));
+  assert.ok(flat.includes('pt-status-sys-warn'));
+  assert.ok(flat.includes('14 / 16'));
+});
+
+test('fillStatusCard 缺系統欄位不誤顯 0%', () => {
+  const doc = {
+    createElement(tag) {
+      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '', style: {}, attributes: {} };
+      node.appendChild = (c) => node.childNodes.push(c);
+      node.setAttribute = (k, v) => { node.attributes[k] = v; };
+      node.replaceChildren = () => { node.childNodes = []; };
+      return node;
+    }
+  };
+  const body = doc.createElement('div');
+  fillStatusCard(doc, body, {
+    tiger: { status: '休息中', active: [], completedToday: [] },
+    queue: []
+  });
+  const flat = JSON.stringify(body);
+  assert.ok(!flat.includes('pt-status-sys'));
+  assert.ok(!flat.includes('0%'));
 });
 
 test('fillStatusCard 產出連結與膠囊', () => {
