@@ -236,6 +236,45 @@ export const PRIVATE_TEAM_DRAG_THRESHOLD_PX = 6;
 export const PRIVATE_TEAM_YAW_RETURN_MS = 600;
 export const PRIVATE_TEAM_PAN_HINT_DISMISS_KEY = 'punchclock-pt-pan-seen';
 
+/** localStorage：左牆海報輪播索引（0–3 對應第 1–4 張）。 */
+export const PRIVATE_TEAM_LEFT_POSTER_IDX_KEY = 'punchclock.office.leftPosterIdx';
+
+export const LEFT_WALL_POSTER_URLS = [
+  '/assets/private-team/posters/poster-1-beach-sunset.webp',
+  '/assets/private-team/posters/poster-2-infinity-pool.webp',
+  '/assets/private-team/posters/poster-3-resort-terrace.webp',
+  '/assets/private-team/posters/poster-4-retro-neon.webp'
+];
+
+/** 將 localStorage 字串正規為 0–3；缺鍵或非法值回 0（第 1 張）。 */
+export function parseLeftPosterIndex(raw) {
+  if (raw == null || raw === '') return 0;
+  const n = Number.parseInt(String(raw), 10);
+  if (!Number.isFinite(n) || n < 0 || n > 3) return 0;
+  return n;
+}
+
+export function nextLeftPosterIndex(current) {
+  const cur = parseLeftPosterIndex(current);
+  return (cur + 1) % LEFT_WALL_POSTER_URLS.length;
+}
+
+export function readLeftPosterIndexFromStorage(getItem) {
+  let raw = null;
+  try {
+    if (typeof getItem === 'function') {
+      raw = getItem(PRIVATE_TEAM_LEFT_POSTER_IDX_KEY);
+    }
+  } catch (_e) {
+    return 0;
+  }
+  return parseLeftPosterIndex(raw);
+}
+
+export function formatLeftPosterIndexForStorage(index) {
+  return String(parseLeftPosterIndex(index));
+}
+
 const PRIVATE_TEAM_YAW_MAX_RAD = (PRIVATE_TEAM_YAW_MAX_DEG * Math.PI) / 180;
 
 export function privateTeamYawMaxRadians(width, height) {
@@ -1959,6 +1998,104 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlightLeftWall.name = 'windowMoonlightLeftWall';
   root.add(windowMoonlightLeftWall);
 
+  const LEFT_POSTER_W = 0.82;
+  const LEFT_POSTER_H = (LEFT_POSTER_W * 9) / 16;
+  const leftPosterFrameW = 0.026;
+  const leftPosterGroup = new THREE.Group();
+  leftPosterGroup.name = 'leftWallPoster';
+  leftPosterGroup.position.set(leftX + WALL_THICK + 0.01, 1.42, -0.32);
+  leftPosterGroup.rotation.y = Math.PI / 2;
+  leftPosterGroup.userData.pickRole = 'leftPoster';
+
+  const posterTextures = [];
+  for (let li = 0; li < LEFT_WALL_POSTER_URLS.length; li++) {
+    const ptx = texLoader.load(LEFT_WALL_POSTER_URLS[li]);
+    ptx.colorSpace = THREE.SRGBColorSpace;
+    posterTextures.push(ptx);
+  }
+  let leftPosterIndex = readLeftPosterIndexFromStorage((key) => {
+    try {
+      return win.localStorage && win.localStorage.getItem(key);
+    } catch (_e) {
+      return null;
+    }
+  });
+  const posterMat = new THREE.MeshLambertMaterial({
+    map: posterTextures[leftPosterIndex] || posterTextures[0],
+    color: 0xffffff,
+    emissive: 0x000000,
+    emissiveIntensity: 0
+  });
+  const posterPlane = new THREE.Mesh(new THREE.PlaneGeometry(LEFT_POSTER_W, LEFT_POSTER_H), posterMat);
+  posterPlane.position.set(0, 0, 0.022);
+  posterPlane.userData.pickRole = 'leftPoster';
+  leftPosterGroup.add(posterPlane);
+
+  const frameDk = 0x241c14;
+  const frameMetal = 0x2c3438;
+  function addPosterFrameBar(w, h, d, x, y, z) {
+    const bar = box(w, h, d, frameDk);
+    bar.position.set(x, y, z);
+    leftPosterGroup.add(bar);
+  }
+  addPosterFrameBar(
+    LEFT_POSTER_W + 0.04,
+    leftPosterFrameW,
+    0.032,
+    0,
+    LEFT_POSTER_H / 2 + leftPosterFrameW / 2,
+    0.018
+  );
+  addPosterFrameBar(
+    LEFT_POSTER_W + 0.04,
+    leftPosterFrameW,
+    0.032,
+    0,
+    -(LEFT_POSTER_H / 2 + leftPosterFrameW / 2),
+    0.018
+  );
+  addPosterFrameBar(
+    leftPosterFrameW,
+    LEFT_POSTER_H,
+    0.032,
+    -(LEFT_POSTER_W / 2 + leftPosterFrameW / 2),
+    0,
+    0.018
+  );
+  addPosterFrameBar(
+    leftPosterFrameW,
+    LEFT_POSTER_H,
+    0.032,
+    LEFT_POSTER_W / 2 + leftPosterFrameW / 2,
+    0,
+    0.018
+  );
+
+  const picLightBar = box(LEFT_POSTER_W * 0.68, 0.016, 0.03, frameMetal);
+  picLightBar.material.emissive = new THREE.Color(0xffb878);
+  picLightBar.material.emissiveIntensity = 0.42;
+  picLightBar.position.set(0, LEFT_POSTER_H / 2 + 0.12, 0.028);
+  leftPosterGroup.add(picLightBar);
+
+  const posterWarmWash = new THREE.Mesh(
+    new THREE.PlaneGeometry(LEFT_POSTER_W + 0.06, LEFT_POSTER_H + 0.14),
+    new THREE.MeshBasicMaterial({
+      color: 0xffc888,
+      transparent: true,
+      opacity: 0.09,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  posterWarmWash.position.set(0, -0.02, 0.018);
+  leftPosterGroup.add(posterWarmWash);
+
+  const posterPicLight = new THREE.PointLight(0xffc890, 0.32, 1.2, 2);
+  posterPicLight.position.set(0, LEFT_POSTER_H / 2 + 0.1, 0.22);
+  leftPosterGroup.add(posterPicLight);
+
+  root.add(leftPosterGroup);
+
   const romanceCandles = [];
   romanceCandles.push(
     addRomanceCandle(root, -0.14, sillY + 0.1, sillZ + 0.1, 'windowSillCandle')
@@ -2294,7 +2431,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   bubble.userData.pickRole = 'secretary';
   root.add(bubble);
 
-  const clickables = [windowSillHandheld.group, bubble];
+  const clickables = [windowSillHandheld.group, bubble, leftPosterGroup];
   for (let mi = 0; mi < monitors.length; mi++) {
     clickables.push(monitors[mi].group);
   }
@@ -2308,6 +2445,17 @@ export function mountPrivateTeamScene(canvas, opts) {
   let monitorHighlightUntil = 0;
   let handheldHovered = false;
   let handheldHighlightUntil = 0;
+  let leftPosterHovered = false;
+  let leftPosterHighlightUntil = 0;
+
+  function applyLeftPosterHighlight(hovered, tapMs) {
+    leftPosterHovered = !!hovered;
+    if (tapMs) leftPosterHighlightUntil = tapMs;
+    if (!posterMat || !posterMat.emissive) return;
+    const on = leftPosterHovered || performance.now() < leftPosterHighlightUntil;
+    posterMat.emissive.setHex(on ? 0x6a5040 : 0x000000);
+    posterMat.emissiveIntensity = on ? 0.2 : 0;
+  }
 
   function applyHandheldHighlight(hovered, tapMs) {
     handheldHovered = !!hovered;
@@ -2430,6 +2578,20 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function activatePickRole(target) {
     if (!target) return;
+    if (target === 'leftPoster') {
+      leftPosterIndex = nextLeftPosterIndex(leftPosterIndex);
+      if (posterTextures[leftPosterIndex]) posterMat.map = posterTextures[leftPosterIndex];
+      try {
+        if (win.localStorage) {
+          win.localStorage.setItem(
+            PRIVATE_TEAM_LEFT_POSTER_IDX_KEY,
+            formatLeftPosterIndexForStorage(leftPosterIndex)
+          );
+        }
+      } catch (_e) { /* noop */ }
+      applyLeftPosterHighlight(true, performance.now() + 260);
+      return;
+    }
     if (target === 'secretary') playSecretaryWave();
     if (target === 'monitor') applyMonitorHighlight(true, performance.now() + 240);
     if (target === 'handheld') applyHandheldHighlight(true, performance.now() + 280);
@@ -2522,6 +2684,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         canvas.style.cursor = '';
         applyMonitorHighlight(false);
         applyHandheldHighlight(false);
+        applyLeftPosterHighlight(false);
         setMonitorBezelHighlight(false);
       }
       return;
@@ -2530,8 +2693,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     canvas.style.cursor = hover ? 'pointer' : '';
     const mon = hover === 'monitor';
     const hand = hover === 'handheld';
+    const poster = hover === 'leftPoster';
     applyMonitorHighlight(mon);
     applyHandheldHighlight(hand);
+    applyLeftPosterHighlight(poster);
     if (hand && !mon) {
       canvas.style.cursor = 'pointer';
     }
@@ -2547,6 +2712,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (orbitDragged || pinchActive) return;
     canvas.style.cursor = '';
     applyMonitorHighlight(false);
+    applyLeftPosterHighlight(false);
     setMonitorBezelHighlight(monitorHighlightActive(performance.now()));
   }
 
