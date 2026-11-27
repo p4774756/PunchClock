@@ -15,11 +15,16 @@
 .private-team-page.lab-office-root.is-page {
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
   min-height: 100vh;
   min-height: 100dvh;
   /* 與 frame 相同：dvh 未縮小時改對齊 svh，避免較高的頁面把舞台往下置中 */
   min-height: 100svh;
+  min-height: var(--pt-vv-height, 100svh);
   padding: 0;
+  padding-top: var(--pt-vv-offset-top, 0px);
+  box-sizing: border-box;
 }
 
 .private-team-page .lab-office-frame {
@@ -31,6 +36,8 @@
   height: 100dvh;
   /* 瀏覽器工具列未縮小 layout 時 dvh 仍等於 vh，svh 才是可見高度 */
   height: 100svh;
+  height: var(--pt-vv-height, 100svh);
+  flex: 0 0 auto;
   width: 100%;
   max-width: none;
   border-radius: 0;
@@ -1159,6 +1166,10 @@ button.pt-hud-id-plate {
 }
 
 @media (max-width: 520px) {
+  .pt-hud-tl {
+    left: max(14px, env(safe-area-inset-left, 0px));
+    top: max(calc(env(safe-area-inset-top, 0px) + 10px), 12px);
+  }
   .pt-status-card {
     width: calc(100% - 4px);
     padding: 0.75rem 0.8rem 0.9rem;
@@ -1204,12 +1215,14 @@ button.pt-hud-id-plate {
   }
 
   .pt-hud-deploy-ver {
+    left: max(14px, env(safe-area-inset-left, 0px));
     max-width: calc(100% - 4.5rem);
     font-size: 0.66rem;
     line-height: 1.2;
     white-space: normal;
     overflow: visible;
     text-overflow: unset;
+    padding-left: 2px;
     padding-right: 0.25rem;
   }
 
