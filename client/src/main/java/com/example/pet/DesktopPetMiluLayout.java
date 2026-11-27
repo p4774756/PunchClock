@@ -4,7 +4,6 @@ import java.awt.Graphics2D;
 import java.awt.GraphicsConfiguration;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 
 /**
@@ -68,26 +67,14 @@ final class DesktopPetMiluLayout {
     }
 
     /**
-     * 不論螢幕 Graphics 是否已帶縮放，把裝置像素緩衝貼滿視窗的邏輯矩形時，目標寬高（使用者座標）。
+     * 把已依 {@link #deviceScale} 畫滿的裝置像素緩衝貼回 stage。
+     * 目標尺寸用邏輯視窗寬高（目前 Graphics 使用者座標）；Retina 下 transform 已縮放時勿再乘一次。
      */
     static Rectangle blitDestRect(Graphics2D screen, int logicalWidth, int logicalHeight) {
-        AffineTransform tx = screen.getTransform();
-        double sx = tx.getScaleX();
-        double sy = tx.getScaleY();
-        if (!Double.isFinite(sx) || Math.abs(sx) < 1e-6) {
-            sx = 1;
-        }
-        if (!Double.isFinite(sy) || Math.abs(sy) < 1e-6) {
-            sy = 1;
-        }
-        int w = (int) Math.round(logicalWidth * Math.abs(sx));
-        int h = (int) Math.round(logicalHeight * Math.abs(sy));
-        return new Rectangle(0, 0, Math.max(1, w), Math.max(1, h));
+        return new Rectangle(0, 0, Math.max(1, logicalWidth), Math.max(1, logicalHeight));
     }
 
-    /**
-     * 裝置像素緩衝在螢幕上應佔的邏輯面積（測試用，與 {@link #blitDestRect} 互為倒數關係）。
-     */
+    /** 裝置像素緩衝在螢幕上應佔的邏輯面積（測試用）。 */
     static Rectangle logicalCoverage(
             int logicalWidth, int logicalHeight, int bufferWidth, int bufferHeight, double pixelScale) {
         if (pixelScale < 1) {
