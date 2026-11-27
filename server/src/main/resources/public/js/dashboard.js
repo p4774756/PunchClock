@@ -130,7 +130,25 @@
     }
 
     function buildDeviceHeadConnectionText(isConnected) {
-      return headBadgeFn('buildDeviceHeadConnectionText', (c) => (c ? '辦公室上班中' : '離線'))(isConnected);
+      return headBadgeFn('buildDeviceHeadConnectionText', (c) => (c ? '辦公室上班中' : '已離線'))(isConnected);
+    }
+
+    function buildDeviceHeadTaskLabelText(isConnected, tasks) {
+      return headBadgeFn('buildDeviceHeadTaskLabelText', () => null)(isConnected, tasks);
+    }
+
+    function buildDeviceHeadTaskChipClass(isConnected, tasks) {
+      return headBadgeFn('buildDeviceHeadTaskChipClass', () => null)(isConnected, tasks);
+    }
+
+    function buildDeviceCardTierClass(isConnected, tasks) {
+      return headBadgeFn('buildDeviceCardTierClass', () => 'device-tier-idle')(isConnected, tasks);
+    }
+
+    function syncDeviceCardTier(root, isConnected, tasks) {
+      if (!root) return;
+      root.classList.remove('device-tier-active', 'device-tier-idle', 'device-tier-offline');
+      root.classList.add(buildDeviceCardTierClass(isConnected, tasks));
     }
 
     function buildDeviceHeadConnectionChipClass(isConnected) {
@@ -177,25 +195,27 @@
         connChip.innerHTML = liveDot + connText;
       }
 
-      const scheduleLabel = buildDeviceHeadScheduleAriaLabel(isConnected, tasks);
-      let scheduleChip = root.querySelector('[data-role="head-schedule-dot"]');
-      if (!isConnected || !scheduleLabel) {
-        if (scheduleChip) scheduleChip.remove();
+      const legacyDot = root.querySelector('[data-role="head-schedule-dot"]');
+      if (legacyDot) legacyDot.remove();
+
+      const taskText = buildDeviceHeadTaskLabelText(isConnected, tasks);
+      let taskChip = root.querySelector('[data-role="head-task-label"]');
+      if (!taskText) {
+        if (taskChip) taskChip.remove();
         return;
       }
-      const checkClass = buildDeviceHeadScheduleDotChipClass(isConnected, tasks) || 'chip-idle';
-      const dotClass = checkClass === 'chip-online' ? 'dot dot-live' : 'dot';
-      if (!scheduleChip) {
+      const taskClass = buildDeviceHeadTaskChipClass(isConnected, tasks) || 'chip-task-idle';
+      if (!taskChip) {
         const host = root.querySelector('.device-head-chips');
         if (!host) return;
-        scheduleChip = document.createElement('span');
-        scheduleChip.setAttribute('data-role', 'head-schedule-dot');
-        host.appendChild(scheduleChip);
+        taskChip = document.createElement('span');
+        taskChip.setAttribute('data-role', 'head-task-label');
+        host.appendChild(taskChip);
       }
-      scheduleChip.className = 'chip chip-schedule-dot ' + checkClass;
-      scheduleChip.setAttribute('aria-label', scheduleLabel);
-      scheduleChip.setAttribute('title', scheduleLabel);
-      scheduleChip.innerHTML = '<span class="' + dotClass + '" aria-hidden="true"></span>';
+      taskChip.className = 'chip ' + taskClass;
+      taskChip.textContent = taskText;
+      taskChip.setAttribute('aria-label', taskText);
+      taskChip.setAttribute('title', taskText);
     }
 
     function buildDeviceHeadChipsHtml(isConnected, tasks) {
@@ -203,20 +223,19 @@
       const connClass = buildDeviceHeadConnectionChipClass(isConnected);
       const connText = buildDeviceHeadConnectionText(isConnected);
       let html = '<span class="chip ' + connClass + '" data-role="head-connection-chip">' + liveDot + connText + '</span>';
-      const scheduleLabel = buildDeviceHeadScheduleAriaLabel(isConnected, tasks);
-      if (scheduleLabel) {
-        const checkClass = buildDeviceHeadScheduleDotChipClass(isConnected, tasks) || 'chip-idle';
-        const dotClass = checkClass === 'chip-online' ? 'dot dot-live' : 'dot';
+      const taskText = buildDeviceHeadTaskLabelText(isConnected, tasks);
+      if (taskText) {
+        const taskClass = buildDeviceHeadTaskChipClass(isConnected, tasks) || 'chip-task-idle';
         html +=
-          '<span class="chip chip-schedule-dot ' +
-          checkClass +
-          '" data-role="head-schedule-dot" aria-label="' +
-          escapeHtml(scheduleLabel) +
+          '<span class="chip ' +
+          taskClass +
+          '" data-role="head-task-label" aria-label="' +
+          escapeHtml(taskText) +
           '" title="' +
-          escapeHtml(scheduleLabel) +
-          '"><span class="' +
-          dotClass +
-          '" aria-hidden="true"></span></span>';
+          escapeHtml(taskText) +
+          '">' +
+          escapeHtml(taskText) +
+          '</span>';
       }
       return '<div class="device-head-chips">' + html + '</div>';
     }
@@ -435,6 +454,7 @@
       const isConnected = c.status !== 'OFFLINE';
       const tasks = Array.isArray(c.tasks) ? c.tasks.slice() : [];
       syncDeviceHeadChips(root, isConnected, tasks);
+      syncDeviceCardTier(root, isConnected, tasks);
 
       syncDeviceFoldChrome(root, c.clientId);
 
@@ -815,6 +835,7 @@
         const ariaExpanded = isCollapsed ? 'false' : 'true';
         const ariaLabel = escapeHtml(deviceFoldAriaLabel(expanded, c.clientId));
         const collapsedSectionClass = isCollapsed ? ' device-is-collapsed' : '';
+        const tierClass = buildDeviceCardTierClass(isConnected, tasks);
         const statusColor = getStatusColor(c.status);
         const safeMsg = escapeHtml(cleanMessage(c.message));
         const chevronHtml = deviceChevronHtml(expanded);
@@ -823,7 +844,7 @@
           ? '<div class="device-id-sub">' + versionHint + '</div>'
           : '';
 
-        html += '<section class="device' + collapsedSectionClass + '" data-client-id="' + escapeHtml(c.clientId) + '">' +
+        html += '<section class="device' + collapsedSectionClass + ' ' + tierClass + '" data-client-id="' + escapeHtml(c.clientId) + '">' +
           '<div class="device-head" id="' + headDomId + '" role="button" tabindex="0"' +
             ' aria-expanded="' + ariaExpanded + '" aria-controls="' + bodyDomId + '"' +
             ' aria-label="' + ariaLabel + '">' +
