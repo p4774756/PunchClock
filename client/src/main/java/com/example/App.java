@@ -104,6 +104,7 @@ public class App extends JFrame {
     private JTabbedPane mainTabs;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
+    private java.util.List<Image> baseAppIconImages = java.util.Collections.emptyList();
     /** 名為「後台」的寄件者只能收、不能回。 */
     private static final String ADMIN_PEER_ID = "後台";
     /** 同事聊天紀錄（只存記憶體）。 */
@@ -247,6 +248,7 @@ public class App extends JFrame {
             appIconImage = null;
             return;
         }
+        baseAppIconImages = icons;
         appIconImage = icons.get(icons.size() - 1);
         setIconImages(icons);
         try {
@@ -885,13 +887,21 @@ public class App extends JFrame {
         if (shell != null) {
             shell.setFriendNavUnread(unreadPeerIds.size());
         }
-        TaskbarPeerUnread.syncBadge(unreadPeerIds.size());
+        TaskbarPeerUnread.syncBadge(unreadPeerIds.size(), baseAppIconImages, this::applyPeerUnreadFrameIcons);
+    }
+
+    private void applyPeerUnreadFrameIcons(java.util.List<Image> icons) {
+        if (icons == null || icons.isEmpty()) {
+            return;
+        }
+        setIconImages(icons);
+        appIconImage = icons.get(icons.size() - 1);
     }
 
     private void maybeRequestDockAttentionForInboundPeer() {
         Window focused = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusedWindow();
         if (TaskbarPeerUnread.shouldRequestDockAttention(focused, this, chatWindows.values())) {
-            TaskbarPeerUnread.requestDockAttentionOnce();
+            TaskbarPeerUnread.requestDockAttentionOnce(this);
         }
     }
 
