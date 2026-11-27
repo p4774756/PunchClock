@@ -1246,7 +1246,7 @@ button.pt-hud-id-plate {
   }
 }
 
-/* Game Boy 彈窗 */
+/* Game Boy 彈窗（DMG 復古灰白外型） */
 .pt-pocket-board {
   z-index: 28;
   align-items: center;
@@ -1265,13 +1265,14 @@ button.pt-hud-id-plate {
   position: relative;
   touch-action: manipulation;
   max-width: min(96vw, 420px);
-  padding: 12px 14px 16px;
-  border-radius: 18px 18px 28px 28px;
-  background: linear-gradient(165deg, #d2de9a 0%, #b4c070 45%, #9aae58 100%);
-  border: 3px solid #6a7a3a;
+  padding: 14px 16px 20px;
+  border-radius: 10px 10px 56px 10px;
+  background: linear-gradient(168deg, #ece8e2 0%, #d4d0ca 48%, #c4c0ba 100%);
+  border: 2px solid #b8b4ae;
   box-shadow:
-    0 18px 40px rgba(0, 0, 0, 0.45),
-    inset 0 2px 0 rgba(255, 255, 255, 0.25);
+    0 18px 40px rgba(0, 0, 0, 0.42),
+    inset 0 2px 0 rgba(255, 255, 255, 0.65),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.06);
 }
 
 .pt-pocket-close {
@@ -1280,8 +1281,8 @@ button.pt-hud-id-plate {
   right: 8px;
   z-index: 2;
   border: none;
-  background: rgba(30, 40, 20, 0.25);
-  color: #1a2810;
+  background: rgba(60, 60, 68, 0.12);
+  color: #3a3a42;
   font-size: 1.35rem;
   line-height: 1;
   width: 2rem;
@@ -1291,27 +1292,71 @@ button.pt-hud-id-plate {
 }
 
 .pt-pocket-device {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 10px;
+  width: 100%;
+}
+
+.pt-pocket-screen-bezel {
+  width: 100%;
+  max-width: min(78vw, 340px);
+  padding: 10px 12px 8px;
+  background: linear-gradient(180deg, #54545c 0%, #3e3e46 100%);
+  border-radius: 6px 6px 18px 6px;
+  border: 2px solid #2e2e34;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.pt-pocket-screen-inner {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.pt-pocket-power-led {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e03030;
+  box-shadow:
+    0 0 6px rgba(224, 48, 48, 0.75),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.35);
+  flex-shrink: 0;
+  margin-left: 2px;
 }
 
 .pt-pocket-screen-wrap {
-  padding: 10px 12px 12px;
-  background: #8a9650;
-  border-radius: 8px 8px 12px 12px;
-  border: 2px solid #5e6a34;
+  padding: 6px;
+  background: #2a2a30;
+  border-radius: 4px;
+  border: 1px solid #1a1a1e;
 }
 
 .pt-pocket-lcd {
   display: block;
-  width: min(72vw, 320px);
+  width: 100%;
   height: auto;
   aspect-ratio: 160 / 144;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #9bbc0f;
+}
+
+.pt-pocket-face-label {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: #b8b4b0;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
 }
 
 .pt-pocket-meta {
@@ -1322,7 +1367,7 @@ button.pt-hud-id-plate {
   gap: 8px;
   width: 100%;
   font-size: 0.78rem;
-  color: #1a2810;
+  color: #3a3a42;
 }
 
 .pt-pocket-chips {
@@ -1332,9 +1377,9 @@ button.pt-hud-id-plate {
 
 .pt-pocket-refill,
 .pt-pocket-sound {
-  border: 1px solid #5a6a32;
-  background: rgba(255, 255, 255, 0.2);
-  color: #1a2810;
+  border: 1px solid #a8a4a0;
+  background: rgba(255, 255, 255, 0.45);
+  color: #3a3a42;
   border-radius: 6px;
   padding: 4px 10px;
   font-size: 0.72rem;
@@ -1345,74 +1390,236 @@ button.pt-hud-id-plate {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto;
-  gap: 10px 16px;
+  gap: 12px 8px;
   width: 100%;
   max-width: 340px;
   align-items: center;
   justify-items: center;
+  padding-bottom: 8px;
 }
 
 .pt-pocket-dpad {
-  display: grid;
-  grid-template-columns: repeat(3, 40px);
-  grid-template-rows: repeat(3, 40px);
-  gap: 2px;
+  position: relative;
+  width: 104px;
+  height: 104px;
+  justify-self: start;
+  margin-left: 4px;
 }
 
-.pt-pocket-dpad .pt-pocket-up { grid-column: 2; grid-row: 1; }
-.pt-pocket-dpad .pt-pocket-left { grid-column: 1; grid-row: 2; }
-.pt-pocket-dpad .pt-pocket-right { grid-column: 3; grid-row: 2; }
-.pt-pocket-dpad .pt-pocket-down { grid-column: 2; grid-row: 3; }
+.pt-pocket-dpad-cross {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 96px;
+  background: linear-gradient(90deg, #141418 0%, #222228 50%, #141418 100%);
+  border-radius: 4px;
+  pointer-events: none;
+  box-shadow:
+    0 2px 0 rgba(255, 255, 255, 0.06),
+    0 3px 6px rgba(0, 0, 0, 0.35);
+}
+
+.pt-pocket-dpad-cross::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 96px;
+  height: 36px;
+  background: inherit;
+  border-radius: 4px;
+  box-shadow: inherit;
+}
+
+.pt-pocket-dpad .pt-pocket-btn {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  box-shadow: none;
+}
+
+.pt-pocket-dpad .pt-pocket-up {
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 36px;
+}
+
+.pt-pocket-dpad .pt-pocket-down {
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 38px;
+  height: 36px;
+}
+
+.pt-pocket-dpad .pt-pocket-left {
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 38px;
+}
+
+.pt-pocket-dpad .pt-pocket-right {
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 38px;
+}
+
+.pt-pocket-dpad .pt-pocket-btn.is-pressed {
+  background: rgba(0, 0, 0, 0.18);
+  box-shadow: none;
+}
+
+.pt-pocket-dpad .pt-pocket-up.is-pressed {
+  transform: translateX(-50%);
+}
+
+.pt-pocket-dpad .pt-pocket-down.is-pressed {
+  transform: translateX(-50%);
+}
+
+.pt-pocket-dpad .pt-pocket-left.is-pressed {
+  transform: translateY(-50%);
+}
+
+.pt-pocket-dpad .pt-pocket-right.is-pressed {
+  transform: translateY(-50%);
+}
 
 .pt-pocket-ab {
+  position: relative;
+  width: 108px;
+  height: 100px;
+  justify-self: end;
+  margin-right: 6px;
+}
+
+.pt-pocket-ab-slot {
+  position: absolute;
   display: flex;
-  gap: 14px;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 4px;
+}
+
+.pt-pocket-ab-slot:first-child {
+  left: 0;
+  bottom: 0;
+}
+
+.pt-pocket-ab-slot:last-child {
+  right: 0;
+  top: 0;
+}
+
+.pt-pocket-ab-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #5a5a62;
 }
 
 .pt-pocket-startsel {
   grid-column: 1 / -1;
   display: flex;
-  gap: 12px;
+  gap: 22px;
   justify-content: center;
   flex-wrap: wrap;
+  margin-top: 2px;
+}
+
+.pt-pocket-pill-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  transform: rotate(-25deg);
+}
+
+.pt-pocket-pill-label {
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #6a6a72;
+  transform: rotate(25deg);
 }
 
 .pt-pocket-btn {
-  border: 2px solid #4a5528;
-  background: linear-gradient(180deg, #3a3a48 0%, #222230 100%);
-  color: #e8ecf8;
-  font-size: 0.72rem;
-  font-weight: 700;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  border: none;
   cursor: pointer;
   touch-action: manipulation;
   user-select: none;
-}
-
-.pt-pocket-select,
-.pt-pocket-start {
-  width: auto;
-  min-width: 72px;
-  border-radius: 12px;
-  height: 32px;
-  font-size: 0.62rem;
-  letter-spacing: 0.04em;
+  padding: 0;
 }
 
 .pt-pocket-a,
 .pt-pocket-b {
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #a83252 0%, #7a1838 100%);
+  box-shadow:
+    0 3px 0 #5a1028,
+    0 4px 8px rgba(0, 0, 0, 0.28),
+    inset 0 2px 0 rgba(255, 255, 255, 0.22);
 }
 
-.pt-pocket-btn.is-pressed {
-  transform: scale(0.94);
-  background: linear-gradient(180deg, #56566a 0%, #2a2a38 100%);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.35);
+.pt-pocket-select,
+.pt-pocket-start {
+  width: 52px;
+  height: 14px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #9898a4 0%, #6a6a74 100%);
+  box-shadow:
+    0 2px 0 #4a4a52,
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.pt-pocket-a.is-pressed,
+.pt-pocket-b.is-pressed {
+  transform: translateY(2px);
+  box-shadow:
+    0 1px 0 #5a1028,
+    inset 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.pt-pocket-select.is-pressed,
+.pt-pocket-start.is-pressed {
+  transform: translateY(1px);
+  box-shadow:
+    0 1px 0 #4a4a52,
+    inset 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.pt-pocket-speaker {
+  position: absolute;
+  right: 14px;
+  bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  transform: rotate(-32deg);
+  pointer-events: none;
+}
+
+.pt-pocket-speaker span {
+  display: block;
+  width: 46px;
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent 0%, #a8a4a0 12%, #a8a4a0 88%, transparent 100%);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.15);
 }
 
 .lab-office-stage.pt-pocket-open .private-team-canvas {
@@ -1421,23 +1628,43 @@ button.pt-hud-id-plate {
 
 @media (max-width: 420px) {
   .pt-pocket-shell {
-    padding: 10px 10px 14px;
+    padding: 10px 10px 16px;
     max-width: 100%;
+    border-radius: 8px 8px 48px 8px;
   }
 
   .pt-pocket-dpad {
-    grid-template-columns: repeat(3, 36px);
-    grid-template-rows: repeat(3, 36px);
+    width: 94px;
+    height: 94px;
   }
 
-  .pt-pocket-btn {
-    width: 36px;
-    height: 36px;
+  .pt-pocket-dpad-cross {
+    width: 32px;
+    height: 86px;
+  }
+
+  .pt-pocket-dpad-cross::before {
+    width: 86px;
+    height: 32px;
   }
 
   .pt-pocket-a,
   .pt-pocket-b {
+    width: 42px;
+    height: 42px;
+  }
+
+  .pt-pocket-ab {
+    width: 98px;
+    height: 92px;
+  }
+
+  .pt-pocket-speaker {
+    right: 10px;
+    bottom: 14px;
+  }
+
+  .pt-pocket-speaker span {
     width: 40px;
-    height: 40px;
   }
 }

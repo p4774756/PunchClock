@@ -87,8 +87,14 @@
       <h2 id="pocket-board-title" class="pt-pocket-sr">Game Boy 掌機</h2>
       <button type="button" class="pt-pocket-close" data-pocket-close aria-label="關閉掌機">×</button>
       <div class="pt-pocket-device">
-        <div class="pt-pocket-screen-wrap" data-pocket-lcd-wrap>
-          <canvas class="pt-pocket-lcd" data-pocket-lcd width="160" height="144" aria-label="掌機 LCD"></canvas>
+        <div class="pt-pocket-screen-bezel" data-pocket-lcd-wrap>
+          <div class="pt-pocket-screen-inner">
+            <span class="pt-pocket-power-led" aria-hidden="true"></span>
+            <div class="pt-pocket-screen-wrap">
+              <canvas class="pt-pocket-lcd" data-pocket-lcd width="160" height="144" aria-label="掌機 LCD"></canvas>
+            </div>
+          </div>
+          <p class="pt-pocket-face-label">小瑪莉 POCKET</p>
         </div>
         <div class="pt-pocket-meta">
           <p class="pt-pocket-chips" data-pocket-chips>籌碼 100</p>
@@ -97,19 +103,35 @@
         </div>
         <div class="pt-pocket-controls" aria-label="掌機按鍵">
           <div class="pt-pocket-dpad" aria-label="十字鍵">
-            <button type="button" class="pt-pocket-btn pt-pocket-up" data-pocket-btn="up" aria-label="上">▲</button>
-            <button type="button" class="pt-pocket-btn pt-pocket-left" data-pocket-btn="left" aria-label="左">◀</button>
-            <button type="button" class="pt-pocket-btn pt-pocket-right" data-pocket-btn="right" aria-label="右">▶</button>
-            <button type="button" class="pt-pocket-btn pt-pocket-down" data-pocket-btn="down" aria-label="下">▼</button>
+            <span class="pt-pocket-dpad-cross" aria-hidden="true"></span>
+            <button type="button" class="pt-pocket-btn pt-pocket-up" data-pocket-btn="up" aria-label="上"></button>
+            <button type="button" class="pt-pocket-btn pt-pocket-left" data-pocket-btn="left" aria-label="左"></button>
+            <button type="button" class="pt-pocket-btn pt-pocket-right" data-pocket-btn="right" aria-label="右"></button>
+            <button type="button" class="pt-pocket-btn pt-pocket-down" data-pocket-btn="down" aria-label="下"></button>
           </div>
           <div class="pt-pocket-ab">
-            <button type="button" class="pt-pocket-btn pt-pocket-a" data-pocket-btn="a" aria-label="A">A</button>
-            <button type="button" class="pt-pocket-btn pt-pocket-b" data-pocket-btn="b" aria-label="B">B</button>
+            <div class="pt-pocket-ab-slot">
+              <button type="button" class="pt-pocket-btn pt-pocket-b" data-pocket-btn="b" aria-label="B"></button>
+              <span class="pt-pocket-ab-label">B</span>
+            </div>
+            <div class="pt-pocket-ab-slot">
+              <button type="button" class="pt-pocket-btn pt-pocket-a" data-pocket-btn="a" aria-label="A"></button>
+              <span class="pt-pocket-ab-label">A</span>
+            </div>
           </div>
           <div class="pt-pocket-startsel">
-            <button type="button" class="pt-pocket-btn pt-pocket-select" data-pocket-btn="select" aria-label="Select">SELECT</button>
-            <button type="button" class="pt-pocket-btn pt-pocket-start" data-pocket-btn="start" aria-label="Start">START</button>
+            <div class="pt-pocket-pill-slot">
+              <button type="button" class="pt-pocket-btn pt-pocket-select" data-pocket-btn="select" aria-label="Select"></button>
+              <span class="pt-pocket-pill-label">SELECT</span>
+            </div>
+            <div class="pt-pocket-pill-slot">
+              <button type="button" class="pt-pocket-btn pt-pocket-start" data-pocket-btn="start" aria-label="Start"></button>
+              <span class="pt-pocket-pill-label">START</span>
+            </div>
           </div>
+        </div>
+        <div class="pt-pocket-speaker" aria-hidden="true">
+          <span></span><span></span><span></span><span></span><span></span><span></span>
         </div>
       </div>
     </div>
