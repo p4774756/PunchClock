@@ -1265,7 +1265,7 @@ button.pt-hud-id-plate {
   position: relative;
   touch-action: manipulation;
   max-width: min(96vw, 420px);
-  padding: 14px 16px 20px;
+  padding: 36px 16px 24px;
   border-radius: 10px 10px 56px 10px;
   background: linear-gradient(168deg, #ece8e2 0%, #d4d0ca 48%, #c4c0ba 100%);
   border: 2px solid #b8b4ae;
@@ -1278,17 +1278,26 @@ button.pt-hud-id-plate {
 .pt-pocket-close {
   position: absolute;
   top: 6px;
-  right: 8px;
+  right: 6px;
   z-index: 2;
-  border: none;
-  background: rgba(60, 60, 68, 0.12);
-  color: #3a3a42;
-  font-size: 1.35rem;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #2e2e34;
+  background: #3a3a42;
+  color: #f3efe8;
+  font-size: 0.95rem;
+  font-weight: 700;
   line-height: 1;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  padding: 0;
   cursor: pointer;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
 .pt-pocket-device {
@@ -1395,7 +1404,7 @@ button.pt-hud-id-plate {
   max-width: 340px;
   align-items: center;
   justify-items: center;
-  padding-bottom: 8px;
+  padding-bottom: 16px;
 }
 
 .pt-pocket-dpad {
@@ -1537,6 +1546,7 @@ button.pt-hud-id-plate {
   justify-content: center;
   flex-wrap: wrap;
   margin-top: 2px;
+  margin-right: 36px;
 }
 
 .pt-pocket-pill-slot {
@@ -1604,18 +1614,18 @@ button.pt-hud-id-plate {
 
 .pt-pocket-speaker {
   position: absolute;
-  right: 14px;
-  bottom: 18px;
+  right: 2px;
+  bottom: 2px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   transform: rotate(-32deg);
   pointer-events: none;
 }
 
 .pt-pocket-speaker span {
   display: block;
-  width: 46px;
+  width: 34px;
   height: 3px;
   border-radius: 2px;
   background: linear-gradient(90deg, transparent 0%, #a8a4a0 12%, #a8a4a0 88%, transparent 100%);
@@ -1628,7 +1638,7 @@ button.pt-hud-id-plate {
 
 @media (max-width: 420px) {
   .pt-pocket-shell {
-    padding: 10px 10px 16px;
+    padding: 32px 10px 20px;
     max-width: 100%;
     border-radius: 8px 8px 48px 8px;
   }
@@ -1659,12 +1669,17 @@ button.pt-hud-id-plate {
     height: 92px;
   }
 
+  .pt-pocket-startsel {
+    margin-right: 40px;
+    gap: 18px;
+  }
+
   .pt-pocket-speaker {
-    right: 10px;
-    bottom: 14px;
+    right: 0;
+    bottom: 0;
   }
 
   .pt-pocket-speaker span {
-    width: 40px;
+    width: 30px;
   }
 }
