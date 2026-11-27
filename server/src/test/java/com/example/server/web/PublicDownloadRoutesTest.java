@@ -37,6 +37,7 @@ public class PublicDownloadRoutesTest {
             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String DOWNLOAD =
             "https://github.com/p4774756/PunchClock/releases/download/v1.8.0/SKLbaby.jar";
+    private static final long JAR_SIZE_BYTES = 220_200_960L;
 
     private Javalin app;
     private HttpClient http;
@@ -56,6 +57,32 @@ public class PublicDownloadRoutesTest {
     }
 
     @Test
+    public void formatClientDownloadSizeMb_usesMbIntegerOrOneDecimal() {
+        assertEquals("", PublicDownloadRoutes.formatClientDownloadSizeMb(0));
+        assertEquals("210 MB", PublicDownloadRoutes.formatClientDownloadSizeMb(JAR_SIZE_BYTES));
+        assertEquals("0.1 MB", PublicDownloadRoutes.formatClientDownloadSizeMb(102_400L));
+        assertEquals("1.5 MB", PublicDownloadRoutes.formatClientDownloadSizeMb(1_572_864L));
+    }
+
+    @Test
+    public void applyHomeDownloadTokens_hidesSizeWhenReleaseUnavailable() {
+        String tpl = "<span{{HOME_SIZE_HIDDEN}}>約 {{HOME_CLIENT_SIZE}}</span>";
+        String out = PublicDownloadRoutes.applyHomeDownloadTokens(tpl, ClientRelease.NONE);
+        assertTrue(out.contains(" hidden"));
+        assertTrue(out.contains("約 "));
+        assertFalse(out.contains("{{HOME"));
+    }
+
+    @Test
+    public void applyHomeDownloadTokens_showsSizeWhenReleaseAvailable() {
+        ClientRelease release = new ClientRelease("1.8.0", "", SHA, JAR_SIZE_BYTES, DOWNLOAD, List.of());
+        String tpl = "<span{{HOME_SIZE_HIDDEN}}>約 {{HOME_CLIENT_SIZE}}</span>";
+        String out = PublicDownloadRoutes.applyHomeDownloadTokens(tpl, release);
+        assertTrue(out.contains("約 210 MB"));
+        assertFalse(out.contains(" hidden"));
+    }
+
+    @Test
     public void downloadPageLinksToGithubWhenReleaseAvailable() throws Exception {
         startWithRelease();
         HttpResponse<String> page = get("/download");
@@ -64,6 +91,7 @@ public class PublicDownloadRoutesTest {
         assertTrue(body.contains("下載小寶貝"));
         assertTrue(body.contains("SKLbaby.jar"));
         assertTrue(body.contains(">下載 SKLbaby.jar<"));
+        assertTrue(body.contains("約 210 MB"));
         assertTrue(body.contains("目前版本：v1.8.0"));
         assertFalse(body.contains("Mac（Apple 晶片"));
         assertFalse(body.contains("安裝檔（macOS"));
@@ -105,6 +133,7 @@ public class PublicDownloadRoutesTest {
         assertTrue(body.contains(">下載 SKLbaby.jar<"));
         assertTrue(body.contains("需要已安裝"));
         assertTrue(body.contains("Java 11"));
+        assertTrue(body.contains("class=\"download-size\" hidden"));
     }
 
     @Test
@@ -161,7 +190,7 @@ public class PublicDownloadRoutesTest {
     }
 
     private void startWithRelease() {
-        ClientRelease release = new ClientRelease("1.8.0", "2026-10-20T07:58:00Z", SHA, 100L, DOWNLOAD, List.of());
+        ClientRelease release = new ClientRelease("1.8.0", "2026-10-20T07:58:00Z", SHA, JAR_SIZE_BYTES, DOWNLOAD, List.of());
         app = new ServerApp(release, emptyDevStatus()).start(0);
         base = "http://127.0.0.1:" + app.port();
     }
