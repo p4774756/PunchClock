@@ -10,7 +10,7 @@ Worker 走 HTTP 心跳。主控台以 REST 下指令，WebSocket `/ws/dashboard`
 
 | 方法與路徑 | 誰可以呼叫 | 用途 |
 | ------------ | ------------ | ------ |
-| `GET /` | 任何人 | 夜間 3D 私人秘書辦公室 |
+| `GET /` | 任何人 | 夜間 3D 私人秘書辦公室（窗台 Game Boy 可點擊開彈窗） |
 | `GET /download`、`GET /download/app.jar`、`GET /download/SKLbaby.jar` | 任何人 | 下載頁與 jar 導向 |
 | `GET /login`、`POST /login`、`GET /logout` | 瀏覽器 | 登入／登出 |
 | `GET /console` | 瀏覽器（任務等需登入） | 管理主控台 |

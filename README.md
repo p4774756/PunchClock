@@ -1,6 +1,6 @@
 # PunchClock
 
-小寶貝（PunchClock）由 Java 桌面端與 Javalin 伺服器組成：夜間 3D 私人秘書辦公室網站、桌面排程與傳檔，以及管理主控台。
+小寶貝（PunchClock）由 Java 桌面端（Swing）與 Javalin 伺服器組成：夜間 3D 私人秘書辦公室網站（窗台 Game Boy 掌機可點擊開彈窗）、桌面排程與傳檔，以及管理主控台。
 
 ## 架構
 
@@ -66,7 +66,7 @@ java -jar client/target/SKLbaby.jar
 
 ### 5. 公開網站
 
-- **私人秘書辦公室**（`GET /`）：3D 夜間場景；左上任務／登入、右下可開「下載 App」；施工進度與路線圖請至主控台 `/console`。
+- **私人秘書辦公室**（`GET /`）：3D 夜間場景；秘書與窗台 Game Boy 掌機；點擊掌機可開彈窗小遊戲。左上任務／登入、右下可開「下載 App」；施工進度與路線圖請至主控台 `/console`。
 - **下載頁**（`/download`）與首頁下載浮窗：僅提供 `SKLbaby.jar`（`GET /download/app.jar`、`/download/SKLbaby.jar` 仍接受舊檔名 `XiaoBaobei.jar`）；需先安裝 Java 11 或以上，再以 `java -jar SKLbaby.jar` 執行。
 
 ### 6. 管理主控台
@@ -87,7 +87,7 @@ java -jar client/target/SKLbaby.jar
 | 日誌 | 迷你模式 |
 | ![日誌](docs/screenshots/log.jpg) | ![迷你模式](docs/screenshots/mini.jpg) |
 
-### 網站（桌機 1280／手機 390）
+### 網站（桌機 1280×800／手機 390×844）
 
 | 私人秘書辦公室 | 下載頁 |
 | ------ | ------ |
@@ -149,3 +149,5 @@ mvn -pl server -am test
 ```
 
 VS Code：`.vscode/launch.json` 的 **App (desktop)**、**Server (Javalin)**。
+
+**開發狀態回報：** 桌面端啟用「雲端單向狀態回報」後，週期性 `POST /api/heartbeat` 會把任務與連線狀態送到伺服器（供主控台與辦公室顯示）。開發筆電另可用 [`scripts/dev-heartbeat.sh`](scripts/dev-heartbeat.sh)（設定 `~/.punchclock/dev-status.env`）向遠端 dev-machines API 回報目前 issue／分支與 agent 是否在跑；主控台「施工進度」可讀公開 dev 狀態 API。
