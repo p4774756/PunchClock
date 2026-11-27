@@ -4,7 +4,7 @@ import {
   MARY_PHASE,
   POCKET_MARY_RING,
   POCKET_MARY_RING_LEN,
-  POCKET_MARY_SYMBOLS,
+  POCKET_MARY_SYMBOL_COUNT,
   createMaryState,
   maryPreviewState,
   maryTotalBet
@@ -22,6 +22,112 @@ const PAL = {
   dim: '#8bac0f'
 };
 
+/** 8×8 像素圖：1=主色 2=次色 */
+const PX = {
+  apple: [
+    '...11...',
+    '..1111..',
+    '.112211.',
+    '.112211.',
+    '.112211.',
+    '..1221..',
+    '...11...',
+    '........'
+  ],
+  orange: [
+    '...11...',
+    '..1221..',
+    '.12221.',
+    '.12221.',
+    '.12221.',
+    '..111..',
+    '...1...',
+    '........'
+  ],
+  lemon: [
+    '...11...',
+    '..1221..',
+    '.12221.',
+    '.12221.',
+    '..1221..',
+    '...11...',
+    '..1.1..',
+    '........'
+  ],
+  bell: [
+    '..1111..',
+    '.122221.',
+    '.122221.',
+    '.122221.',
+    '..1221..',
+    '...11...',
+    '..1111..',
+    '...11...'
+  ],
+  watermelon: [
+    '..1111..',
+    '.122221.',
+    '.123321.',
+    '.123321.',
+    '.122221.',
+    '..1111..',
+    '...11...',
+    '........'
+  ],
+  star: [
+    '...1....',
+    '..111...',
+    '.11111.',
+    '..111..',
+    '.1.1.1.',
+    '........',
+    '........',
+    '........'
+  ],
+  seven: [
+    '.11111.',
+    '.....1.',
+    '....1..',
+    '...1...',
+    '..1....',
+    '.1.....',
+    '1......',
+    '........'
+  ],
+  bar: [
+    '.11111.',
+    '.1...1.',
+    '.11111.',
+    '.1...1.',
+    '.11111.',
+    '........',
+    '........',
+    '........'
+  ],
+  lucky: [
+    '...1....',
+    '..1.1...',
+    '.1...1..',
+    '...1....',
+    '..1.1...',
+    '.1...1..',
+    '...1....',
+    '........'
+  ],
+  again: [
+    '...11...',
+    '..1..2..',
+    '.1....2.',
+    '......2.',
+    '.2....1.',
+    '..2..1..',
+    '...22...',
+    '........'
+  ]
+};
+
+const SYM_KEYS = ['apple', 'orange', 'lemon', 'bell', 'watermelon', 'star', 'seven', 'bar'];
+
 function drawScanlines(ctx) {
   ctx.fillStyle = PAL.bg;
   ctx.fillRect(0, 0, POCKET_LCD_W, POCKET_LCD_H);
@@ -33,9 +139,9 @@ function drawScanlines(ctx) {
 
 function ringPos(i) {
   const cx = POCKET_LCD_W / 2;
-  const cy = POCKET_LCD_H / 2 + 4;
-  const rx = 58;
-  const ry = 44;
+  const cy = POCKET_LCD_H / 2;
+  const rx = 56;
+  const ry = 38;
   const ang = -Math.PI / 2 + (i / POCKET_MARY_RING_LEN) * Math.PI * 2;
   return {
     x: cx + Math.cos(ang) * rx,
@@ -43,34 +149,90 @@ function ringPos(i) {
   };
 }
 
-function cellLabel(cell) {
-  if (!cell) return '?';
-  if (cell.t === 'lucky') return '運';
-  if (cell.t === 'again') return '轉';
-  const sym = POCKET_MARY_SYMBOLS[cell.id];
-  return sym ? sym.short : '?';
+function spriteKey(cell) {
+  if (!cell) return null;
+  if (cell.t === 'lucky') return 'lucky';
+  if (cell.t === 'again') return 'again';
+  const id = Math.floor(cell.id);
+  if (id >= 0 && id < SYM_KEYS.length) return SYM_KEYS[id];
+  return 'apple';
+}
+
+function drawPixelSprite(ctx, key, cx, cy, on, flashOn) {
+  const rows = PX[key];
+  if (!rows) return;
+  const sz = 8;
+  const x0 = cx - sz / 2;
+  const y0 = cy - sz / 2;
+  const ink = on && flashOn ? PAL.bg : on ? PAL.bgHi : PAL.ink;
+  const inkLo = on && flashOn ? PAL.bgHi : on ? PAL.dim : PAL.inkLo;
+  for (let y = 0; y < rows.length; y++) {
+    const row = rows[y];
+    for (let x = 0; x < row.length; x++) {
+      const c = row[x];
+      if (c === '.') continue;
+      ctx.fillStyle = c === '2' ? inkLo : ink;
+      ctx.fillRect(x0 + x, y0 + y, 1, 1);
+    }
+  }
 }
 
 function drawRingCell(ctx, i, lit, flashOn) {
   const p = ringPos(i);
   const cell = POCKET_MARY_RING[i];
   const on = lit === i;
-  const w = 14;
-  const h = 11;
+  const w = 16;
+  const h = 14;
   const x = p.x - w / 2;
   const y = p.y - h / 2;
   ctx.fillStyle = on && flashOn ? PAL.ink : on ? PAL.inkLo : PAL.dim;
   if (on) ctx.fillRect(x - 1, y - 1, w + 2, h + 2);
-  ctx.fillStyle = on ? PAL.bg : PAL.bgHi;
+  ctx.fillStyle = on ? (flashOn ? PAL.ink : PAL.inkLo) : PAL.bgHi;
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = PAL.ink;
   ctx.lineWidth = 1;
   ctx.strokeRect(x, y, w, h);
-  ctx.fillStyle = on ? PAL.ink : PAL.inkLo;
-  ctx.font = '7px monospace';
+  drawPixelSprite(ctx, spriteKey(cell), p.x, p.y, on, flashOn);
+}
+
+function drawMaryTitle(ctx, cx, cy, frame) {
+  const fr = frame % 48;
+  const shift = fr < 8 ? 0 : fr < 16 ? 1 : 0;
+  ctx.fillStyle = PAL.bgHi;
+  ctx.fillRect(cx - 30 - shift, cy - 9, 60, 12);
+  ctx.strokeStyle = PAL.ink;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 30 - shift, cy - 9, 60, 12);
+  ctx.fillStyle = PAL.ink;
+  ctx.font = 'bold 9px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(cellLabel(cell), p.x, p.y);
+  ctx.fillText('小瑪莉', cx - shift, cy - 3);
+}
+
+function drawBetRow(ctx, st, lit, flashOn) {
+  const yIcon = POCKET_LCD_H - 18;
+  const yNum = POCKET_LCD_H - 8;
+  const n = POCKET_MARY_SYMBOL_COUNT;
+  const slotW = POCKET_LCD_W / n;
+  const bets = st.bets || [];
+  for (let id = 0; id < n; id++) {
+    const cx = slotW * id + slotW / 2;
+    const on = st.phase !== MARY_PHASE.BET && lit >= 0 && POCKET_MARY_RING[lit] &&
+      POCKET_MARY_RING[lit].t === 'sym' && POCKET_MARY_RING[lit].id === id;
+    const cur = st.phase === MARY_PHASE.BET && st.cursor === id;
+    if (cur) {
+      ctx.fillStyle = PAL.inkLo;
+      ctx.fillRect(cx - 9, yIcon - 10, 18, 20);
+    }
+    drawPixelSprite(ctx, SYM_KEYS[id], cx, yIcon - 2, on || cur, flashOn);
+    const amt = Math.max(0, Math.floor(bets[id] || 0));
+    ctx.fillStyle = PAL.ink;
+    ctx.font = '6px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText(String(amt), cx, yNum);
+  }
 }
 
 export function drawPocketMaryLcd(ctx, state, frame) {
@@ -83,47 +245,48 @@ export function drawPocketMaryLcd(ctx, state, frame) {
   drawScanlines(ctx);
 
   ctx.fillStyle = PAL.ink;
-  ctx.font = 'bold 9px monospace';
-  ctx.textAlign = 'center';
+  ctx.font = 'bold 8px monospace';
+  ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('CREDIT ' + Math.max(0, Math.floor(st.credit)), POCKET_LCD_W / 2, 4);
+  ctx.fillText('C' + Math.max(0, Math.floor(st.credit)), 4, 3);
+  ctx.textAlign = 'right';
+  ctx.fillText('W' + Math.max(0, Math.floor(st.pendingWin)), POCKET_LCD_W - 4, 3);
 
   for (let i = 0; i < POCKET_MARY_RING_LEN; i++) {
     drawRingCell(ctx, i, lit, flashOn);
   }
 
   const cx = POCKET_LCD_W / 2;
-  const cy = POCKET_LCD_H / 2 + 4;
+  const cy = POCKET_LCD_H / 2 - 2;
   ctx.fillStyle = PAL.bgHi;
-  ctx.fillRect(cx - 34, cy - 22, 68, 44);
+  ctx.fillRect(cx - 32, cy - 14, 64, 28);
   ctx.strokeStyle = PAL.ink;
-  ctx.lineWidth = 2;
-  ctx.strokeRect(cx - 34, cy - 22, 68, 44);
+  ctx.lineWidth = 1;
+  ctx.strokeRect(cx - 32, cy - 14, 64, 28);
+
+  drawMaryTitle(ctx, cx, cy - 6, fr);
 
   ctx.fillStyle = PAL.ink;
-  ctx.font = 'bold 10px monospace';
+  ctx.font = '7px monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('WIN ' + Math.max(0, Math.floor(st.pendingWin)), cx, cy - 16);
-
-  const cur = POCKET_MARY_SYMBOLS[st.cursor] || POCKET_MARY_SYMBOLS[0];
-  const betAmt = Math.max(0, Math.floor((st.bets && st.bets[st.cursor]) || 0));
-  ctx.font = '9px monospace';
-  ctx.fillText(cur.short + '×' + cur.mult, cx, cy - 2);
-  ctx.fillText('注' + betAmt, cx, cy + 10);
-
-  ctx.font = '8px monospace';
-  ctx.fillStyle = PAL.inkLo;
-  ctx.fillText(st.status || '', cx, cy + 22);
+  ctx.textBaseline = 'middle';
+  const statusShort = st.status || '';
+  ctx.fillText(statusShort.slice(0, 10), cx, cy + 8);
 
   if (st.phase === MARY_PHASE.BET) {
     const total = maryTotalBet(st);
-    ctx.fillText('總注' + total, cx, POCKET_LCD_H - 10);
+    ctx.font = '6px monospace';
+    ctx.fillText('總' + total, cx, cy + 17);
   } else if (st.phase === MARY_PHASE.DOUBLE) {
     const hint = st.doublePick === 'small' ? '1-6小' : st.doublePick === 'big' ? '8-13大' : '左右押';
-    ctx.fillText(hint + ' A比', cx, POCKET_LCD_H - 10);
+    ctx.font = '6px monospace';
+    ctx.fillText(hint + ' A比', cx, cy + 17);
   } else if (st.phase === MARY_PHASE.WIN) {
-    ctx.fillText('A收 B比', cx, POCKET_LCD_H - 10);
+    ctx.font = '6px monospace';
+    ctx.fillText('A收 B比', cx, cy + 17);
   }
+
+  drawBetRow(ctx, st, lit, flashOn);
 }
 
 export function drawPocketIdleLcd(ctx, opts) {
