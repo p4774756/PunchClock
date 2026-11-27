@@ -6,8 +6,13 @@ const {
   clampPrivateTeamZoom,
   privateTeamPinchZoomFactor,
   privateTeamDefaultZoom,
+  privateTeamDefaultFov,
+  privateTeamDefaultYaw,
   PRIVATE_TEAM_ZOOM_MIN,
-  PRIVATE_TEAM_ZOOM_MAX
+  PRIVATE_TEAM_ZOOM_MAX,
+  PRIVATE_TEAM_CAMERA_FOV,
+  PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT,
+  PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT
 } = await loadPublicModule('private-team-scene.js');
 
 test('縮放倍數夾在上下限', () => {
@@ -18,10 +23,16 @@ test('縮放倍數夾在上下限', () => {
   assert.equal(clampPrivateTeamZoom(1), 1);
 });
 
-test('窄螢幕直向預設拉遠全景', () => {
-  assert.equal(privateTeamDefaultZoom(390, 844), 1.58);
+test('窄螢幕直向預設拉遠全景，並以 FOV／偏航把窗台掌機收入畫面', () => {
+  assert.equal(privateTeamDefaultZoom(390, 844), 1.52);
   assert.equal(privateTeamDefaultZoom(1200, 800), 1);
   assert.equal(privateTeamDefaultZoom(800, 600), 1);
+  assert.equal(privateTeamDefaultFov(1280, 800), PRIVATE_TEAM_CAMERA_FOV);
+  assert.equal(privateTeamDefaultFov(390, 844), PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT);
+  assert.equal(privateTeamDefaultYaw(1280, 800), 0);
+  assert.equal(privateTeamDefaultYaw(390, 844), PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT);
+  assert.ok(PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT < 0);
+  assert.ok(PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT > PRIVATE_TEAM_CAMERA_FOV);
 });
 
 test('雙指縮放：手指張開（距離變大）時 zoomFactor 變小', () => {

@@ -1,4 +1,5 @@
 import * as THREE from './vendor/three.module.js';
+import { POCKET_LCD_H, POCKET_LCD_W, drawPocketIdleLcd } from './private-team-pocket-lcd.js';
 
 export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
 export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typing-b.webp';
@@ -190,12 +191,34 @@ export function privateTeamNarrowPortrait(width, height) {
   return w < 640 && h > w;
 }
 
+/** 預設垂直視野角；窄螢幕直向略加大，讓窗台掌機與秘書同時入鏡 */
+export const PRIVATE_TEAM_CAMERA_FOV = 42;
+export const PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT = 50;
+/** 窄螢幕直向預設略向左轉（弧度），把右緣窗台與掌機收進畫面 */
+export const PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT = -0.25;
+
+export function privateTeamDefaultFov(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!(w > 0) || !(h > 0)) return PRIVATE_TEAM_CAMERA_FOV;
+  if (privateTeamNarrowPortrait(w, h)) return PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT;
+  return PRIVATE_TEAM_CAMERA_FOV;
+}
+
+export function privateTeamDefaultYaw(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!(w > 0) || !(h > 0)) return 0;
+  if (privateTeamNarrowPortrait(w, h)) return PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT;
+  return 0;
+}
+
 /** 首次載入預設鏡頭距離：窄螢幕直向拉遠，桌面／橫向維持約 1 */
 export function privateTeamDefaultZoom(width, height) {
   const w = Number(width);
   const h = Number(height);
   if (!(w > 0) || !(h > 0)) return 1;
-  if (privateTeamNarrowPortrait(w, h)) return clampPrivateTeamZoom(1.58);
+  if (privateTeamNarrowPortrait(w, h)) return clampPrivateTeamZoom(1.52);
   return 1;
 }
 
@@ -1202,6 +1225,78 @@ function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
   return { painter, screenGlow, group, bezel };
 }
 
+function makeHandheldPreviewLcdTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = POCKET_LCD_W;
+  canvas.height = POCKET_LCD_H;
+  const ctx = canvas.getContext('2d');
+  drawPocketIdleLcd(ctx, { chips: 100, frame: 0 });
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** 窗台掌機（馬克杯右側立放）。 */
+function addWindowSillHandheld(root, sillY, sillZ, mugX) {
+  const group = new THREE.Group();
+  group.userData.pickRole = 'handheld';
+  const gx = mugX + 0.11;
+  group.position.set(gx, sillY + 0.078, sillZ + 0.098);
+  group.rotation.y = -0.3;
+  group.scale.set(1.9, 1.9, 1.9);
+
+  const bodyMat = new THREE.MeshLambertMaterial({
+    color: 0xc8dc88,
+    emissive: 0x1e542e,
+    emissiveIntensity: 0.28
+  });
+  const body = box(0.056, 0.098, 0.03, bodyMat);
+  body.name = 'windowSillHandheldBody';
+  body.userData.pickRole = 'handheld';
+  group.add(body);
+
+  const lcdTex = makeHandheldPreviewLcdTexture();
+  const screenMat = new THREE.MeshBasicMaterial({
+    map: lcdTex,
+    toneMapped: false
+  });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.046), screenMat);
+  screen.position.set(0, 0.02, 0.016);
+  screen.name = 'windowSillHandheldScreen';
+  screen.userData.pickRole = 'handheld';
+  group.add(screen);
+
+  const lens = box(0.008, 0.008, 0.004, 0x302018, true);
+  lens.position.set(-0.015, -0.03, 0.016);
+  lens.name = 'windowSillHandheldLens';
+  group.add(lens);
+
+  const pickMat = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false
+  });
+  const pick = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.26, 0.16), pickMat);
+  pick.position.set(0, 0.01, 0.04);
+  pick.name = 'windowSillHandheldPick';
+  pick.userData.pickRole = 'handheld';
+  pick.renderOrder = 10;
+  group.add(pick);
+
+  const glow = new THREE.PointLight(0x5ec87a, 0.62, 1.05, 2);
+  glow.position.set(0, 0.024, 0.038);
+  glow.name = 'windowSillHandheldGlow';
+  group.add(glow);
+
+  group.name = 'windowSillHandheld';
+  root.add(group);
+  return { group, body, screen, glow, pick };
+}
+
 function addLowPolyPlant(root, x, z) {
   const pot = cyl(0.09, 0.075, 0.11, 10, COL.pot);
   pot.position.set(x, 0.055, z);
@@ -1242,6 +1337,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const camYawAxis = new THREE.Vector3(0, 1, 0);
   let zoomFactor = 1;
   let userAdjustedZoom = false;
+  let userAdjustedOrbit = false;
   let defaultZoomApplied = false;
   let yawRadians = 0;
   let pitchRadians = 0;
@@ -1306,7 +1402,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     panHintEl.hidden = false;
   }
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
+  const camera = new THREE.PerspectiveCamera(PRIVATE_TEAM_CAMERA_FOV, 1, 0.1, 80);
   function applyCameraView() {
     zoomFactor = clampPrivateTeamZoom(zoomFactor);
     camOrbitDir.copy(camBase).sub(camLook);
@@ -1320,6 +1416,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     camOrbitDir.applyAxisAngle(camPitchAxis, pitchRadians);
     camera.position.copy(camLook).add(camOrbitDir.multiplyScalar(zoomFactor));
     camera.lookAt(camLook);
+    camera.updateMatrixWorld(true);
   }
   function applyZoom(factor, fromUser) {
     zoomFactor = clampPrivateTeamZoom(factor);
@@ -1791,6 +1888,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
   root.add(windowSillMugSteam);
 
+  const windowSillHandheld = addWindowSillHandheld(root, sillY, sillZ, sillMugX);
+
   const moonTex = makeWindowMoonlightFloorTexture();
   moonTex.repeat.set(1.1, 1);
   const moonFloorMat = new THREE.MeshBasicMaterial({
@@ -2186,16 +2285,31 @@ export function mountPrivateTeamScene(canvas, opts) {
   bubble.userData.pickRole = 'secretary';
   root.add(bubble);
 
-  const clickables = [bubble];
+  const clickables = [windowSillHandheld.group, bubble];
   for (let mi = 0; mi < monitors.length; mi++) {
     clickables.push(monitors[mi].group);
   }
   const raycaster = new THREE.Raycaster();
+  raycaster.params.Line.threshold = 0.08;
+  raycaster.params.Points.threshold = 0.08;
   const pointer = new THREE.Vector2();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
   let sceneInputEnabled = true;
   let monitorHovered = false;
   let monitorHighlightUntil = 0;
+  let handheldHovered = false;
+  let handheldHighlightUntil = 0;
+
+  function applyHandheldHighlight(hovered, tapMs) {
+    handheldHovered = !!hovered;
+    if (tapMs) handheldHighlightUntil = tapMs;
+    const body = windowSillHandheld.body;
+    const mat = body && body.material;
+    if (!mat || !mat.emissive) return;
+    const on = handheldHovered || performance.now() < handheldHighlightUntil;
+    mat.emissive.setHex(on ? 0x4a8a48 : 0x000000);
+    mat.emissiveIntensity = on ? 0.35 : 0;
+  }
 
   function applyMonitorHighlight(hovered, tapMs) {
     monitorHovered = !!hovered;
@@ -2226,6 +2340,18 @@ export function mountPrivateTeamScene(canvas, opts) {
     return null;
   }
 
+  /** 多重重疊時優先回傳掌機，避免窗台區被對話泡泡等較近 pick 搶走。 */
+  function pickRoleFromHits(hits) {
+    let fallback = null;
+    for (let i = 0; i < hits.length; i++) {
+      const role = pickRoleFromObject(hits[i].object);
+      if (!role) continue;
+      if (role === 'handheld') return 'handheld';
+      if (!fallback) fallback = role;
+    }
+    return fallback;
+  }
+
   const activePointers = new Map();
   let pinchActive = false;
   let pinchStartDist = 0;
@@ -2254,10 +2380,37 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (!rect.width || !rect.height) return null;
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    camera.updateMatrixWorld(true);
     raycaster.setFromCamera(pointer, camera);
     const hits = raycaster.intersectObjects(clickables, true);
     if (!hits.length) return null;
-    return pickRoleFromObject(hits[0].object);
+    return pickRoleFromHits(hits);
+  }
+
+  const projectWorld = new THREE.Vector3();
+  function projectPickRoleToClient(role) {
+    let obj = null;
+    if (role === 'handheld') obj = windowSillHandheld && windowSillHandheld.group;
+    else if (role === 'secretary') obj = bubble;
+    if (!obj) return null;
+    camera.updateMatrixWorld(true);
+    obj.updateWorldMatrix(true, false);
+    obj.getWorldPosition(projectWorld);
+    projectWorld.project(camera);
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const visible =
+      Math.abs(projectWorld.x) <= 1 &&
+      Math.abs(projectWorld.y) <= 1 &&
+      projectWorld.z >= -1 &&
+      projectWorld.z <= 1;
+    return {
+      x: rect.left + ((projectWorld.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - projectWorld.y) / 2) * rect.height,
+      ndcX: projectWorld.x,
+      ndcY: projectWorld.y,
+      visible
+    };
   }
 
   function resetOrbitGesture() {
@@ -2270,6 +2423,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (!target) return;
     if (target === 'secretary') playSecretaryWave();
     if (target === 'monitor') applyMonitorHighlight(true, performance.now() + 240);
+    if (target === 'handheld') applyHandheldHighlight(true, performance.now() + 280);
     if (onActivate) onActivate(target);
   }
 
@@ -2322,6 +2476,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       const dy = ev.clientY - orbitStartY;
       if (!orbitDragged && privateTeamDragExceedsThreshold(dx, dy)) {
         orbitDragged = true;
+        userAdjustedOrbit = true;
         try {
           canvas.setPointerCapture(ev.pointerId);
         } catch (_e) { /* noop */ }
@@ -2357,6 +2512,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (!sceneInputEnabled) {
         canvas.style.cursor = '';
         applyMonitorHighlight(false);
+        applyHandheldHighlight(false);
         setMonitorBezelHighlight(false);
       }
       return;
@@ -2364,7 +2520,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     const hover = pickTarget(clientX, clientY);
     canvas.style.cursor = hover ? 'pointer' : '';
     const mon = hover === 'monitor';
+    const hand = hover === 'handheld';
     applyMonitorHighlight(mon);
+    applyHandheldHighlight(hand);
+    if (hand && !mon) {
+      canvas.style.cursor = 'pointer';
+    }
     setMonitorBezelHighlight(mon || monitorHighlightActive(performance.now()));
   }
 
@@ -2503,8 +2664,13 @@ export function mountPrivateTeamScene(canvas, opts) {
     renderer.setPixelRatio(scenePixelRatio());
     renderer.setSize(w, h, false);
     camera.aspect = w / Math.max(h, 1);
+    camera.fov = privateTeamDefaultFov(w, h);
     camera.updateProjectionMatrix();
     if (!defaultZoomApplied && !userAdjustedZoom) {
+      if (!userAdjustedOrbit) {
+        yawRadians = privateTeamDefaultYaw(w, h);
+        pitchRadians = 0;
+      }
       applyZoom(privateTeamDefaultZoom(w, h));
       defaultZoomApplied = true;
     }
@@ -2791,6 +2957,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     getZoom() {
       return zoomFactor;
     },
+    projectPickRoleToClient,
     setBubbleText(text) {
       bubbleDrawer.draw(text);
     },
