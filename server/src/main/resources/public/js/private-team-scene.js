@@ -541,6 +541,35 @@ export function privateTeamWindowAmbientMotionEnabled(reducedMotion) {
   return !reducedMotion;
 }
 
+/** 窗外天際線各層視差係數（愈近愈大）。 */
+export const PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX = {
+  sky: 0.06,
+  far: 0.1,
+  mid: 0.22,
+  near: 0.45,
+  clouds: 0.14,
+  flicker: 0.3
+};
+
+/** 鏡頭微動時依層別計算平面位移；reducedMotion 時歸零。 */
+export function privateTeamWindowSkylineParallaxOffset(yawRad, pitchRad, parallaxScale, reducedMotion) {
+  if (reducedMotion) return { x: 0, y: 0 };
+  const y = Number(yawRad);
+  const p = Number(pitchRad);
+  const s = Number(parallaxScale);
+  if (!Number.isFinite(y) || !Number.isFinite(p) || !Number.isFinite(s)) return { x: 0, y: 0 };
+  return { x: y * s * 0.38, y: p * s * 0.2 };
+}
+
+/** 飛機燈緩慢明滅係數（0.35–1）。 */
+export function privateTeamWindowAirplaneBeaconOpacity(elapsedSec, reducedMotion) {
+  if (reducedMotion) return 0.85;
+  const t = Number(elapsedSec);
+  if (!Number.isFinite(t)) return 0.85;
+  const wave = (Math.sin(t * 1.35) + 1) / 2;
+  return 0.38 + wave * 0.58;
+}
+
 export function makeNightWindowSkyTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 640;
@@ -596,17 +625,11 @@ function makeNightSkylineLayerTexture(layer) {
   while (x < canvas.width + 8) {
     const bw = (layer === 'near' ? 34 : 26) + rand() * (layer === 'near' ? 48 : 32);
     const bh = maxH * (0.32 + rand() * 0.68);
-    const tone = 22 + rand() * (layer === 'far' ? 18 : 30);
-    ctx.fillStyle =
-      'rgba(' +
-      (tone + 14) +
-      ',' +
-      (tone + 22) +
-      ',' +
-      (tone + 38) +
-      ',' +
-      fog +
-      ')';
+    const tone = layer === 'far' ? 14 + rand() * 14 : layer === 'mid' ? 20 + rand() * 22 : 24 + rand() * 30;
+    const rCh = layer === 'far' ? tone + 6 : tone + 14;
+    const gCh = layer === 'far' ? tone + 14 : tone + 22;
+    const bCh = layer === 'far' ? tone + 44 : layer === 'mid' ? tone + 36 : tone + 32;
+    ctx.fillStyle = 'rgba(' + rCh + ',' + gCh + ',' + bCh + ',' + fog + ')';
     ctx.fillRect(x, baseY - bh, bw, bh);
     const cols = Math.max(1, Math.floor(bw / 13));
     const rows = Math.max(1, Math.floor(bh / 15));
@@ -748,6 +771,7 @@ function makeSkylineFlickerLightsTexture() {
       warm: rand() > 0.45
     });
   }
+  const antenna = { x: canvas.width * 0.68, y: canvas.height * 0.4, on: false };
   const paint = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let li = 0; li < lights.length; li++) {
@@ -756,11 +780,20 @@ function makeSkylineFlickerLightsTexture() {
       ctx.fillStyle = L.warm ? 'rgba(255,210,120,0.78)' : 'rgba(180,215,240,0.68)';
       ctx.fillRect(L.x, L.y, L.w, L.h);
     }
+    if (antenna.on) {
+      ctx.fillStyle = 'rgba(255,232,160,0.88)';
+      ctx.fillRect(antenna.x, antenna.y, 3, 3);
+      const ag = ctx.createRadialGradient(antenna.x, antenna.y, 0, antenna.x, antenna.y, 10);
+      ag.addColorStop(0, 'rgba(255,220,140,0.55)');
+      ag.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = ag;
+      ctx.fillRect(antenna.x - 10, antenna.y - 10, 20, 20);
+    }
   };
   paint();
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  return { tex, lights, paint, rand: privateTeamSeededRand(91) };
+  return { tex, lights, antenna, paint, rand: privateTeamSeededRand(91) };
 }
 
 function makeWindowStreetTrafficTexture() {
@@ -1493,22 +1526,63 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(tubBackWarmWash);
   // 不再放天花板水平亮帶：從常用機位會看成窗戶上方的破圖橫條。暖色洗牆改由 tubBackWarmWash 承擔。
 
+  const skylineCenterY = winBottom + winH / 2;
+  const skylineParallaxTargets = [];
+  function trackSkylineParallax(mesh, bx, by, bz, parallaxScale) {
+    skylineParallaxTargets.push({ mesh, bx, by, bz, parallaxScale });
+  }
+  function syncWindowSkylineParallax() {
+    for (let ti = 0; ti < skylineParallaxTargets.length; ti++) {
+      const t = skylineParallaxTargets[ti];
+      const off = privateTeamWindowSkylineParallaxOffset(
+        yawRadians,
+        pitchRadians,
+        t.parallaxScale,
+        reducedMotion
+      );
+      t.mesh.position.set(t.bx + off.x, t.by + off.y, t.bz);
+    }
+  }
+
   const skyTex = makeNightWindowSkyTexture();
   const windowSky = new THREE.Mesh(
     new THREE.PlaneGeometry(winW + 0.2, winH + 0.2),
     new THREE.MeshBasicMaterial({ map: skyTex })
   );
-  windowSky.position.set(0, winBottom + winH / 2, backZ - WALL_THICK - PRIVATE_TEAM_WINDOW_SKY_Z);
+  const windowSkyY = winBottom + winH / 2;
+  const windowSkyZ = backZ - WALL_THICK - PRIVATE_TEAM_WINDOW_SKY_Z;
+  windowSky.position.set(0, windowSkyY, windowSkyZ);
   windowSky.name = 'windowSky';
   root.add(windowSky);
+  trackSkylineParallax(windowSky, 0, windowSkyY, windowSkyZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.sky);
 
   const skyline = new THREE.Group();
   skyline.name = 'skyline';
-  const skylineCenterY = winBottom + winH / 2;
   const skylineLayers = [
-    { name: 'skylineFar', layer: 'far', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[0], hScale: 0.98, yBias: 0 },
-    { name: 'skylineMid', layer: 'mid', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[1], hScale: 1, yBias: 0 },
-    { name: 'skylineNear', layer: 'near', z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[2], hScale: 1, yBias: 0 }
+    {
+      name: 'skylineFar',
+      layer: 'far',
+      z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[0],
+      hScale: 0.98,
+      yBias: 0,
+      parallax: PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.far
+    },
+    {
+      name: 'skylineMid',
+      layer: 'mid',
+      z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[1],
+      hScale: 1,
+      yBias: 0,
+      parallax: PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.mid
+    },
+    {
+      name: 'skylineNear',
+      layer: 'near',
+      z: PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z[2],
+      hScale: 1,
+      yBias: 0,
+      parallax: PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.near
+    }
   ];
   skylineLayers.forEach((cfg) => {
     const layerTex = makeNightSkylineLayerTexture(cfg.layer);
@@ -1516,15 +1590,17 @@ export function mountPrivateTeamScene(canvas, opts) {
       map: layerTex,
       transparent: true,
       depthWrite: false,
-      opacity: cfg.layer === 'far' ? 0.88 : 1
+      opacity: cfg.layer === 'far' ? 0.78 : cfg.layer === 'mid' ? 0.9 : 1
     });
     const layerMesh = new THREE.Mesh(
       new THREE.PlaneGeometry(winW + 0.12, winH * cfg.hScale),
       layerMat
     );
-    layerMesh.position.set(0, skylineCenterY + cfg.yBias, backZ - WALL_THICK - cfg.z);
+    const layerZ = backZ - WALL_THICK - cfg.z;
+    layerMesh.position.set(0, skylineCenterY + cfg.yBias, layerZ);
     layerMesh.name = cfg.name;
     skyline.add(layerMesh);
+    trackSkylineParallax(layerMesh, 0, skylineCenterY + cfg.yBias, layerZ, cfg.parallax);
   });
   root.add(skyline);
 
@@ -1539,9 +1615,18 @@ export function mountPrivateTeamScene(canvas, opts) {
       blending: THREE.AdditiveBlending
     })
   );
-  windowSkylineFlicker.position.set(0, skylineCenterY + 0.02, backZ - WALL_THICK - 0.085);
+  const flickerY = skylineCenterY + 0.02;
+  const flickerZ = backZ - WALL_THICK - 0.085;
+  windowSkylineFlicker.position.set(0, flickerY, flickerZ);
   windowSkylineFlicker.name = 'windowSkylineFlicker';
   root.add(windowSkylineFlicker);
+  trackSkylineParallax(
+    windowSkylineFlicker,
+    0,
+    flickerY,
+    flickerZ,
+    PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.flicker
+  );
 
   const cloudTex = makeNightCloudLayerTexture();
   const windowClouds = new THREE.Mesh(
@@ -1553,9 +1638,12 @@ export function mountPrivateTeamScene(canvas, opts) {
       opacity: 0.62
     })
   );
-  windowClouds.position.set(0, skylineCenterY + winH * 0.18, backZ - WALL_THICK - 0.052);
+  const cloudY = skylineCenterY + winH * 0.18;
+  const cloudZ = backZ - WALL_THICK - 0.052;
+  windowClouds.position.set(0, cloudY, cloudZ);
   windowClouds.name = 'windowClouds';
   root.add(windowClouds);
+  trackSkylineParallax(windowClouds, 0, cloudY, cloudZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.clouds);
 
   const coarsePointer =
     typeof win.matchMedia === 'function' && win.matchMedia('(pointer: coarse)').matches;
@@ -1620,19 +1708,13 @@ export function mountPrivateTeamScene(canvas, opts) {
   const airplaneGroup = new THREE.Group();
   airplaneGroup.name = 'windowAirplane';
   airplaneGroup.visible = false;
-  const planeBody = new THREE.Mesh(
-    new THREE.SphereGeometry(0.01, 4, 4),
-    new THREE.MeshBasicMaterial({ color: 0xfff4e0, transparent: true, opacity: 0.95 })
-  );
-  const planeWing = new THREE.Mesh(
-    new THREE.SphereGeometry(0.007, 4, 4),
-    new THREE.MeshBasicMaterial({ color: 0xffeecc, transparent: true, opacity: 0.75 })
-  );
+  const planeBodyMat = new THREE.MeshBasicMaterial({ color: 0xfff4e0, transparent: true, opacity: 0.95 });
+  const planeBody = new THREE.Mesh(new THREE.SphereGeometry(0.01, 4, 4), planeBodyMat);
+  const planeWingMat = new THREE.MeshBasicMaterial({ color: 0xffeecc, transparent: true, opacity: 0.75 });
+  const planeWing = new THREE.Mesh(new THREE.SphereGeometry(0.007, 4, 4), planeWingMat);
   planeWing.position.set(-0.022, 0, 0);
-  const planeTail = new THREE.Mesh(
-    new THREE.SphereGeometry(0.006, 4, 4),
-    new THREE.MeshBasicMaterial({ color: 0xffe8b8, transparent: true, opacity: 0.7 })
-  );
+  const planeTailMat = new THREE.MeshBasicMaterial({ color: 0xffe8b8, transparent: true, opacity: 0.7 });
+  const planeTail = new THREE.Mesh(new THREE.SphereGeometry(0.006, 4, 4), planeTailMat);
   planeTail.position.set(0.018, 0.006, 0);
   airplaneGroup.add(planeBody, planeWing, planeTail);
   airplaneGroup.position.set(winLeft, winTop - 0.22, backZ - WALL_THICK - 0.19);
@@ -2601,9 +2683,15 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (privateTeamWindowAmbientMotionEnabled(reducedMotion)) {
       streetTrafficTex.offset.x = (elapsed * 0.06) % 1;
       cloudTex.offset.x = (elapsed * 0.014) % 1;
-      if (now - lastSkylineFlickerMs >= 300) {
+      flickerLights.antenna.on = (Math.sin(elapsed * 0.48 + 0.6) + 1) / 2 > 0.58;
+      if (now - lastSkylineFlickerMs >= 420) {
         lastSkylineFlickerMs = now;
         stepSkylineFlickerLights(flickerLights);
+        flickerLights.paint();
+        flickerLights.tex.needsUpdate = true;
+      } else if (flickerLights.antenna.on !== flickerLights._antennaWas) {
+        flickerLights._antennaWas = flickerLights.antenna.on;
+        flickerLights.paint();
         flickerLights.tex.needsUpdate = true;
       }
       windowSkylineFlicker.visible = true;
@@ -2622,6 +2710,10 @@ export function mountPrivateTeamScene(canvas, opts) {
         } else {
           airplaneGroup.position.x = winLeft + 0.08 + ap * (winW + 0.28);
         }
+        const beacon = privateTeamWindowAirplaneBeaconOpacity(elapsed, reducedMotion);
+        planeBodyMat.opacity = beacon;
+        planeWingMat.opacity = beacon * 0.82;
+        planeTailMat.opacity = beacon * 0.72;
       }
     } else {
       cloudTex.offset.x = 0;
@@ -2673,6 +2765,8 @@ export function mountPrivateTeamScene(canvas, opts) {
       }
       applyCameraView();
     }
+
+    syncWindowSkylineParallax();
 
     bubble.lookAt(camera.position);
     lampHalo.lookAt(camera.position);
