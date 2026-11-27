@@ -284,24 +284,33 @@ public class PeerChatWindow extends JFrame {
         PeerChatScrollBar.install(inputScroll);
         inputScroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
 
-        attachButton = new CandyButton(" ", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        attachButton = new CandyButton("附加", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
         attachButton.setFont(plain);
-        attachButton.setPreferredSize(new Dimension(28, 26));
         attachButton.setToolTipText("選檔案、資料夾或圖片（可多選）。純圖片會跟文字一起送出；其餘先列在這裡，按傳送才送出");
         attachButton.addActionListener(e -> chooseAttach());
-        attachButton.setIcon(new PaperclipIcon());
         sendButton = new CandyButton("傳送", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
         sendButton.setFont(bold);
         sendButton.addActionListener(e -> send());
+        Dimension actionBtn = new Dimension(52, 0);
+        attachButton.setPreferredSize(actionBtn);
+        attachButton.setMinimumSize(actionBtn);
+        attachButton.setMaximumSize(new Dimension(52, Integer.MAX_VALUE));
+        sendButton.setPreferredSize(actionBtn);
+        sendButton.setMinimumSize(actionBtn);
+        sendButton.setMaximumSize(new Dimension(52, Integer.MAX_VALUE));
+
+        JPanel composeActions = new JPanel(new GridLayout(2, 1, 0, 4));
+        composeActions.setOpaque(false);
+        if (!textOnly) {
+            composeActions.add(attachButton);
+        }
+        composeActions.add(sendButton);
 
         JPanel compose = new JPanel(new BorderLayout(6, 0));
         compose.setOpaque(false);
         compose.setBorder(new EmptyBorder(8, 12, 0, 12));
-        if (!textOnly) {
-            compose.add(attachButton, BorderLayout.WEST);
-        }
         compose.add(inputScroll, BorderLayout.CENTER);
-        compose.add(sendButton, BorderLayout.EAST);
+        compose.add(textOnly ? sendButton : composeActions, BorderLayout.EAST);
 
         JLabel composeHint = new JLabel("Enter 送出 · Shift+Enter 換行 · 可貼上圖片或拖曳檔案");
         composeHint.setFont(plain.deriveFont((float) Math.max(10, plain.getSize() - 2)));
@@ -327,7 +336,7 @@ public class PeerChatWindow extends JFrame {
         root.add(south, BorderLayout.SOUTH);
         chromeBody.add(root, BorderLayout.CENTER);
         installFileDrop(root);
-        WindowChrome.setStatusText(this, peerId);
+        WindowChrome.setStatusStripVisible(this, false);
 
         setMinimumSize(new Dimension(500, 440));
         setSize(520, 600);
@@ -356,7 +365,6 @@ public class PeerChatWindow extends JFrame {
         String label = heading == null || heading.isBlank() ? peerId : heading.trim();
         WindowChrome.setWindowTitle(this, "聊天 · " + label);
         nameLabel.setText(label);
-        WindowChrome.setStatusText(this, label);
     }
 
     /** 新訊息進來或自己送出後追加一筆。 */
@@ -429,12 +437,11 @@ public class PeerChatWindow extends JFrame {
             statusLabel.setForeground(new Color(255, 150, 150));
         } else if (peerOnline) {
             statusLabel.setText("在線");
-            statusLabel.setForeground(new Color(140, 230, 170));
+            statusLabel.setForeground(new Color(0x1B, 0x7F, 0x3A));
         } else {
             statusLabel.setText("離線，上線後才能傳");
             statusLabel.setForeground(new Color(255, 150, 150));
         }
-        WindowChrome.setStatusText(this, statusLabel.getText());
     }
 
     /** 同事要在線才送得出文字、圖片和檔案。後台文字對話不看在線狀態。 */
@@ -1040,35 +1047,6 @@ public class PeerChatWindow extends JFrame {
     /** 測試與診斷用：目前附的圖片（多張以逗號串起），沒有是空字串。 */
     String attachedImage() {
         return ChatProtocol.joinPeerImages(attachedImages);
-    }
-
-    private static final class PaperclipIcon implements javax.swing.Icon {
-        @Override
-        public void paintIcon(Component c, Graphics g, int x, int y) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                g2.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING,
-                        java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(CandyTheme.MUTED);
-                g2.setStroke(new BasicStroke(1.4f));
-                int cx = x + 7;
-                int cy = y + 9;
-                g2.drawArc(cx - 4, cy - 7, 8, 8, 70, 200);
-                g2.drawArc(cx - 2, cy - 2, 8, 8, 250, 200);
-            } finally {
-                g2.dispose();
-            }
-        }
-
-        @Override
-        public int getIconWidth() {
-            return 14;
-        }
-
-        @Override
-        public int getIconHeight() {
-            return 14;
-        }
     }
 
     private static final class EncodedPick {
