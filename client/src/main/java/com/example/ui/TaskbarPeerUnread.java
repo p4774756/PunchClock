@@ -67,9 +67,13 @@ public final class TaskbarPeerUnread {
                 }
                 if (!usedNativeBadge && setFrameIcons != null && baseIcons != null && !baseIcons.isEmpty()) {
                     applyComposedFrameAndTaskbarIcons(taskbar, baseIcons, unreadPeerCount, setFrameIcons);
-                } else if (usedNativeBadge && unreadPeerCount <= 0 && setFrameIcons != null
-                        && baseIcons != null && !baseIcons.isEmpty()) {
-                    setFrameIcons.accept(baseIcons);
+                } else if (usedNativeBadge && baseIcons != null && !baseIcons.isEmpty()) {
+                    if (setFrameIcons != null) {
+                        setFrameIcons.accept(baseIcons);
+                    }
+                    if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
+                        taskbar.setIconImage(baseIcons.get(baseIcons.size() - 1));
+                    }
                 }
             } else if (setFrameIcons != null && baseIcons != null && !baseIcons.isEmpty()) {
                 applyComposedFrameAndTaskbarIcons(null, baseIcons, unreadPeerCount, setFrameIcons);
