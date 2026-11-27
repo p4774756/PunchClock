@@ -177,6 +177,23 @@ public final class WindowChrome {
         return new Controls(null, null);
     }
 
+    /** 子視窗（如聊天）可關閉底部狀態列；主視窗應維持可見。 */
+    public static void setStatusStripVisible(JFrame frame, boolean visible) {
+        if (frame == null || frame.getRootPane() == null) {
+            return;
+        }
+        Object label = frame.getRootPane().getClientProperty(STATUS_MARK);
+        if (!(label instanceof JLabel)) {
+            return;
+        }
+        java.awt.Container strip = ((JLabel) label).getParent();
+        if (strip != null) {
+            strip.setVisible(visible);
+            strip.getParent().revalidate();
+            strip.getParent().repaint();
+        }
+    }
+
     /** 主視窗底部狀態列文字。 */
     public static void setStatusText(JFrame frame, String text) {
         if (frame == null || frame.getRootPane() == null) {

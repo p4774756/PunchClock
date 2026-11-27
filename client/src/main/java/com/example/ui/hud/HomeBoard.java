@@ -12,7 +12,6 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.geom.Path2D;
-import java.awt.geom.QuadCurve2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -28,7 +27,7 @@ final class HomeBoard {
     private static final Color INK = CandyTheme.INK;
     private static final Color PANEL = new Color(248, 248, 244, 240);
     private static final Color PANEL_EDGE = CandyTheme.EDGE;
-    private static final int CHAR_MS = 48;
+    private static final int CHAR_MS = 84;
     private static final int HOLD_MS = 4200;
     private static final int FADE_OUT_MS = 680;
     private static final int GAP_MS = 2400;
@@ -414,12 +413,6 @@ final class HomeBoard {
         g.fill(tail);
         g.setColor(PANEL_EDGE);
         g.draw(tail);
-        QuadCurve2D curve = new QuadCurve2D.Float(
-                baseX, baseY + 4,
-                (baseX + mouth.x) / 2f, (baseY + mouth.y) / 2f,
-                mouth.x, mouth.y);
-        g.setStroke(new BasicStroke(1.2f));
-        g.draw(curve);
     }
 
     private static List<String> wrap(Graphics2D g, String text, int width) {
