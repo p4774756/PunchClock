@@ -1221,9 +1221,10 @@ function makeHandheldPreviewLcdTexture() {
 function addWindowSillHandheld(root, sillY, sillZ, mugX) {
   const group = new THREE.Group();
   group.userData.pickRole = 'handheld';
-  const gx = mugX + 0.13;
-  group.position.set(gx, sillY + 0.055, sillZ + 0.04);
-  group.rotation.y = -0.42;
+  const gx = mugX + 0.11;
+  group.position.set(gx, sillY + 0.062, sillZ + 0.055);
+  group.rotation.y = -0.38;
+  group.scale.set(1.4, 1.4, 1.4);
 
   const bodyMat = new THREE.MeshLambertMaterial({ color: 0xb4c870 });
   const body = box(0.052, 0.092, 0.026, bodyMat);
@@ -1245,14 +1246,23 @@ function addWindowSillHandheld(root, sillY, sillZ, mugX) {
   lens.name = 'windowSillHandheldLens';
   group.add(lens);
 
-  const glow = new THREE.PointLight(0x5ec87a, 0.18, 0.42, 2);
+  const pickMat = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  });
+  const pick = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.14, 0.08), pickMat);
+  pick.name = 'windowSillHandheldPick';
+  group.add(pick);
+
+  const glow = new THREE.PointLight(0x5ec87a, 0.34, 0.62, 2);
   glow.position.set(0, 0.02, 0.03);
   glow.name = 'windowSillHandheldGlow';
   group.add(glow);
 
   group.name = 'windowSillHandheld';
   root.add(group);
-  return { group, body, screen, glow };
+  return { group, body, screen, glow, pick };
 }
 
 function addLowPolyPlant(root, x, z) {
@@ -2246,6 +2256,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     clickables.push(monitors[mi].group);
   }
   const raycaster = new THREE.Raycaster();
+  raycaster.params.Line.threshold = 0.08;
+  raycaster.params.Points.threshold = 0.08;
   const pointer = new THREE.Vector2();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
   let sceneInputEnabled = true;

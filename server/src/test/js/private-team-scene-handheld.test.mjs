@@ -13,7 +13,8 @@ test('窗台馬克杯右側立放 Game Boy，可點擊 handheld', () => {
   assert.match(src, /windowSillHandheld/);
   assert.match(src, /pickRole = 'handheld'|userData\.pickRole = 'handheld'/);
   assert.match(src, /windowSillMug/);
-  assert.match(src, /mugX \+ 0\.13/);
+  assert.match(src, /mugX \+ 0\.11/);
+  assert.match(src, /windowSillHandheldPick/);
   assert.match(src, /PointLight/);
   assert.match(src, /NearestFilter/);
   assert.match(src, /clickables\.push\(monitors\[mi\]\.group\)|clickables = \[bubble, windowSillHandheld\.group\]/);
