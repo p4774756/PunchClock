@@ -316,13 +316,20 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
     }
 
     private JPanel wrapLeft(JComponent block) {
-        JPanel line = new JPanel(new BorderLayout());
+        // 直傳卡片內容會在加入後才補齊（接收／拒收／取消列），
+        // 不能用當下的 preferred height 鎖死 maximumSize，否則按鈕會被裁切。
+        JPanel line = new JPanel(new BorderLayout()) {
+            @Override
+            public Dimension getMaximumSize() {
+                Dimension pref = getPreferredSize();
+                return new Dimension(Integer.MAX_VALUE, pref.height);
+            }
+        };
         line.setOpaque(false);
         line.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
         line.setAlignmentX(Component.LEFT_ALIGNMENT);
         block.setAlignmentX(Component.LEFT_ALIGNMENT);
         line.add(block, BorderLayout.CENTER);
-        lock(line);
         return line;
     }
 
