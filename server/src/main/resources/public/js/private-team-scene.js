@@ -307,6 +307,58 @@ export function privateTeamYawAtReturn(startYaw, progress) {
   return y * (1 - p);
 }
 
+/** 上下俯仰上限（度，相對基準鏡頭 camBase→camLook）：上拉平視、下拉俯瞰 */
+export const PRIVATE_TEAM_PITCH_MAX_UP_DEG = 20;
+export const PRIVATE_TEAM_PITCH_MAX_DOWN_DEG = 14;
+const PRIVATE_TEAM_PITCH_MAX_UP_RAD = (PRIVATE_TEAM_PITCH_MAX_UP_DEG * Math.PI) / 180;
+const PRIVATE_TEAM_PITCH_MAX_DOWN_RAD = (PRIVATE_TEAM_PITCH_MAX_DOWN_DEG * Math.PI) / 180;
+
+export function clampPrivateTeamPitch(radians) {
+  const n = Number(radians);
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(
+    PRIVATE_TEAM_PITCH_MAX_UP_RAD,
+    Math.max(-PRIVATE_TEAM_PITCH_MAX_DOWN_RAD, n)
+  );
+}
+
+/** 依垂直拖曳與畫布高度換算俯仰；往上拖為正（平視窗外／秘書） */
+export function privateTeamPitchFromDragDelta(deltaY, canvasHeight, startPitch) {
+  const h = Math.max(Number(canvasHeight), 1);
+  const base = Number(startPitch);
+  const range = PRIVATE_TEAM_PITCH_MAX_UP_RAD + PRIVATE_TEAM_PITCH_MAX_DOWN_RAD;
+  const scale = range / h;
+  const next = (Number.isFinite(base) ? base : 0) - Number(deltaY) * scale;
+  return clampPrivateTeamPitch(next);
+}
+
+export function privateTeamPitchDragVelocityRadPerMs(deltaPx, dtMs, canvasHeight) {
+  const dt = Number(dtMs);
+  const dy = Number(deltaPx);
+  if (!Number.isFinite(dt) || dt < 12 || !Number.isFinite(dy)) return 0;
+  const h = Math.max(Number(canvasHeight), 1);
+  if (!(h > 0)) return 0;
+  const range = PRIVATE_TEAM_PITCH_MAX_UP_RAD + PRIVATE_TEAM_PITCH_MAX_DOWN_RAD;
+  const scale = range / h;
+  return (-dy / dt) * scale * 0.38;
+}
+
+export function privateTeamPitchMomentumTick(pitch, velRadPerMs, dtMs, canvasHeight) {
+  const dt = Number(dtMs);
+  let v = Number(velRadPerMs);
+  let p = Number(pitch);
+  if (!Number.isFinite(p) || !Number.isFinite(v) || !(dt > 0)) return { pitch: 0, vel: 0 };
+  const h = Math.max(Number(canvasHeight), 1);
+  if (!(h > 0)) return { pitch: p, vel: 0 };
+  p = clampPrivateTeamPitch(p + v * dt);
+  v *= Math.exp(-5.2 * (dt / 1000));
+  const up = PRIVATE_TEAM_PITCH_MAX_UP_RAD;
+  const down = PRIVATE_TEAM_PITCH_MAX_DOWN_RAD;
+  if (Math.abs(p - up) < 1e-5 || Math.abs(p + down) < 1e-5) v = 0;
+  if (Math.abs(v) < 1e-5) v = 0;
+  return { pitch: p, vel: v };
+}
+
 /** 夜間全域與檯燈強度（供單測） */
 export function privateTeamSceneLighting() {
   return {
@@ -1159,9 +1211,14 @@ export function mountPrivateTeamScene(canvas, opts) {
   let userAdjustedZoom = false;
   let defaultZoomApplied = false;
   let yawRadians = 0;
+  let pitchRadians = 0;
   let yawReturnFrom = 0;
+  let pitchReturnFrom = 0;
   let yawReturnStartMs = null;
   let yawMomentumVel = 0;
+  let pitchMomentumVel = 0;
+  const camOrbitDir = new THREE.Vector3();
+  const camPitchAxis = new THREE.Vector3();
   let panHintEl = null;
   let panHintHideTimer = 0;
 
@@ -1219,9 +1276,16 @@ export function mountPrivateTeamScene(canvas, opts) {
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
   function applyCameraView() {
     zoomFactor = clampPrivateTeamZoom(zoomFactor);
-    const dir = camBase.clone().sub(camLook);
-    dir.applyAxisAngle(camYawAxis, yawRadians);
-    camera.position.copy(camLook).add(dir.multiplyScalar(zoomFactor));
+    camOrbitDir.copy(camBase).sub(camLook);
+    camOrbitDir.applyAxisAngle(camYawAxis, yawRadians);
+    camPitchAxis.crossVectors(camYawAxis, camOrbitDir);
+    if (camPitchAxis.lengthSq() < 1e-12) {
+      camPitchAxis.set(1, 0, 0);
+    } else {
+      camPitchAxis.normalize();
+    }
+    camOrbitDir.applyAxisAngle(camPitchAxis, pitchRadians);
+    camera.position.copy(camLook).add(camOrbitDir.multiplyScalar(zoomFactor));
     camera.lookAt(camLook);
   }
   function applyZoom(factor, fromUser) {
@@ -2088,10 +2152,12 @@ export function mountPrivateTeamScene(canvas, opts) {
   let orbitStartX = 0;
   let orbitStartY = 0;
   let orbitStartYaw = 0;
+  let orbitStartPitch = 0;
   let orbitDragged = false;
   let orbitPendingRole = null;
   let orbitLastMoveMs = 0;
   let orbitLastClientX = 0;
+  let orbitLastClientY = 0;
 
   function pointerDistance() {
     const pts = [...activePointers.values()];
@@ -2141,12 +2207,15 @@ export function mountPrivateTeamScene(canvas, opts) {
     orbitStartX = ev.clientX;
     orbitStartY = ev.clientY;
     orbitStartYaw = yawRadians;
+    orbitStartPitch = pitchRadians;
     orbitDragged = false;
     orbitPendingRole = pickTarget(ev.clientX, ev.clientY);
     orbitLastMoveMs = performance.now();
     orbitLastClientX = ev.clientX;
+    orbitLastClientY = ev.clientY;
     yawReturnStartMs = null;
     yawMomentumVel = 0;
+    pitchMomentumVel = 0;
     if (orbitPendingRole) {
       ev.preventDefault();
     }
@@ -2180,13 +2249,16 @@ export function mountPrivateTeamScene(canvas, opts) {
         const vp = sceneViewportSize();
         const now = performance.now();
         orbitLastClientX = ev.clientX;
+        orbitLastClientY = ev.clientY;
         orbitLastMoveMs = now;
+        const canvasH = vp.h || rect.height;
         yawRadians = privateTeamYawFromDragDelta(
           dx,
           rect.width,
           orbitStartYaw,
-          vp.h || rect.height
+          canvasH
         );
+        pitchRadians = privateTeamPitchFromDragDelta(dy, canvasH, orbitStartPitch);
         applyCameraView();
         ev.preventDefault();
         canvas.style.cursor = 'grabbing';
@@ -2242,21 +2314,28 @@ export function mountPrivateTeamScene(canvas, opts) {
         dismissPanHint(true);
         const vp = sceneViewportSize();
         const rect = canvas.getBoundingClientRect();
-        if (privateTeamOrbitYawReturnEnabled(vp.w, vp.h) && Math.abs(yawRadians) > 1e-6) {
+        const orbitNeedsReturn =
+          privateTeamOrbitYawReturnEnabled(vp.w, vp.h) &&
+          (Math.abs(yawRadians) > 1e-6 || Math.abs(pitchRadians) > 1e-6);
+        if (orbitNeedsReturn) {
           yawReturnFrom = yawRadians;
+          pitchReturnFrom = pitchRadians;
           yawReturnStartMs = performance.now();
         } else if (
           privateTeamNarrowPortrait(vp.w, vp.h) &&
           !reducedMotion
         ) {
           const dt = Math.max(performance.now() - orbitLastMoveMs, 16);
+          const canvasH = vp.h || rect.height;
           const recentDx = ev.clientX - orbitLastClientX;
+          const recentDy = ev.clientY - orbitLastClientY;
           yawMomentumVel = privateTeamYawDragVelocityRadPerMs(
             recentDx,
             dt,
             rect.width,
-            vp.h || rect.height
+            canvasH
           );
+          pitchMomentumVel = privateTeamPitchDragVelocityRadPerMs(recentDy, dt, canvasH);
         }
       }
       resetOrbitGesture();
@@ -2551,31 +2630,46 @@ export function mountPrivateTeamScene(canvas, opts) {
       airplaneActive = false;
     }
 
-    if (Math.abs(yawMomentumVel) > 1e-6 && !reducedMotion) {
+    if (
+      !reducedMotion &&
+      (Math.abs(yawMomentumVel) > 1e-6 || Math.abs(pitchMomentumVel) > 1e-6)
+    ) {
       const vp = sceneViewportSize();
       if (privateTeamNarrowPortrait(vp.w, vp.h)) {
-        const motion = privateTeamYawMomentumTick(
+        const yawMotion = privateTeamYawMomentumTick(
           yawRadians,
           yawMomentumVel,
           frameDt,
           vp.w,
           vp.h
         );
-        yawRadians = motion.yaw;
-        yawMomentumVel = motion.vel;
+        yawRadians = yawMotion.yaw;
+        yawMomentumVel = yawMotion.vel;
+        const pitchMotion = privateTeamPitchMomentumTick(
+          pitchRadians,
+          pitchMomentumVel,
+          frameDt,
+          vp.h
+        );
+        pitchRadians = pitchMotion.pitch;
+        pitchMomentumVel = pitchMotion.vel;
         applyCameraView();
       } else {
         yawMomentumVel = 0;
+        pitchMomentumVel = 0;
       }
     }
 
     if (yawReturnStartMs != null) {
       const progress = privateTeamYawReturnProgress(now - yawReturnStartMs, reducedMotion);
       yawRadians = privateTeamYawAtReturn(yawReturnFrom, progress);
+      pitchRadians = privateTeamYawAtReturn(pitchReturnFrom, progress);
       if (progress >= 1) {
         yawRadians = 0;
+        pitchRadians = 0;
         yawReturnStartMs = null;
         yawReturnFrom = 0;
+        pitchReturnFrom = 0;
       }
       applyCameraView();
     }
