@@ -201,16 +201,17 @@ public class PublicOfficeAuthTest {
     }
 
     @Test
-    public void atlasLoginNextRedirectsToHomeModal() throws Exception {
-        HttpResponse<String> slash = send("GET", "/login?next=/atlas/tcm-3d/", null);
-        assertEquals(302, slash.statusCode());
-        assertEquals("/?open=atlas-login", slash.headers().firstValue("location").orElse(""));
-        HttpResponse<String> noslash = send("GET", "/login?next=/atlas/tcm-3d", null);
-        assertEquals(302, noslash.statusCode());
-        assertEquals("/?open=atlas-login", noslash.headers().firstValue("location").orElse(""));
+    public void atlasPathsAreNotServedAndLoginNextRejected() throws Exception {
+        HttpResponse<String> atlasPage = send("GET", "/atlas/tcm-3d/", null);
+        assertEquals(404, atlasPage.statusCode());
+        HttpResponse<String> atlasRoot = send("GET", "/atlas", null);
+        assertEquals(404, atlasRoot.statusCode());
+        HttpResponse<String> login = send("GET", "/login?next=/atlas/tcm-3d/", null);
+        assertEquals(200, login.statusCode());
+        assertFalse(login.body().contains("value=\"/atlas/tcm-3d/\""));
         HttpResponse<String> authed = send("GET", "/login?next=/atlas/tcm-3d/", adminCookie);
         assertEquals(302, authed.statusCode());
-        assertEquals("/atlas/tcm-3d/", authed.headers().firstValue("location").orElse(""));
+        assertEquals("/", authed.headers().firstValue("location").orElse(""));
     }
 
     @Test
