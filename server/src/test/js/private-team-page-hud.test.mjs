@@ -42,6 +42,11 @@ test('私人女秘書 HUD 標記與身分文案', () => {
   assert.doesNotMatch(js, /pt-hud-identity/);
   assert.doesNotMatch(js, /AUTH_ABBREV/);
   assert.match(js, /data-pt-open-download/);
+  assert.match(js, /aria-label="下載 App"/);
+  assert.match(js, /title="下載 App"/);
+  assert.doesNotMatch(js, /pt-hud-dl-label/);
+  const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
+  assert.doesNotMatch(css, /pt-hud-dl-label/);
   assert.doesNotMatch(js, /href="\/download"/);
   assert.doesNotMatch(js, /data-pt-daynight/);
   assert.doesNotMatch(js, /punchclock-private-team-day/);
