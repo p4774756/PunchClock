@@ -14,7 +14,6 @@ import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import java.awt.Color;
 import java.awt.Font;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,17 +55,8 @@ public class ReadmeScreenshotTest {
                 tabs.setSelectedIndex(1);
                 int pw = 860;
                 int ph = 620;
-                tabs.setSize(pw, ph);
-                tabs.doLayout();
-                BufferedImage appearance = new BufferedImage(pw, ph, BufferedImage.TYPE_INT_RGB);
-                Graphics2D g = appearance.createGraphics();
-                try {
-                    g.setColor(new Color(28, 20, 48));
-                    g.fillRect(0, 0, pw, ph);
-                    tabs.paint(g);
-                } finally {
-                    g.dispose();
-                }
+                BufferedImage appearance = WindowChrome.renderOffscreen(
+                        tabs, pw, ph, new Color(28, 20, 48));
                 writeJpeg(out.resolve("settings.jpg"), appearance, 0.88f);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);

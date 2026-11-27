@@ -205,6 +205,43 @@ esac
 case "$RUNS_JSON" in
   *'"issue":355'*) fail "chain runs must not parse chainrun queued specs as active runs" ;;
 esac
+case "$RUNS_JSON" in
+  *'"chain":"青龍"'*) ;;
+  *) fail "chain runs json missing 青龍 for port 9474" ;;
+esac
+case "$RUNS_JSON" in
+  *'"chain":"白虎"'*) ;;
+  *) fail "chain runs json missing 白虎 for port 9475" ;;
+esac
+case "$RUNS_JSON" in
+  *'"chain":"朱雀"'*) ;;
+  *) fail "chain runs json missing 朱雀 for port 9476 loopfast" ;;
+esac
+
+MOCK_PS_CHAIN='  04:00 sh /path/chainmed-verify.sh 9475 735
+  03:00 sh /path/chainrun-verify.sh 9474 734'
+RUNS_JSON="[]"
+read_chain_runs
+case "$RUNS_JSON" in
+  *'"issue":735'*) ;;
+  *) fail "verify chain runs json missing issue 735" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":734'*) ;;
+  *) fail "verify chain runs json missing issue 734" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":735'*'"chain":"白虎"'*) ;;
+  *) fail "chainmed-verify must carry 白虎 chain name" ;;
+esac
+case "$RUNS_JSON" in
+  *'"issue":734'*'"chain":"青龍"'*) ;;
+  *) fail "chainrun-verify must carry 青龍 chain name" ;;
+esac
+
+MOCK_PS_CHAINS='sh /path/chainrun-verify.sh 9476 735'
+dev_chains_running || fail "dev_chains_running should detect chainrun-verify"
+unset MOCK_PS_CHAINS
 
 MOCK_PS_CHAIN='  10:00 sh /path/chainfast2.sh 9475 683 680
   09:50 sh /path/loopfast.sh 683 needsha 9475'
