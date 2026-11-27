@@ -77,4 +77,5 @@ atlas-src/tcm-3d/public/models/body-*.bin
 .env.local
 .DS_Store
 Thumbs.db
+blender.crash.txt
 tools/blender/__pycache__/
