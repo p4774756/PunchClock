@@ -8,12 +8,14 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
+import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
@@ -38,6 +40,7 @@ public final class PeerChatRelayCard extends JPanel {
     private final JLabel statusLabel;
     private final JProgressBar bar;
     private final JPanel actionRow;
+    private final JPanel stack;
     private final Font plain;
     private final Font small;
     private final AtomicBoolean finished = new AtomicBoolean();
@@ -70,17 +73,24 @@ public final class PeerChatRelayCard extends JPanel {
 
         statusLabel = label(" ", small, CandyTheme.MUTED);
 
-        actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        actionRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
         actionRow.setOpaque(false);
 
-        JPanel stack = new JPanel();
+        stack = new JPanel();
         stack.setOpaque(false);
         stack.setLayout(new javax.swing.BoxLayout(stack, javax.swing.BoxLayout.Y_AXIS));
         stack.add(north);
         stack.add(bar);
         stack.add(statusLabel);
         stack.add(actionRow);
+        alignStack();
         add(stack, BorderLayout.CENTER);
+    }
+
+    @Override
+    public Dimension getMaximumSize() {
+        Dimension pref = getPreferredSize();
+        return new Dimension(Integer.MAX_VALUE, pref.height);
     }
 
     public void showOutboundTransfer(String filename, String sizeLabel) {
@@ -94,8 +104,7 @@ public final class PeerChatRelayCard extends JPanel {
         cancel.setFont(small);
         cancel.addActionListener(e -> requestCancel());
         actionRow.add(cancel);
-        revalidate();
-        repaint();
+        relayout();
     }
 
     public void showInboundTransfer(String filename, String sizeLabel) {
@@ -109,8 +118,7 @@ public final class PeerChatRelayCard extends JPanel {
         cancel.setFont(small);
         cancel.addActionListener(e -> requestCancel());
         actionRow.add(cancel);
-        revalidate();
-        repaint();
+        relayout();
     }
 
     public void showInboundOffer(String fromId, String filename, String sizeLabel, boolean folder,
@@ -151,8 +159,7 @@ public final class PeerChatRelayCard extends JPanel {
             countdown.setText(min + ":" + String.format("%02d", rem));
         });
         countdownTimer.start();
-        revalidate();
-        repaint();
+        relayout();
     }
 
     public void setOnCancel(Runnable action) {
@@ -204,8 +211,7 @@ public final class PeerChatRelayCard extends JPanel {
             actionRow.removeAll();
             statusLabel.setText(outbound ? "傳送完成" : "接收完成");
             titleLabel.setText((outbound ? "已直傳  " : "已接收  ") + filename);
-            revalidate();
-            repaint();
+            relayout();
         });
     }
 
@@ -216,8 +222,7 @@ public final class PeerChatRelayCard extends JPanel {
             bar.setVisible(false);
             actionRow.removeAll();
             statusLabel.setText(message == null || message.isBlank() ? "直傳失敗" : message);
-            revalidate();
-            repaint();
+            relayout();
         });
     }
 
@@ -228,8 +233,7 @@ public final class PeerChatRelayCard extends JPanel {
             bar.setVisible(false);
             actionRow.removeAll();
             statusLabel.setText("已取消");
-            revalidate();
-            repaint();
+            relayout();
         });
     }
 
@@ -252,8 +256,7 @@ public final class PeerChatRelayCard extends JPanel {
                 actionRow.add(open);
                 actionRow.add(folder);
             }
-            revalidate();
-            repaint();
+            relayout();
         });
     }
 
@@ -264,8 +267,7 @@ public final class PeerChatRelayCard extends JPanel {
             bar.setVisible(false);
             actionRow.removeAll();
             statusLabel.setText(message);
-            revalidate();
-            repaint();
+            relayout();
         });
     }
 
@@ -288,8 +290,7 @@ public final class PeerChatRelayCard extends JPanel {
                 if (action != null) {
                     action.run();
                 }
-                revalidate();
-                repaint();
+                relayout();
             }
         };
     }
@@ -329,7 +330,29 @@ public final class PeerChatRelayCard extends JPanel {
         JLabel label = new JLabel(text);
         label.setFont(font);
         label.setForeground(color);
+        label.setHorizontalAlignment(SwingConstants.LEFT);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
         return label;
+    }
+
+    private void alignStack() {
+        for (Component child : stack.getComponents()) {
+            if (child instanceof JComponent) {
+                ((JComponent) child).setAlignmentX(Component.LEFT_ALIGNMENT);
+            }
+        }
+    }
+
+    private void relayout() {
+        alignStack();
+        revalidate();
+        repaint();
+        Container parent = getParent();
+        if (parent instanceof JComponent) {
+            parent.invalidate();
+            parent.revalidate();
+            parent.repaint();
+        }
     }
 
     private void runLater(Runnable task) {
