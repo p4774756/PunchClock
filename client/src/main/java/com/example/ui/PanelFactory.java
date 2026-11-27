@@ -1425,7 +1425,7 @@ public class PanelFactory {
         refs.urlCombo.setPrototypeDisplayValue("https://www.msn.com/zh-tw");
         refs.buttonIdCombo = RecentValuesHelper.createCombo(
                 fieldFont, "finance",
-                "要點擊的按鈕 CSS Selector 或 id；已啟用槽位使用啟用當下鎖定的值");
+                "要點擊的按鈕 ID 或 CSS 選擇器；已啟用槽位使用啟用當下鎖定的值");
         CandyComboBox.dress(refs.buttonIdCombo);
         refs.buttonIdCombo.setPrototypeDisplayValue("#finance");
         refs.browserCombo = new JComboBox<>(TaskEditDialog.BROWSER_OPTIONS);
@@ -1555,7 +1555,7 @@ public class PanelFactory {
 
         refs.enabledCheckBox = new CandyCheckBox("啟用", true);
         refs.enabledCheckBox.setFont(boldFont);
-        refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分與目標網址／Selector；取消勾選後才能修改時間");
+        refs.enabledCheckBox.setToolTipText("勾選後開始自動排程，並鎖定時分與目標網址／ID；取消勾選後才能修改時間");
 
         String[] hours = new String[24];
         for (int i = 0; i < 24; i++) hours[i] = String.format("%02d", i);
@@ -2188,7 +2188,7 @@ public class PanelFactory {
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
     }
 
-    /** Selector、瀏覽器、立即執行各佔一列，380px 內看得到也能點。 */
+    /** ID、瀏覽器、立即執行各佔一列，380px 內看得到也能點。 */
     private static JPanel selectorBrowserActionRow(
             Font labelFont, Font fieldFont,
             JComponent selectorField, JComboBox<?> browserCombo, JButton executeButton) {
@@ -2214,7 +2214,7 @@ public class PanelFactory {
         column.setOpaque(false);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
         column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(stackedField(labeled(labelFont, "Selector："), selectorField));
+        column.add(stackedField(labeled(labelFont, "ID："), selectorField));
         column.add(Box.createVerticalStrut(6));
         column.add(stackedField(labeled(labelFont, "瀏覽器："), browserCombo));
         column.add(Box.createVerticalStrut(6));

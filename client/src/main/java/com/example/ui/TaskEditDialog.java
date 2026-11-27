@@ -86,9 +86,9 @@ public class TaskEditDialog extends JDialog {
         dlgUrlField.setFont(dialogFieldFont);
         formPanel.add(dlgUrlField, gc);
 
-        // 按鈕 Selector
+        // 按鈕 ID
         gc.gridx = 0; gc.gridy = 2; gc.weightx = 0.0;
-        JLabel dlgBtnLabel = new JLabel("按鈕 Selector：");
+        JLabel dlgBtnLabel = new JLabel("按鈕 ID：");
         dlgBtnLabel.setFont(dialogFont);
         formPanel.add(dlgBtnLabel, gc);
 
@@ -210,7 +210,7 @@ public class TaskEditDialog extends JDialog {
 
             String newBtnId = dlgBtnField.getText().trim();
             if (newBtnId.isEmpty()) {
-                UiFonts.showWarning(this, "請輸入目標按鈕 Selector！", "提示");
+                UiFonts.showWarning(this, "請輸入目標按鈕 ID！", "提示");
                 return;
             }
 

@@ -24,7 +24,7 @@ import java.awt.event.FocusEvent;
 
 /**
  * 遊戲風格下拉。可套在既有的 {@link JComboBox} 上，不換掉資料模型與選取事件。
- * 帶「最近使用、可刪除」的網址／Selector 仍用原本的彈出清單，只換外皮。
+ * 帶「最近使用、可刪除」的網址／ID 仍用原本的彈出清單，只換外皮。
  */
 public final class CandyComboBox {
 

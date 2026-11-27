@@ -725,7 +725,7 @@
           '<div class="task-field"><dt>實際觸發</dt><dd class="time-actual">' + escapeHtml(actualTimeStr) + '</dd></div>' +
           '<div class="task-field"><dt>倒數</dt><dd class="task-countdown" data-status="' + escapeHtml(t.status || '') + '" data-actual-time="' + countdownAttr + '">' + escapeHtml(countdown) + '</dd></div>' +
           '<div class="task-field"><dt>網址</dt><dd class="task-url" title="' + escapeHtml(t.targetUrl || '') + '">' + escapeHtml(t.targetUrl || '-') + '</dd></div>' +
-          '<div class="task-field"><dt>Selector</dt><dd class="task-sel">' + escapeHtml(t.buttonId || '-') + '</dd></div>' +
+          '<div class="task-field"><dt>ID</dt><dd class="task-sel">' + escapeHtml(t.buttonId || '-') + '</dd></div>' +
         '</dl>' +
       '</article>';
     }

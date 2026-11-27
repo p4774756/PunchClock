@@ -95,7 +95,7 @@ public final class UiFonts {
         return new Font(Font.SANS_SERIF, style, size);
     }
 
-    /** URL、Selector、網路測試等以 ASCII 為主的文字 */
+    /** URL、ID、網路測試等以 ASCII 為主的文字 */
     public static Font latinPlain(int size) {
         return new Font(Font.SANS_SERIF, Font.PLAIN, size);
     }
