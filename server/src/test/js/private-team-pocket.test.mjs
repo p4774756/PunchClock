@@ -40,3 +40,9 @@ test('LCD 為 160×144', () => {
   assert.equal(POCKET_LCD_W, 160);
   assert.equal(POCKET_LCD_H, 144);
 });
+
+test('LCD 繪製小瑪莉外圈', () => {
+  const lcd = readFileSync(join(publicRoot, 'js/private-team-pocket-lcd.js'), 'utf8');
+  assert.match(lcd, /drawPocketMaryLcd/);
+  assert.match(lcd, /POCKET_MARY_RING_LEN/);
+});

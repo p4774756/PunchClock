@@ -1,5 +1,5 @@
 import * as THREE from './vendor/three.module.js';
-import { POCKET_LCD_H, POCKET_LCD_W, drawPocketIdleLcd } from './private-team-pocket-lcd.js';
+import { POCKET_LCD_H, POCKET_LCD_W, drawPocketMaryPreviewLcd } from './private-team-pocket-lcd.js';
 
 export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
 export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typing-b.webp';
@@ -1245,7 +1245,7 @@ function makeHandheldPreviewLcdTexture() {
   canvas.width = POCKET_LCD_W;
   canvas.height = POCKET_LCD_H;
   const ctx = canvas.getContext('2d');
-  drawPocketIdleLcd(ctx, { chips: 100, frame: 0 });
+  drawPocketMaryPreviewLcd(ctx);
   const tex = new THREE.CanvasTexture(canvas);
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestFilter;

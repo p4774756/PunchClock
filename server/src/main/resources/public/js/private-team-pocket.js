@@ -10,7 +10,16 @@ import {
   writePocketChips,
   writePocketSoundEnabled
 } from './private-team-pocket-chips.js';
-import { POCKET_LCD_H, POCKET_LCD_W, drawPocketIdleLcd, makePocketLcdCanvas } from './private-team-pocket-lcd.js';
+import { POCKET_LCD_H, POCKET_LCD_W, drawPocketMaryLcd, makePocketLcdCanvas } from './private-team-pocket-lcd.js';
+import {
+  MARY_PHASE,
+  createMaryState,
+  maryAdvanceSpin,
+  maryApplyBetButton,
+  maryBeginSpin,
+  maryCollectWin,
+  maryTotalBet
+} from './private-team-pocket-mary.js';
 
 export const POCKET_BTN_KEYS = ['up', 'down', 'left', 'right', 'a', 'b', 'start', 'select'];
 
@@ -63,6 +72,9 @@ export function wireGameBoyModal(opts) {
   let animTimer = 0;
   let chipsKey = '';
   let soundKey = '';
+  let mary = createMaryState(0);
+  let spinRaf = 0;
+  let spinClock = () => Date.now();
 
   function syncStorageKeys() {
     const label = pocketUserLabel(win);
@@ -73,9 +85,13 @@ export function wireGameBoyModal(opts) {
   function loadChips() {
     syncStorageKeys();
     chips = readPocketChips(win.localStorage, chipsKey);
+    mary = createMaryState(chips);
+    mary.credit = chips;
   }
 
   function saveChips() {
+    const c = Math.max(0, Math.floor(mary.credit));
+    chips = c;
     writePocketChips(win.localStorage, chipsKey, chips);
   }
 
@@ -92,15 +108,17 @@ export function wireGameBoyModal(opts) {
   }
 
   function paintChipReadout() {
-    if (chipReadout) chipReadout.textContent = '籌碼 ' + chips;
-    if (refillBtn) refillBtn.hidden = chips > 0;
+    const c = Math.max(0, Math.floor(mary.credit));
+    if (chipReadout) chipReadout.textContent = '籌碼 ' + c;
+    if (refillBtn) refillBtn.hidden = c > 0;
   }
 
   function paintLcd() {
     if (!lcdCanvas) return;
     const ctx = lcdCanvas.getContext('2d');
     if (!ctx) return;
-    drawPocketIdleLcd(ctx, { chips, pressedKeys, frame: animFrame });
+    mary.credit = Math.max(0, Math.floor(mary.credit));
+    drawPocketMaryLcd(ctx, mary, animFrame);
   }
 
   function setPressed(name, on) {
@@ -108,7 +126,6 @@ export function wireGameBoyModal(opts) {
     if (!key) return;
     if (on) pressedKeys[key] = true;
     else delete pressedKeys[key];
-    paintLcd();
     setBtnPressedClass(key, on);
   }
 
@@ -117,7 +134,7 @@ export function wireGameBoyModal(opts) {
     if (btn) btn.classList.toggle('is-pressed', !!on);
   }
 
-  function maybeBeep(btnName) {
+  function maybeBeep(kind) {
     if (!soundOn) return;
     try {
       const Ctx = win.AudioContext || win.webkitAudioContext;
@@ -125,29 +142,95 @@ export function wireGameBoyModal(opts) {
       const ac = new Ctx();
       const osc = ac.createOscillator();
       const gain = ac.createGain();
-      osc.frequency.value = btnName === 'start' ? 520 : 440;
+      const freq = kind === 'win' ? 620 : kind === 'spin' ? 280 : 440;
+      osc.frequency.value = freq;
       gain.gain.value = 0.04;
       osc.connect(gain);
       gain.connect(ac.destination);
+      const dur = kind === 'spin' ? 0.03 : 0.05;
       osc.start();
-      osc.stop(ac.currentTime + 0.05);
+      osc.stop(ac.currentTime + dur);
       osc.onended = () => ac.close();
     } catch (_e) {
       /* noop */
     }
   }
 
+  function stopSpinLoop() {
+    if (spinRaf) {
+      win.cancelAnimationFrame(spinRaf);
+      spinRaf = 0;
+    }
+  }
+
+  function spinLoop() {
+    if (!open || mary.phase !== MARY_PHASE.SPIN) {
+      stopSpinLoop();
+      return;
+    }
+    const now = spinClock();
+    const out = maryAdvanceSpin(mary, now);
+    mary = out.state;
+    if (out.settled) {
+      stopSpinLoop();
+      maybeBeep(mary.pendingWin > 0 ? 'win' : 'spin');
+      paintChipReadout();
+      paintLcd();
+      return;
+    }
+    if (out.again) {
+      maybeBeep('spin');
+    }
+    paintLcd();
+    spinRaf = win.requestAnimationFrame(spinLoop);
+  }
+
+  function beginStartSpin() {
+    const stop = Math.floor(Math.random() * 24);
+    const out = maryBeginSpin(mary, mary.credit, stop, spinClock());
+    if (!out.ok) return false;
+    mary = out.state;
+    saveChips();
+    paintChipReadout();
+    maybeBeep('spin');
+    stopSpinLoop();
+    spinRaf = win.requestAnimationFrame(spinLoop);
+    paintLcd();
+    return true;
+  }
+
   function activateButton(name) {
     setPressed(name, true);
-    maybeBeep(name);
-    if (name === 'start') {
-      const next = pocketChipsAfterStartRefill(chips);
-      if (next !== chips) {
+    const key = name == null ? '' : String(name);
+
+    if (key === 'start') {
+      if (mary.phase === MARY_PHASE.BET && maryTotalBet(mary) > 0) {
+        if (beginStartSpin()) {
+          win.clearTimeout(animTimer);
+          animTimer = win.setTimeout(() => setPressed(name, false), 120);
+          return;
+        }
+      }
+      if (mary.credit <= 0 && maryTotalBet(mary) <= 0) {
+        const next = pocketChipsAfterStartRefill(0);
+        mary.credit = next;
         chips = next;
         saveChips();
         paintChipReadout();
+        maybeBeep('spin');
       }
+    } else {
+      const out = maryApplyBetButton(mary, mary.credit, key);
+      mary = out.state;
+      if (out.credit !== mary.credit) {
+        mary.credit = out.credit;
+        saveChips();
+        paintChipReadout();
+      }
+      if (key === 'a' && mary.phase === MARY_PHASE.BET) maybeBeep('spin');
+      else maybeBeep('spin');
     }
+
     win.clearTimeout(animTimer);
     animTimer = win.setTimeout(() => setPressed(name, false), 120);
     paintLcd();
@@ -158,7 +241,7 @@ export function wireGameBoyModal(opts) {
     if (open) paintLcd();
   }
 
-  let tickId = win.setInterval(tickAnim, 400);
+  let tickId = win.setInterval(tickAnim, 200);
 
   function setOpen(next, meta) {
     const want = !!next;
@@ -176,6 +259,12 @@ export function wireGameBoyModal(opts) {
       const focusTarget = closeBtn || lcdCanvas;
       if (focusTarget && focusTarget.focus) focusTarget.focus({ preventScroll: true });
     } else {
+      stopSpinLoop();
+      if (mary.phase === MARY_PHASE.WIN && mary.pendingWin > 0) {
+        const collected = maryCollectWin(mary, mary.credit);
+        mary = collected.state;
+        saveChips();
+      }
       pressedKeys = {};
       POCKET_BTN_KEYS.forEach((k) => setBtnPressedClass(k, false));
       if (!meta || !meta.silent) {
@@ -195,7 +284,8 @@ export function wireGameBoyModal(opts) {
 
   function onRefillClick(ev) {
     ev.preventDefault();
-    chips = pocketChipsAfterStartRefill(0);
+    mary.credit = pocketChipsAfterStartRefill(0);
+    chips = mary.credit;
     saveChips();
     paintChipReadout();
     paintLcd();
@@ -252,6 +342,7 @@ export function wireGameBoyModal(opts) {
   doc.addEventListener('keyup', onKeyUp);
 
   function destroy() {
+    stopSpinLoop();
     win.clearInterval(tickId);
     doc.removeEventListener('keydown', onKeyDown);
     doc.removeEventListener('keyup', onKeyUp);
