@@ -23,7 +23,7 @@ test('拍手慶祝立繪存在且 WebP 體積符合同系列水準', () => {
   }
 });
 
-test('拍手立繪 alpha 檢查（含 624×768 與內部無破洞）', () => {
+test('拍手立繪 alpha 檢查（含 624×768 與白罩衫無破洞，髮隙透明除外）', () => {
   const py = process.env.PYTHON_BINARY?.trim() || 'python3';
   const script = join(repoRoot, 'scripts/fix_secretary_status_sprites.py');
   const r = spawnSync(py, [script, '--check'], {
