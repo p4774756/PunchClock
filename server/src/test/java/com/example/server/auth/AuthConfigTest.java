@@ -7,6 +7,7 @@ import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.fail;
 
 public class AuthConfigTest {
 
@@ -32,5 +33,38 @@ public class AuthConfigTest {
         AuthService a = new AuthService(AuthConfig.from(Map.of("ADMIN_PASSWORD", "alpha")));
         AuthService b = new AuthService(AuthConfig.from(Map.of("ADMIN_PASSWORD", "beta")));
         assertNotEquals(a.authCookieValue(), b.authCookieValue());
+    }
+
+    @Test
+    public void renderRejectsMissingOrDefaultSecrets() {
+        Map<String, String> missingAll = new HashMap<>();
+        missingAll.put("RENDER", "true");
+        try {
+            AuthConfig.from(missingAll);
+            fail("expected production guard");
+        } catch (IllegalStateException expected) {
+            // ok
+        }
+
+        Map<String, String> defaultAdmin = new HashMap<>();
+        defaultAdmin.put("RENDER", "true");
+        defaultAdmin.put("HEARTBEAT_SECRET", "prod-heartbeat-only");
+        try {
+            AuthConfig.from(defaultAdmin);
+            fail("expected default ADMIN_PASSWORD rejection");
+        } catch (IllegalStateException expected) {
+            // ok
+        }
+    }
+
+    @Test
+    public void renderAcceptsNonDefaultSecrets() {
+        Map<String, String> env = new HashMap<>();
+        env.put("RENDER", "true");
+        env.put("ADMIN_PASSWORD", "render-admin-pw");
+        env.put("HEARTBEAT_SECRET", "render-heartbeat-pw");
+        AuthConfig config = AuthConfig.from(env);
+        assertEquals("render-admin-pw", config.adminPassword());
+        assertEquals("render-heartbeat-pw", config.heartbeatSecret());
     }
 }

@@ -4,6 +4,7 @@ import com.example.BuildInfo;
 import com.example.ClientUpdatePolicy;
 import com.example.PeerFileRules;
 import com.example.server.auth.AuthConfig;
+import com.example.server.auth.AuthCookies;
 import com.example.server.auth.AuthService;
 import com.example.server.ClientRelease;
 import com.example.server.store.ClientReleaseService;
@@ -570,11 +571,11 @@ public final class ServerApp {
 
 
     private void setAuthCookie(Context ctx, String value) {
-        ctx.cookie("auth", value, 60 * 60 * 24);
+        AuthCookies.setAuthCookie(ctx, value, System.getenv());
     }
 
     private void clearAuthCookie(Context ctx) {
-        ctx.removeCookie("auth");
+        AuthCookies.clearAuthCookie(ctx, System.getenv());
     }
 
     private static String readResource(String path) {
