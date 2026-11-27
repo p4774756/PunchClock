@@ -152,7 +152,7 @@ public class SlotController {
         if (!isSharedSettingsReady() && config.workIn.enabled) {
             config.workIn.enabled = false;
             applySlotToUi(slotRefs.workIn, config.workIn);
-            appendLog.accept("[警告] 【" + slotLabel(WorkSlot.Kind.WORK_IN) + "】目標網址或 Selector 未設定，已取消「啟用」");
+            appendLog.accept("[警告] 【" + slotLabel(WorkSlot.Kind.WORK_IN) + "】目標網址或 ID 未設定，已取消「啟用」");
         }
         saveConfig();
 
@@ -411,7 +411,7 @@ public class SlotController {
     }
 
     private void showSharedSettingsRequiredMessage() {
-        UiFonts.showWarning(owner, "請先設定目標網址與 Selector！", "提示");
+        UiFonts.showWarning(owner, "請先設定目標網址與 ID！", "提示");
     }
 
     private void revertSlotEnable(WorkSlot.Kind kind) {
@@ -432,7 +432,7 @@ public class SlotController {
         slotRefs.executeNowButton.setEnabled(ready);
         slotRefs.executeNowButton.setToolTipText(ready
                 ? "使用上方共用設定立即測試，不會變更已啟用槽位的鎖定設定"
-                : "請先設定目標網址與 Selector");
+                : "請先設定目標網址與 ID");
     }
 
     /** 啟用當下將上方共用設定寫入該槽位任務（之後改共用欄位不會影響已啟用槽位） */
@@ -443,7 +443,7 @@ public class SlotController {
         }
         SlotScheduleHelper.applySharedSettings(task, config);
         appendLog.accept(String.format(
-                "[鎖定] 【%s】已鎖定網址：%s，Selector：%s",
+                "[鎖定] 【%s】已鎖定網址：%s，ID：%s",
                 slotLabel(kind), task.getTargetUrl(), task.getButtonId()));
     }
 
@@ -1151,7 +1151,7 @@ public class SlotController {
         String draftSelector = config.buttonId;
         StringBuilder tooltip = new StringBuilder();
         tooltip.append("網址：").append(url)
-                .append("\nSelector：").append(selector)
+                .append("\nID：").append(selector)
                 .append("\n瀏覽器：").append(browser);
         boolean draftDiffers = (draftUrl != null && !draftUrl.isBlank() && !draftUrl.equals(task.getTargetUrl()))
                 || (draftSelector != null && !draftSelector.isBlank() && !draftSelector.equals(task.getButtonId()));

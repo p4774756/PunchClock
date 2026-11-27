@@ -55,14 +55,14 @@ public class AutomationService {
 
             String selector = (buttonId == null) ? "" : buttonId.trim();
             if (selector.isEmpty()) {
-                log(logger, "[失敗] 未設定目標按鈕 Selector");
+                log(logger, "[失敗] 未設定目標按鈕 ID");
                 return false;
             }
             if (!(selector.startsWith("#") || selector.startsWith(".") || selector.contains("["))) {
                 selector = "#" + selector;
             }
 
-            log(logger, "等待目標按鈕出現（最多 " + (SELECTOR_TIMEOUT_MS / 1000) + " 秒，Selector: " + selector + "）...");
+            log(logger, "等待目標按鈕出現（最多 " + (SELECTOR_TIMEOUT_MS / 1000) + " 秒，ID: " + selector + "）...");
             try {
                 page.waitForSelectorVisible(selector, SELECTOR_TIMEOUT_MS);
             } catch (TimeoutError timeoutError) {
