@@ -2,6 +2,7 @@ package com.example.ui;
 
 import com.example.ChatProtocol;
 import com.example.PeerFileRules;
+import com.example.PeerGraffiti;
 import com.example.service.PeerAvatar;
 import com.example.service.PeerChatStore;
 import com.example.service.PeerImage;
@@ -94,6 +95,7 @@ public class PeerChatWindow extends JFrame {
     private final JTextArea input;
     private final JButton sendButton;
     private final JButton attachButton;
+    private final JButton graffitiButton;
     private final JButton clearImageButton;
     private final JButton clearFilesButton;
     private final JPanel imageThumbs;
@@ -288,6 +290,10 @@ public class PeerChatWindow extends JFrame {
         attachButton.setFont(plain);
         attachButton.setToolTipText("選檔案、資料夾或圖片（可多選）。純圖片會跟文字一起送出；其餘先列在這裡，按傳送才送出");
         attachButton.addActionListener(e -> chooseAttach());
+        graffitiButton = new CandyButton("塗鴉", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        graffitiButton.setFont(plain);
+        graffitiButton.setToolTipText("開啟迷你畫板，手繪塗鴉直接送出或包成卡片");
+        graffitiButton.addActionListener(e -> openGraffitiBoard());
         sendButton = new CandyButton("傳送", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
         sendButton.setFont(bold);
         sendButton.addActionListener(e -> send());
@@ -295,14 +301,18 @@ public class PeerChatWindow extends JFrame {
         attachButton.setPreferredSize(actionBtn);
         attachButton.setMinimumSize(actionBtn);
         attachButton.setMaximumSize(new Dimension(52, Integer.MAX_VALUE));
+        graffitiButton.setPreferredSize(actionBtn);
+        graffitiButton.setMinimumSize(actionBtn);
+        graffitiButton.setMaximumSize(new Dimension(52, Integer.MAX_VALUE));
         sendButton.setPreferredSize(actionBtn);
         sendButton.setMinimumSize(actionBtn);
         sendButton.setMaximumSize(new Dimension(52, Integer.MAX_VALUE));
 
-        JPanel composeActions = new JPanel(new GridLayout(2, 1, 0, 4));
+        JPanel composeActions = new JPanel(new GridLayout(textOnly ? 1 : 3, 1, 0, 4));
         composeActions.setOpaque(false);
         if (!textOnly) {
             composeActions.add(attachButton);
+            composeActions.add(graffitiButton);
         }
         composeActions.add(sendButton);
 
@@ -457,6 +467,7 @@ public class PeerChatWindow extends JFrame {
         boolean extras = canType && !textOnly;
         boolean canClear = interactionEnabled && !readOnly && !textOnly;
         attachButton.setEnabled(extras && !fileBusy);
+        graffitiButton.setEnabled(extras && !sending);
         clearImageButton.setEnabled(canClear && !attachedImages.isEmpty());
         clearFilesButton.setEnabled(canClear && !pendingFiles.isEmpty());
     }
@@ -535,6 +546,25 @@ public class PeerChatWindow extends JFrame {
                     defaultPaste.actionPerformed(e);
                 }
             }
+        });
+    }
+
+    private void openGraffitiBoard() {
+        if (!canCompose() || sending || !host.canSend(peerId)) {
+            return;
+        }
+        PeerGraffitiDialog.showModal(this, (mode, imageEncoded) -> {
+            if (imageEncoded == null || imageEncoded.isBlank()) {
+                return;
+            }
+            String text = PeerGraffiti.messageText(mode);
+            sending = true;
+            refreshEnabled();
+            host.sendMessage(peerId, text, imageEncoded, ok -> SwingUtilities.invokeLater(() -> {
+                sending = false;
+                refreshEnabled();
+                input.requestFocusInWindow();
+            }));
         });
     }
 

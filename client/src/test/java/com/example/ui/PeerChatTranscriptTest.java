@@ -1,5 +1,6 @@
 package com.example.ui;
 
+import com.example.PeerGraffiti;
 import com.example.service.PeerChatStore;
 import com.example.service.PeerImage;
 import org.junit.Test;
@@ -66,6 +67,23 @@ public class PeerChatTranscriptTest {
             assertEquals("alice", PeerChatTranscript.sourceLabel(store.addNote("alice", "對方傳來「b.txt」", 5_000L), "alice"));
             assertEquals("", PeerChatTranscript.sourceLabel(store.addNote("alice", "訊息沒有送出", 6_000L), "alice"));
             assertEquals("已直傳「a.txt」", t.bodyOf("已直傳"));
+        });
+    }
+
+    @Test
+    public void graffitiDirectSkipsTagText() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            PeerChatStore store = new PeerChatStore();
+            PeerChatTranscript t = new PeerChatTranscript("alice", "SansSerif", 13);
+            String encoded;
+            try {
+                encoded = PeerImage.encode(new BufferedImage(40, 30, BufferedImage.TYPE_INT_RGB));
+            } catch (java.io.IOException ex) {
+                throw new RuntimeException(ex);
+            }
+            t.append(store.addMessage("alice", false, PeerGraffiti.TAG_DIRECT, encoded, 1_000L));
+            assertEquals("", t.bodyOf(PeerGraffiti.TAG_DIRECT));
+            assertTrue(hasIcon(t));
         });
     }
 

@@ -1,6 +1,7 @@
 package com.example.ui;
 
 import com.example.ChatProtocol;
+import com.example.PeerGraffiti;
 import com.example.service.PeerChatStore;
 import com.example.service.PeerImage;
 
@@ -484,7 +485,12 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
                 panel.add(body, BorderLayout.CENTER);
             }
             if (entry.hasImage()) {
-                panel.add(images(entry.imageEncoded), BorderLayout.SOUTH);
+                PeerGraffiti.Mode graffiti = PeerGraffiti.modeOf(entry.text);
+                if (graffiti != null) {
+                    panel.add(graffitiImages(entry.imageEncoded, graffiti), BorderLayout.SOUTH);
+                } else {
+                    panel.add(images(entry.imageEncoded), BorderLayout.SOUTH);
+                }
             }
             return panel;
         }
@@ -501,7 +507,8 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
         }
 
         private JTextArea buildBody() {
-            if (entry.kind == PeerChatStore.Kind.POKE || entry.text == null || entry.text.isEmpty()) {
+            if (entry.kind == PeerChatStore.Kind.POKE || entry.text == null || entry.text.isEmpty()
+                    || PeerGraffiti.isTagOnly(entry.text)) {
                 return null;
             }
             JTextArea area = new JTextArea(entry.text);
@@ -521,6 +528,76 @@ public class PeerChatTranscript extends JPanel implements Scrollable {
             area.setTabSize(4);
             area.setBorder(new EmptyBorder(4, 6, 4, 6));
             return area;
+        }
+
+        private JComponent graffitiImages(String encodedField, PeerGraffiti.Mode mode) {
+            if (mode == PeerGraffiti.Mode.DIRECT) {
+                return graffitiPicture(encodedField, false);
+            }
+            JPanel stack = new JPanel(new java.awt.CardLayout());
+            stack.setOpaque(false);
+            stack.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
+            stack.add(buildGraffitiSealedCard(stack), "sealed");
+            stack.add(graffitiPicture(encodedField, true), "open");
+            return stack;
+        }
+
+        private JComponent buildGraffitiSealedCard(JPanel stack) {
+            JPanel card = new JPanel(new BorderLayout());
+            card.setOpaque(true);
+            card.setBackground(ClassicBevel.FACE);
+            card.setBorder(javax.swing.BorderFactory.createCompoundBorder(
+                    javax.swing.BorderFactory.createLineBorder(ClassicBevel.DARK),
+                    new EmptyBorder(10, 12, 10, 12)));
+            card.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
+            JLabel label = plainLabel(PeerGraffiti.cardLabel(entry.outgoing), bodyFont, CandyTheme.INK);
+            label.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            card.add(label, BorderLayout.CENTER);
+            MouseAdapter open = new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    java.awt.LayoutManager lm = stack.getLayout();
+                    if (lm instanceof java.awt.CardLayout) {
+                        ((java.awt.CardLayout) lm).show(stack, "open");
+                    }
+                }
+            };
+            card.addMouseListener(open);
+            label.addMouseListener(open);
+            return card;
+        }
+
+        private JComponent graffitiPicture(String encodedField, boolean fromCard) {
+            JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+            row.setOpaque(false);
+            row.putClientProperty(CandyPanel.MARK, Boolean.TRUE);
+            List<String> images = ChatProtocol.splitPeerImages(encodedField);
+            if (images == null || images.isEmpty()) {
+                row.add(plainLabel("（圖片無法顯示）", bodyFont, CandyTheme.MUTED));
+                return row;
+            }
+            String encoded = images.get(0);
+            BufferedImage thumb = PeerImage.decodeThumbnail(encoded, THUMB_EDGE);
+            if (thumb == null) {
+                row.add(plainLabel("（圖片無法顯示）", bodyFont, CandyTheme.MUTED));
+                return row;
+            }
+            JLabel icon = new JLabel(new ImageIcon(thumb));
+            icon.setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+            icon.setToolTipText(fromCard ? "點一下放大" : "點一下放大");
+            icon.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    if (imageViewer != null) {
+                        BufferedImage full = PeerImage.decode(encoded);
+                        if (full != null) {
+                            imageViewer.accept(full);
+                        }
+                    }
+                }
+            });
+            row.add(icon);
+            return row;
         }
 
         private JComponent images(String encodedField) {
