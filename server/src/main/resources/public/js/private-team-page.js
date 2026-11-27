@@ -266,8 +266,8 @@ export function mountPrivateTeamPage(opts) {
       taskHudMarkup() +
       '</div>' +
       '<div class="pt-hud-br">' +
-      '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App">' + DL_SVG +
-      '<span class="pt-hud-dl-label">下載 App</span></button></div>' +
+      '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App" title="下載 App">' + DL_SVG +
+      '</button></div>' +
       '<p class="pt-hud-deploy-ver" data-pt-deploy-ver hidden aria-hidden="true"></p>';
     stage.appendChild(hud);
   }

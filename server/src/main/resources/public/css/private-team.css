@@ -256,20 +256,6 @@ button.pt-hud-download {
   height: 22px;
 }
 
-.pt-hud-dl-label {
-  position: absolute;
-  top: auto;
-  bottom: calc(100% + 4px);
-  right: 0;
-  font-size: 0.7rem;
-  font-weight: 800;
-  color: var(--maple-white, #f8fbff);
-  background: var(--maple-blue, #3a7ac4);
-  border: 2px solid var(--maple-navy, #163a70);
-  border-radius: 4px;
-  padding: 0.05rem 0.35rem;
-  white-space: nowrap;
-}
 
 /* ---- 構想 A：左上秘書角色框 + 右上身分名牌 ---- */
 .pt-hud-task {
