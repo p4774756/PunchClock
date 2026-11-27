@@ -1,4 +1,5 @@
 import * as THREE from './vendor/three.module.js';
+import { POCKET_LCD_H, POCKET_LCD_W, drawPocketIdleLcd } from './private-team-pocket-lcd.js';
 
 export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
 export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typing-b.webp';
@@ -1202,6 +1203,58 @@ function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
   return { painter, screenGlow, group, bezel };
 }
 
+function makeHandheldPreviewLcdTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = POCKET_LCD_W;
+  canvas.height = POCKET_LCD_H;
+  const ctx = canvas.getContext('2d');
+  drawPocketIdleLcd(ctx, { chips: 100, frame: 0 });
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.magFilter = THREE.NearestFilter;
+  tex.minFilter = THREE.NearestFilter;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+/** 窗台掌機（馬克杯右側立放）。 */
+function addWindowSillHandheld(root, sillY, sillZ, mugX) {
+  const group = new THREE.Group();
+  group.userData.pickRole = 'handheld';
+  const gx = mugX + 0.13;
+  group.position.set(gx, sillY + 0.055, sillZ + 0.04);
+  group.rotation.y = -0.42;
+
+  const bodyMat = new THREE.MeshLambertMaterial({ color: 0xb4c870 });
+  const body = box(0.052, 0.092, 0.026, bodyMat);
+  body.name = 'windowSillHandheldBody';
+  group.add(body);
+
+  const lcdTex = makeHandheldPreviewLcdTexture();
+  const screenMat = new THREE.MeshBasicMaterial({
+    map: lcdTex,
+    toneMapped: false
+  });
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.044, 0.04), screenMat);
+  screen.position.set(0, 0.018, 0.014);
+  screen.name = 'windowSillHandheldScreen';
+  group.add(screen);
+
+  const lens = box(0.008, 0.008, 0.004, 0x302018, true);
+  lens.position.set(-0.014, -0.028, 0.014);
+  lens.name = 'windowSillHandheldLens';
+  group.add(lens);
+
+  const glow = new THREE.PointLight(0x5ec87a, 0.18, 0.42, 2);
+  glow.position.set(0, 0.02, 0.03);
+  glow.name = 'windowSillHandheldGlow';
+  group.add(glow);
+
+  group.name = 'windowSillHandheld';
+  root.add(group);
+  return { group, body, screen, glow };
+}
+
 function addLowPolyPlant(root, x, z) {
   const pot = cyl(0.09, 0.075, 0.11, 10, COL.pot);
   pot.position.set(x, 0.055, z);
@@ -1791,6 +1844,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
   root.add(windowSillMugSteam);
 
+  const windowSillHandheld = addWindowSillHandheld(root, sillY, sillZ, sillMugX);
+
   const moonTex = makeWindowMoonlightFloorTexture();
   moonTex.repeat.set(1.1, 1);
   const moonFloorMat = new THREE.MeshBasicMaterial({
@@ -2186,7 +2241,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   bubble.userData.pickRole = 'secretary';
   root.add(bubble);
 
-  const clickables = [bubble];
+  const clickables = [bubble, windowSillHandheld.group];
   for (let mi = 0; mi < monitors.length; mi++) {
     clickables.push(monitors[mi].group);
   }
@@ -2196,6 +2251,19 @@ export function mountPrivateTeamScene(canvas, opts) {
   let sceneInputEnabled = true;
   let monitorHovered = false;
   let monitorHighlightUntil = 0;
+  let handheldHovered = false;
+  let handheldHighlightUntil = 0;
+
+  function applyHandheldHighlight(hovered, tapMs) {
+    handheldHovered = !!hovered;
+    if (tapMs) handheldHighlightUntil = tapMs;
+    const body = windowSillHandheld.body;
+    const mat = body && body.material;
+    if (!mat || !mat.emissive) return;
+    const on = handheldHovered || performance.now() < handheldHighlightUntil;
+    mat.emissive.setHex(on ? 0x4a8a48 : 0x000000);
+    mat.emissiveIntensity = on ? 0.35 : 0;
+  }
 
   function applyMonitorHighlight(hovered, tapMs) {
     monitorHovered = !!hovered;
@@ -2270,6 +2338,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (!target) return;
     if (target === 'secretary') playSecretaryWave();
     if (target === 'monitor') applyMonitorHighlight(true, performance.now() + 240);
+    if (target === 'handheld') applyHandheldHighlight(true, performance.now() + 280);
     if (onActivate) onActivate(target);
   }
 
@@ -2357,6 +2426,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (!sceneInputEnabled) {
         canvas.style.cursor = '';
         applyMonitorHighlight(false);
+        applyHandheldHighlight(false);
         setMonitorBezelHighlight(false);
       }
       return;
@@ -2364,7 +2434,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     const hover = pickTarget(clientX, clientY);
     canvas.style.cursor = hover ? 'pointer' : '';
     const mon = hover === 'monitor';
+    const hand = hover === 'handheld';
     applyMonitorHighlight(mon);
+    applyHandheldHighlight(hand);
+    if (hand && !mon) {
+      canvas.style.cursor = 'pointer';
+    }
     setMonitorBezelHighlight(mon || monitorHighlightActive(performance.now()));
   }
 

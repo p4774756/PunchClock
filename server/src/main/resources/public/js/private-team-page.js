@@ -1,4 +1,5 @@
 import { wireHomeLoginModal } from './home-login-modal.js';
+import { wireGameBoyModal } from './private-team-pocket.js';
 import { mountPrivateTeamScene } from './private-team-scene.js';
 import {
   bubbleTextForStatus,
@@ -485,15 +486,23 @@ export function mountPrivateTeamPage(opts) {
       if (openTasks) openTasks();
       return;
     }
+    if (target === 'handheld') {
+      closeStatusCard();
+      closeAuthMenu();
+      pocketModal.open(canvas);
+      return;
+    }
     openStatusCard();
   }
 
   let tasksOpen = false;
   let downloadOpen = false;
+  let pocketOpen = false;
 
   function syncSceneOverlay() {
-    const sceneBlocked = tasksOpen || downloadOpen;
+    const sceneBlocked = tasksOpen || downloadOpen || pocketOpen;
     stage.classList.toggle('pt-roadmap-open', sceneBlocked);
+    stage.classList.toggle('pt-pocket-open', pocketOpen);
     scene.setSceneInputEnabled(!sceneBlocked && !loginOpen);
   }
 
@@ -528,6 +537,21 @@ export function mountPrivateTeamPage(opts) {
   scene.setBubbleText(bubbleLabel());
   refreshCanvasA11y();
 
+  const pocketModal = wireGameBoyModal({
+    doc,
+    win,
+    officeModal,
+    onOpenChange: (open) => {
+      pocketOpen = !!open;
+      syncSceneOverlay();
+      if (open) {
+        closeStatusCard();
+        closeAuthMenu();
+        loginModal.close({ fromManager: true, silent: true });
+      }
+    }
+  });
+
   loginModal = wireHomeLoginModal({
     doc,
     win,
@@ -537,7 +561,7 @@ export function mountPrivateTeamPage(opts) {
     onOpenChange: (open) => {
       loginOpen = !!open;
       stage.classList.toggle('pt-login-open', loginOpen);
-      scene.setSceneInputEnabled(!loginOpen && !tasksOpen && !downloadOpen);
+      scene.setSceneInputEnabled(!loginOpen && !tasksOpen && !downloadOpen && !pocketOpen);
       if (loginOpen) {
         closeStatusCard();
         closeAuthMenu();
@@ -595,6 +619,11 @@ export function mountPrivateTeamPage(opts) {
 
   function onKeyDown(ev) {
     if (ev.key === 'Escape') {
+      if (pocketOpen) {
+        ev.preventDefault();
+        pocketModal.close();
+        return;
+      }
       if (tasksOpen) {
         ev.preventDefault();
         if (closeTasks) closeTasks();
@@ -619,6 +648,7 @@ export function mountPrivateTeamPage(opts) {
     if (
       !tasksOpen &&
       !downloadOpen &&
+      !pocketOpen &&
       !cardOpen &&
       (ev.key === 'Enter' || ev.key === ' ') &&
       ev.target === canvas

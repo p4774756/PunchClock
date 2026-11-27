@@ -82,6 +82,38 @@
       </div>
     </div>
   </section>
+  <section id="pocketBoard" class="roadmap-board pt-pocket-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="pocket-board-title">
+    <div class="pt-pocket-shell">
+      <h2 id="pocket-board-title" class="pt-pocket-sr">Game Boy 掌機</h2>
+      <button type="button" class="pt-pocket-close" data-pocket-close aria-label="關閉掌機">×</button>
+      <div class="pt-pocket-device">
+        <div class="pt-pocket-screen-wrap" data-pocket-lcd-wrap>
+          <canvas class="pt-pocket-lcd" data-pocket-lcd width="160" height="144" aria-label="掌機 LCD"></canvas>
+        </div>
+        <div class="pt-pocket-meta">
+          <p class="pt-pocket-chips" data-pocket-chips>籌碼 100</p>
+          <button type="button" class="pt-pocket-refill" data-pocket-refill hidden>免費補幣</button>
+          <button type="button" class="pt-pocket-sound" data-pocket-sound aria-pressed="false">音效關</button>
+        </div>
+        <div class="pt-pocket-controls" aria-label="掌機按鍵">
+          <div class="pt-pocket-dpad" aria-label="十字鍵">
+            <button type="button" class="pt-pocket-btn pt-pocket-up" data-pocket-btn="up" aria-label="上">▲</button>
+            <button type="button" class="pt-pocket-btn pt-pocket-left" data-pocket-btn="left" aria-label="左">◀</button>
+            <button type="button" class="pt-pocket-btn pt-pocket-right" data-pocket-btn="right" aria-label="右">▶</button>
+            <button type="button" class="pt-pocket-btn pt-pocket-down" data-pocket-btn="down" aria-label="下">▼</button>
+          </div>
+          <div class="pt-pocket-ab">
+            <button type="button" class="pt-pocket-btn pt-pocket-a" data-pocket-btn="a" aria-label="A">A</button>
+            <button type="button" class="pt-pocket-btn pt-pocket-b" data-pocket-btn="b" aria-label="B">B</button>
+          </div>
+          <div class="pt-pocket-startsel">
+            <button type="button" class="pt-pocket-btn pt-pocket-select" data-pocket-btn="select" aria-label="Select">SELECT</button>
+            <button type="button" class="pt-pocket-btn pt-pocket-start" data-pocket-btn="start" aria-label="Start">START</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
   <section id="downloadBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="下載桌面端">
     <div class="roadmap-panel maple-window home-download-panel">
       <header class="maple-win-title roadmap-win-head">
