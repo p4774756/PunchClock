@@ -21,6 +21,8 @@ import java.awt.FlowLayout;
 import java.awt.Frame;
 import java.awt.Graphics2D;
 import java.awt.GridLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -69,6 +71,7 @@ public final class PeerGraffitiDialog extends JDialog {
         add(title, BorderLayout.NORTH);
 
         board = new PeerGraffitiBoard();
+        attachSendRefreshOnInk(board, this::refreshSendEnabled);
         JPanel canvasWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
         canvasWrap.setBorder(new EmptyBorder(8, 12, 0, 12));
         canvasWrap.setOpaque(false);
@@ -227,6 +230,15 @@ public final class PeerGraffitiDialog extends JDialog {
         }
     }
 
+    static void attachSendRefreshOnInk(PeerGraffitiBoard board, Runnable onInkChange) {
+        board.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                onInkChange.run();
+            }
+        });
+    }
+
     JButton swatchButton(Color color) {
         JButton btn = new JButton() {
             @Override
@@ -289,4 +301,5 @@ public final class PeerGraffitiDialog extends JDialog {
     static PeerGraffitiBoard exposeBoardForTest(PeerGraffitiDialog dialog) {
         return dialog.board;
     }
+
 }

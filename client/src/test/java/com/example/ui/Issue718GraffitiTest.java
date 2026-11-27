@@ -24,6 +24,21 @@ public class Issue718GraffitiTest {
     private static final Path OUT_DIR = Paths.get("target", "issue-718-verify");
 
     @Test
+    public void dialogSendEnabledAfterStroke() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            PeerGraffitiBoard board = new PeerGraffitiBoard();
+            javax.swing.JButton send = new javax.swing.JButton("送出");
+            send.setEnabled(false);
+            PeerGraffitiDialog.attachSendRefreshOnInk(board, () -> send.setEnabled(board.hasInk()));
+            board.setBrushColor(Color.BLACK);
+            board.setBrushSizeIndex(1);
+            simulateStroke(board, 10, 10, 80, 60);
+            assertTrue(board.hasInk());
+            assertTrue(send.isEnabled());
+        });
+    }
+
+    @Test
     public void miniBoardRendersFramedPreview() throws Exception {
         Files.createDirectories(OUT_DIR);
         SwingUtilities.invokeAndWait(() -> {
