@@ -3,7 +3,9 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadPublicModule } from './load-public-module.mjs';
+import { loadPublicModule, readPrivateTeamSceneBundle } from './load-public-module.mjs';
+
+const sceneSrc = readPrivateTeamSceneBundle();
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 const { privateTeamSceneLighting, PRIVATE_TEAM_TRAY_SURFACE_Y, PRIVATE_TEAM_WATER_Y } =
@@ -23,7 +25,7 @@ test('privateTeamSceneLighting 夜晚暖光檯燈', () => {
 });
 
 test('首頁秘書場景已移除名牌、泡泡錨點下移', () => {
-  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  const src = sceneSrc;
   assert.doesNotMatch(src, /labelTexture/);
   assert.doesNotMatch(src, /namePlate|nameStand/);
   assert.match(src, /bubbleFloatMin = 1\.68/);
@@ -34,7 +36,7 @@ test('下沉浴缸、托盤與單螢幕支架', () => {
   assert.ok(PRIVATE_TEAM_TRAY_SURFACE_Y > 0.45 && PRIVATE_TEAM_TRAY_SURFACE_Y < 0.52);
   assert.ok(PRIVATE_TEAM_WATER_Y < PRIVATE_TEAM_TRAY_SURFACE_Y);
   assert.ok(PRIVATE_TEAM_WATER_Y > 0.4 && PRIVATE_TEAM_WATER_Y < 0.5);
-  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  const src = sceneSrc;
   assert.match(src, /bathtubWater/);
   assert.match(src, /bathtubRim/);
   assert.match(src, /bathtubFront/);

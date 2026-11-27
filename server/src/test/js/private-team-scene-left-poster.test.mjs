@@ -3,11 +3,11 @@ import test from 'node:test';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadPublicModule } from './load-public-module.mjs';
+import { loadPublicModule, readPrivateTeamSceneBundle } from './load-public-module.mjs';
 
 const testDir = dirname(fileURLToPath(import.meta.url));
 const publicRoot = join(testDir, '../../main/resources/public');
-const scenePath = join(publicRoot, 'js/private-team-scene.js');
+const sceneSrc = readPrivateTeamSceneBundle();
 const posterDir = join(publicRoot, 'assets/private-team/posters');
 
 const {
@@ -42,7 +42,7 @@ test('左牆海報靜態資源與場景掛載', () => {
     const rel = url.replace('/assets/', 'assets/');
     assert.ok(existsSync(join(publicRoot, rel)), url);
   }
-  const src = readFileSync(scenePath, 'utf8');
+  const src = sceneSrc;
   assert.match(src, /leftWallPoster/);
   assert.match(src, /pickRole = 'leftPoster'/);
   assert.match(src, /applyLeftPosterHighlight/);

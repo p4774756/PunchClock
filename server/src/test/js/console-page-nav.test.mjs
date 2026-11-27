@@ -3,6 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readPrivateTeamSceneBundle } from './load-public-module.mjs';
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 
@@ -56,7 +57,7 @@ test('首頁 HUD 楓之谷角色框', () => {
 });
 
 test('首頁不再掛施工進度與新聞彈窗', () => {
-  const sceneJs = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  const sceneJs = readPrivateTeamSceneBundle();
   const officeJs = readFileSync(join(publicRoot, 'js/office-page.js'), 'utf8');
   const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
   assert.doesNotMatch(sceneJs, /progMesh\.name = 'progressBoard'/);

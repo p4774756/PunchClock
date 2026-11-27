@@ -3,7 +3,9 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadPublicModule } from './load-public-module.mjs';
+import { loadPublicModule, readPrivateTeamSceneBundle } from './load-public-module.mjs';
+
+const sceneSrc = readPrivateTeamSceneBundle();
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 const {
@@ -58,7 +60,7 @@ test('今日完成差量鍵', () => {
 });
 
 test('場景含揮手與比耶素材鍵', () => {
-  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  const src = sceneSrc;
   assert.match(src, /SECRETARY_SPRITE_URL_WAVE/);
   assert.match(src, /playSecretaryWave/);
   assert.match(src, /playSecretaryYeah/);
@@ -137,7 +139,7 @@ test('慶祝小跳高點時間軸與 jumpOffset、換貼圖保留 Y', () => {
   assert.ok(secretaryCelebrateJumpOffsetAt(1925) > 0.05);
   assert.equal(secretaryCelebrateStateAt(1699).kind, 'frame');
   assert.equal(secretaryCelebrateJumpOffsetAt(1699), 0);
-  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  const src = sceneSrc;
   assert.match(src, /dancePlayback\.jumpOffset != null/);
   const retexture = src.slice(
     src.indexOf('function retextureSecretarySprite'),
@@ -170,7 +172,7 @@ test('待命閒置起舞條件', () => {
     shouldTriggerIdleStandbyDance({ ...base, lastIdleDanceMs: now - 2 * 60 * 1000 }),
     false
   );
-  const src = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  const src = sceneSrc;
   assert.match(src, /playSecretaryDance/);
   assert.match(src, /secretary-clap-/);
   assert.match(src, /preloadSecretaryCelebrateFrames/);
