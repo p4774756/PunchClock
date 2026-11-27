@@ -1,6 +1,7 @@
 package com.example.server;
 
 import com.example.server.auth.AuthConfig;
+import com.example.server.auth.AuthCookies;
 import com.example.server.auth.AuthService;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.RoadmapService;
@@ -99,7 +100,7 @@ public final class AdminTestServer {
     private static void loginPost(Context ctx, AuthService authService) {
         String password = ctx.formParam("password");
         if (authService.checkAdminPassword(password)) {
-            ctx.cookie("auth", authService.authCookieValue(), 60 * 60 * 24);
+            AuthCookies.setAuthCookie(ctx, authService.authCookieValue(), Map.of());
             ctx.redirect("/");
             return;
         }
