@@ -58,11 +58,11 @@ test('拖曳門檻：6px 內仍視為點擊', () => {
 test('拖曳偏航隨畫布寬度換算且受上限約束', () => {
   const w = 400;
   const halfDrag = privateTeamYawFromDragDelta(w / 2, w, 0);
-  assert.ok(Math.abs(halfDrag - YAW_MAX_RAD) < 1e-6);
+  assert.ok(Math.abs(halfDrag + YAW_MAX_RAD) < 1e-6);
   const over = privateTeamYawFromDragDelta(w * 2, w, 0);
-  assert.ok(Math.abs(over - YAW_MAX_RAD) < 1e-6);
+  assert.ok(Math.abs(over + YAW_MAX_RAD) < 1e-6);
   const narrowHalf = privateTeamYawFromDragDelta(w / 2, w, 0, 844);
-  assert.ok(Math.abs(narrowHalf - NARROW_YAW_MAX_RAD) < 1e-5);
+  assert.ok(Math.abs(narrowHalf + NARROW_YAW_MAX_RAD) < 1e-5);
 });
 
 test('放手回正進度（桌面）', () => {
@@ -76,9 +76,9 @@ test('放手回正進度（桌面）', () => {
 
 test('窄螢幕慣性與提示條件', () => {
   const vel = privateTeamYawDragVelocityRadPerMs(120, 80, 393, 844);
-  assert.ok(Math.abs(vel) > 0);
+  assert.ok(vel < 0);
   assert.equal(privateTeamYawDragVelocityRadPerMs(10, 8, 393, 844), 0);
-  const step = privateTeamYawMomentumTick(0.2, vel, 32, 393, 844);
+  const step = privateTeamYawMomentumTick(-0.2, vel, 32, 393, 844);
   assert.ok(Math.abs(step.yaw) >= 0.2);
   assert.equal(privateTeamPanHintShouldShow(true, false), true);
   assert.equal(privateTeamPanHintShouldShow(true, true), false);
