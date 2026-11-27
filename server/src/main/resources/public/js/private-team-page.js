@@ -533,6 +533,7 @@ export function mountPrivateTeamPage(opts) {
     doc,
     onActivate: onSceneActivate
   });
+  canvas.__privateTeamScene = scene;
 
   scene.setBubbleText(bubbleLabel());
   refreshCanvasA11y();

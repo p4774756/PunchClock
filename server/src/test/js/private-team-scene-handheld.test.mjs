@@ -29,3 +29,11 @@ test('掌機 hover 與啟動回呼', () => {
   assert.match(src, /applyHandheldHighlight/);
   assert.match(src, /target === 'handheld'/);
 });
+
+test('掌機可投影到畫面座標，pick 含子網格', () => {
+  const src = readFileSync(scenePath, 'utf8');
+  assert.match(src, /projectPickRoleToClient/);
+  assert.match(src, /camera\.updateMatrixWorld\(true\)/);
+  assert.match(src, /body\.userData\.pickRole = 'handheld'/);
+  assert.match(src, /screen\.userData\.pickRole = 'handheld'/);
+});

@@ -191,12 +191,34 @@ export function privateTeamNarrowPortrait(width, height) {
   return w < 640 && h > w;
 }
 
+/** 預設垂直視野角；窄螢幕直向略加大，讓窗台掌機與秘書同時入鏡 */
+export const PRIVATE_TEAM_CAMERA_FOV = 42;
+export const PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT = 50;
+/** 窄螢幕直向預設略向左轉（弧度），把右緣窗台與掌機收進畫面 */
+export const PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT = -0.25;
+
+export function privateTeamDefaultFov(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!(w > 0) || !(h > 0)) return PRIVATE_TEAM_CAMERA_FOV;
+  if (privateTeamNarrowPortrait(w, h)) return PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT;
+  return PRIVATE_TEAM_CAMERA_FOV;
+}
+
+export function privateTeamDefaultYaw(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!(w > 0) || !(h > 0)) return 0;
+  if (privateTeamNarrowPortrait(w, h)) return PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT;
+  return 0;
+}
+
 /** 首次載入預設鏡頭距離：窄螢幕直向拉遠，桌面／橫向維持約 1 */
 export function privateTeamDefaultZoom(width, height) {
   const w = Number(width);
   const h = Number(height);
   if (!(w > 0) || !(h > 0)) return 1;
-  if (privateTeamNarrowPortrait(w, h)) return clampPrivateTeamZoom(1.58);
+  if (privateTeamNarrowPortrait(w, h)) return clampPrivateTeamZoom(1.52);
   return 1;
 }
 
@@ -1233,6 +1255,7 @@ function addWindowSillHandheld(root, sillY, sillZ, mugX) {
   });
   const body = box(0.056, 0.098, 0.03, bodyMat);
   body.name = 'windowSillHandheldBody';
+  body.userData.pickRole = 'handheld';
   group.add(body);
 
   const lcdTex = makeHandheldPreviewLcdTexture();
@@ -1243,6 +1266,7 @@ function addWindowSillHandheld(root, sillY, sillZ, mugX) {
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.046), screenMat);
   screen.position.set(0, 0.02, 0.016);
   screen.name = 'windowSillHandheldScreen';
+  screen.userData.pickRole = 'handheld';
   group.add(screen);
 
   const lens = box(0.008, 0.008, 0.004, 0x302018, true);
@@ -1313,6 +1337,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const camYawAxis = new THREE.Vector3(0, 1, 0);
   let zoomFactor = 1;
   let userAdjustedZoom = false;
+  let userAdjustedOrbit = false;
   let defaultZoomApplied = false;
   let yawRadians = 0;
   let pitchRadians = 0;
@@ -1377,7 +1402,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     panHintEl.hidden = false;
   }
 
-  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 80);
+  const camera = new THREE.PerspectiveCamera(PRIVATE_TEAM_CAMERA_FOV, 1, 0.1, 80);
   function applyCameraView() {
     zoomFactor = clampPrivateTeamZoom(zoomFactor);
     camOrbitDir.copy(camBase).sub(camLook);
@@ -1391,6 +1416,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     camOrbitDir.applyAxisAngle(camPitchAxis, pitchRadians);
     camera.position.copy(camLook).add(camOrbitDir.multiplyScalar(zoomFactor));
     camera.lookAt(camLook);
+    camera.updateMatrixWorld(true);
   }
   function applyZoom(factor, fromUser) {
     zoomFactor = clampPrivateTeamZoom(factor);
@@ -2354,10 +2380,37 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (!rect.width || !rect.height) return null;
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    camera.updateMatrixWorld(true);
     raycaster.setFromCamera(pointer, camera);
     const hits = raycaster.intersectObjects(clickables, true);
     if (!hits.length) return null;
     return pickRoleFromHits(hits);
+  }
+
+  const projectWorld = new THREE.Vector3();
+  function projectPickRoleToClient(role) {
+    let obj = null;
+    if (role === 'handheld') obj = windowSillHandheld && windowSillHandheld.group;
+    else if (role === 'secretary') obj = bubble;
+    if (!obj) return null;
+    camera.updateMatrixWorld(true);
+    obj.updateWorldMatrix(true, false);
+    obj.getWorldPosition(projectWorld);
+    projectWorld.project(camera);
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const visible =
+      Math.abs(projectWorld.x) <= 1 &&
+      Math.abs(projectWorld.y) <= 1 &&
+      projectWorld.z >= -1 &&
+      projectWorld.z <= 1;
+    return {
+      x: rect.left + ((projectWorld.x + 1) / 2) * rect.width,
+      y: rect.top + ((1 - projectWorld.y) / 2) * rect.height,
+      ndcX: projectWorld.x,
+      ndcY: projectWorld.y,
+      visible
+    };
   }
 
   function resetOrbitGesture() {
@@ -2423,6 +2476,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       const dy = ev.clientY - orbitStartY;
       if (!orbitDragged && privateTeamDragExceedsThreshold(dx, dy)) {
         orbitDragged = true;
+        userAdjustedOrbit = true;
         try {
           canvas.setPointerCapture(ev.pointerId);
         } catch (_e) { /* noop */ }
@@ -2610,8 +2664,13 @@ export function mountPrivateTeamScene(canvas, opts) {
     renderer.setPixelRatio(scenePixelRatio());
     renderer.setSize(w, h, false);
     camera.aspect = w / Math.max(h, 1);
+    camera.fov = privateTeamDefaultFov(w, h);
     camera.updateProjectionMatrix();
     if (!defaultZoomApplied && !userAdjustedZoom) {
+      if (!userAdjustedOrbit) {
+        yawRadians = privateTeamDefaultYaw(w, h);
+        pitchRadians = 0;
+      }
       applyZoom(privateTeamDefaultZoom(w, h));
       defaultZoomApplied = true;
     }
@@ -2898,6 +2957,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     getZoom() {
       return zoomFactor;
     },
+    projectPickRoleToClient,
     setBubbleText(text) {
       bubbleDrawer.draw(text);
     },
