@@ -38,8 +38,12 @@ public class Issue360ScreenshotTest {
                 online.put("company-worker2", true);
                 online.put("company-worker3", false);
                 refs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, online);
-                refs.peerTableModel.addRow(new Object[]{"company-worker2", 1, "5.0.0", "★"});
-                refs.peerTableModel.addRow(new Object[]{"company-worker3", 0, "4.8.2", "☆"});
+                Map<String, String> statuses = new LinkedHashMap<>();
+                statuses.put("company-worker2", "開會中");
+                statuses.put("company-worker3", "");
+                refs.peerTable.putClientProperty(PanelFactory.PEER_STATUS_TEXTS_KEY, statuses);
+                refs.peerTableModel.addRow(new Object[]{"company-worker2", "★"});
+                refs.peerTableModel.addRow(new Object[]{"company-worker3", "☆"});
                 NightTheme.apply(refs.peerTable);
                 refs.peerTable.setSize(300, 120);
                 refs.peerTable.doLayout();

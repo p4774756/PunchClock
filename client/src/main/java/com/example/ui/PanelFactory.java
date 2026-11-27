@@ -733,6 +733,9 @@ public class PanelFactory {
     /** 有未讀訊息的好友 ID 集合（不含本機）。 */
     public static final String PEER_UNREAD_CLIENT_KEY = "peer.unread";
 
+    /** 好友自訂狀態；key 為裝置 ID，value 為狀態文字（顯示在名稱下方第二行）。 */
+    public static final String PEER_STATUS_TEXTS_KEY = "peer.statusTexts";
+
     private static void installPeerStatusTextLimit(javax.swing.JTextField field) {
         if (field == null) {
             return;
@@ -763,8 +766,8 @@ public class PanelFactory {
         });
     }
 
-    /** 好友列表「最愛」欄的 model 索引（最後一欄，不影響第 0 欄的裝置 ID）。 */
-    public static final int PEER_FAVORITE_COLUMN = 2;
+    /** 好友列表「最愛」欄的 model 索引（最後一欄，不影響第 0 欄的好友名稱）。 */
+    public static final int PEER_FAVORITE_COLUMN = 1;
     public static final String PEER_FAVORITE_ON = "★";
     public static final String PEER_FAVORITE_OFF = "☆";
     private static final Color PEER_FAVORITE_GOLD = new Color(255, 208, 96);
@@ -782,7 +785,7 @@ public class PanelFactory {
         refs.peerHintLabel = hint;
 
         refs.peerTableModel = new javax.swing.table.DefaultTableModel(
-                new Object[]{"裝置 ID", "狀態", "最愛"}, 0) {
+                new Object[]{"好友", "最愛 ★"}, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return false;
@@ -796,7 +799,7 @@ public class PanelFactory {
                 if (layingOutPeerColumns) {
                     return;
                 }
-                if (getWidth() <= 0 || getColumnCount() != 3) {
+                if (getWidth() <= 0 || getColumnCount() != 2) {
                     super.doLayout();
                     return;
                 }
@@ -814,7 +817,7 @@ public class PanelFactory {
         refs.peerTable.getTableHeader().setFont(boldFont);
         refs.peerTable.setAutoResizeMode(JTable.AUTO_RESIZE_ALL_COLUMNS);
         // 真正的欄寬在 doLayout 用表頭 renderer 的 preferred 寬重算。這裡先給一個放得下欄名的初值。
-        int[] peerColW = {120, 96, 48};
+        int[] peerColW = {120, 48};
         for (int i = 0; i < peerColW.length; i++) {
             javax.swing.table.TableColumn column = refs.peerTable.getColumnModel().getColumn(i);
             column.setMinWidth(28);
@@ -864,11 +867,23 @@ public class PanelFactory {
 
         refs.statusTextField = new javax.swing.JTextField();
         refs.statusTextField.setFont(mainFont);
-        refs.statusTextField.setToolTipText("好友列表上顯示的一句話，最多 20 個字；可留空");
+        refs.statusTextField.setToolTipText(
+                "好友列表上顯示的一句話，最多 20 個字；可留空。按 Enter 或「套用」後立即生效並儲存");
         installPeerStatusTextLimit(refs.statusTextField);
+        int statusFieldHeight = Math.max(refs.statusTextField.getPreferredSize().height, 30);
+        refs.statusTextField.putClientProperty("flex", Boolean.TRUE);
+        refs.statusTextField.setMinimumSize(new Dimension(0, statusFieldHeight));
+        refs.statusTextField.setPreferredSize(new Dimension(148, statusFieldHeight));
+        refs.statusTextField.setMaximumSize(new Dimension(Integer.MAX_VALUE, statusFieldHeight));
+        refs.statusApplyButton = candyButton(
+                "套用", CandyButton.Variant.SECONDARY, mainFont, "按 Enter 或「套用」後立即生效並儲存");
+        refs.statusApplyButton.setEnabled(false);
         JLabel statusLabel = new JLabel("狀態：");
         statusLabel.setFont(mainFont);
-        JPanel statusRow = wrapFlowRow(1, 2, statusLabel, refs.statusTextField);
+        JPanel statusRow = new ShrinkRow(4);
+        statusRow.add(statusLabel);
+        statusRow.add(refs.statusTextField);
+        statusRow.add(refs.statusApplyButton);
         refs.statusRow = statusRow;
 
         String[] workerOptions = {"company-worker", "company-worker2", "company-worker3", "company-worker4"};
@@ -955,7 +970,7 @@ public class PanelFactory {
         return panel;
     }
 
-    /** 好友列：圓形頭像、在線點、滑過變色。裝置 ID 仍放在第一欄的文字，選取邏輯不變。 */
+    /** 好友列：圓形頭像、在線點、滑過變色；名稱下方第二行顯示自訂狀態。 */
     private static void installSelfPeerRowRenderer(JTable table, Font mainFont, Font boldFont) {
         Color selfBg = CandyTheme.ROW_LATEST;
         Color hoverBg = CandyTheme.ROW_HOT;
@@ -969,6 +984,7 @@ public class PanelFactory {
                 boolean hover = !isSelected && row == hoverRow(tbl);
                 boolean favoriteColumn = column == PEER_FAVORITE_COLUMN;
                 boolean centerColumn = column > 0;
+                boolean highContrast = isSelected || hover;
                 if (c instanceof JLabel) {
                     JLabel label = (JLabel) c;
                     label.setFont(self && column == 0 ? boldFont : mainFont);
@@ -976,19 +992,22 @@ public class PanelFactory {
                     label.setIcon(column == 0 ? friendFace(tbl, row, faces) : null);
                     label.setIconTextGap(column == 0 ? 4 : 8);
                     label.setHorizontalAlignment(centerColumn ? SwingConstants.CENTER : SwingConstants.LEADING);
+                    label.setVerticalAlignment(SwingConstants.TOP);
                     if (favoriteColumn) {
                         label.setFont(UiFonts.chineseBold(16));
                     }
                     if (column == 0) {
-                        fitPeerIdLabel(label, tbl, self, boldFont, mainFont);
+                        String displayId = value == null ? "" : String.valueOf(value);
+                        String status = peerRowStatusText(tbl, peerIdOf(displayId));
+                        fitPeerIdLabel(label, tbl, self, boldFont, mainFont, displayId, status, highContrast);
                     }
                 }
                 if (isSelected) {
                     c.setBackground(CandyTheme.ROW_SELECT);
-                    c.setForeground(CandyTheme.INK);
+                    c.setForeground(CandyTheme.PINK_INK);
                 } else if (hover) {
                     c.setBackground(hoverBg);
-                    c.setForeground(CandyTheme.INK);
+                    c.setForeground(CandyTheme.PINK_INK);
                 } else if (self) {
                     c.setBackground(selfBg);
                     c.setForeground(CandyTheme.INK);
@@ -1005,11 +1024,15 @@ public class PanelFactory {
                         widget.setToolTipText(on ? "最愛（點一下取消）" : "點一下加入最愛");
                         if (on) {
                             c.setForeground(PEER_FAVORITE_GOLD);
-                        } else if (!isSelected) {
+                        } else if (!highContrast) {
                             c.setForeground(NightTheme.MUTED);
+                        } else if (!isSelected) {
+                            c.setForeground(CandyTheme.PINK_INK);
                         }
-                    } else {
-                        widget.setToolTipText(tip == null || tip.isEmpty() ? null : tip);
+                    } else if (column == 0) {
+                        String displayId = tip == null ? "" : tip;
+                        String status = peerRowStatusText(tbl, peerIdOf(displayId));
+                        widget.setToolTipText(peerFriendToolTip(displayId, status));
                     }
                 }
                 return c;
@@ -1130,10 +1153,10 @@ public class PanelFactory {
      */
     private static void layoutPeerColumns(JTable table) {
         int width = table.getWidth();
-        if (table.getColumnCount() != 3) {
+        if (table.getColumnCount() != 2) {
             return;
         }
-        int[] tail = new int[2];
+        int[] tail = new int[1];
         int tailSum = 0;
         for (int i = 0; i < tail.length; i++) {
             tail[i] = peerColumnPreferredWidth(table, i + 1);
@@ -1208,25 +1231,90 @@ public class PanelFactory {
         }
     }
 
-    private static void fitPeerIdLabel(JLabel label, JTable table, boolean self, Font boldFont, Font mainFont) {
+    private static void fitPeerIdLabel(
+            JLabel label,
+            JTable table,
+            boolean self,
+            Font boldFont,
+            Font mainFont,
+            String displayId,
+            String status,
+            boolean highContrast) {
         int available = table.getColumnModel().getColumn(0).getWidth();
         if (available <= 0) {
             return;
         }
         int size = mainFont.getSize();
-        while (size > 10 && label.getPreferredSize().width > available) {
+        while (size > 10 && peerIdMeasureWidth(label, displayId, status, self, size) > available) {
             size--;
-            label.setFont(self ? UiFonts.chineseBold(size) : UiFonts.chinesePlain(size));
         }
-        if (label.getPreferredSize().width > available && label.getIcon() != null) {
+        label.setFont(self ? UiFonts.chineseBold(size) : UiFonts.chinesePlain(size));
+        if (peerIdMeasureWidth(label, displayId, status, self, size) > available && label.getIcon() != null) {
             label.setIcon(null);
             size = mainFont.getSize();
-            label.setFont(self ? boldFont : mainFont);
-            while (size > 10 && label.getPreferredSize().width > available) {
+            while (size > 10 && peerIdMeasureWidth(label, displayId, status, self, size) > available) {
                 size--;
                 label.setFont(self ? UiFonts.chineseBold(size) : UiFonts.chinesePlain(size));
             }
         }
+        label.setText(peerFriendCellHtml(displayId, status, self, highContrast));
+    }
+
+    private static int peerIdMeasureWidth(
+            JLabel label, String displayId, String status, boolean self, int fontSize) {
+        JLabel scratch = new JLabel();
+        scratch.setFont(self ? UiFonts.chineseBold(fontSize) : UiFonts.chinesePlain(fontSize));
+        scratch.setIcon(label.getIcon());
+        scratch.setIconTextGap(label.getIcon() != null ? 4 : 0);
+        scratch.setText(displayId);
+        int width = scratch.getPreferredSize().width;
+        if (status != null && !status.isBlank()) {
+            scratch.setFont(UiFonts.chinesePlain(Math.max(10, fontSize - 1)));
+            scratch.setText(status);
+            width = Math.max(width, scratch.getPreferredSize().width);
+        }
+        return width + 8;
+    }
+
+    @SuppressWarnings("unchecked")
+    static String peerRowStatusText(JTable table, String peerId) {
+        Object stored = table.getClientProperty(PEER_STATUS_TEXTS_KEY);
+        if (!(stored instanceof java.util.Map)) {
+            return "";
+        }
+        Object found = ((java.util.Map<String, String>) stored).get(peerId);
+        return found == null ? "" : String.valueOf(found);
+    }
+
+    private static String peerFriendCellHtml(String displayId, String status, boolean self, boolean highContrast) {
+        String nameColor = highContrast ? "#FFFFFF" : "#000000";
+        String statusColor = highContrast ? "#E8E8F0" : "#646464";
+        String name = htmlEscape(displayId);
+        if (self) {
+            name = "<b>" + name + "</b>";
+        }
+        StringBuilder html = new StringBuilder("<html><span style='color:").append(nameColor).append("'>");
+        html.append(name).append("</span>");
+        if (status != null && !status.isBlank()) {
+            html.append("<br><font size='2' color='").append(statusColor).append("'>")
+                    .append(htmlEscape(status)).append("</font>");
+        }
+        html.append("</html>");
+        return html.toString();
+    }
+
+    private static String peerFriendToolTip(String displayId, String status) {
+        if (status == null || status.isBlank()) {
+            return displayId.isEmpty() ? null : displayId;
+        }
+        return displayId + " · " + status;
+    }
+
+    private static String htmlEscape(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     private static Icon friendFaceIcon(String id, String encoded, boolean online, boolean unread) {
@@ -1315,6 +1403,7 @@ public class PanelFactory {
         public JButton clearAvatarButton;
         public JPanel avatarRow;
         public javax.swing.JTextField statusTextField;
+        public JButton statusApplyButton;
         public JPanel statusRow;
     }
 

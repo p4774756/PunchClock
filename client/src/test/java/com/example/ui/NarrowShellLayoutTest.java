@@ -92,17 +92,17 @@ public class NarrowShellLayoutTest {
             assertFits(scroll, refs.clientIdApplyButton);
             assertTrue(refs.peerTable.getWidth() > 0);
             assertTrue(refs.peerTable.getWidth() <= VIEW_W);
-            assertEquals(3, refs.peerTable.getColumnCount());
+            assertEquals(2, refs.peerTable.getColumnCount());
             int covered = 0;
             for (int i = 0; i < refs.peerTable.getColumnCount(); i++) {
                 int colW = refs.peerTable.getColumnModel().getColumn(i).getWidth();
                 assertTrue("col " + i + " width " + colW, colW >= 28);
                 covered += colW;
                 Object header = refs.peerTable.getColumnModel().getColumn(i).getHeaderValue();
-                if (i == 1) {
-                    assertEquals("狀態", header);
+                if (i == 0) {
+                    assertEquals("好友", header);
                 } else {
-                    assertFalse("狀態".equals(header));
+                    assertEquals("最愛 ★", header);
                 }
             }
             assertTrue(covered <= refs.peerTable.getWidth() + 2);
@@ -112,11 +112,20 @@ public class NarrowShellLayoutTest {
             online.put("company-worker2", true);
             online.put("company-worker3", false);
             refs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, online);
-            refs.peerTableModel.addRow(new Object[]{"company-worker2", "開會中", "☆"});
-            refs.peerTableModel.addRow(new Object[]{"company-worker3", "", "★"});
+            Map<String, String> statuses = new LinkedHashMap<>();
+            statuses.put("company-worker2", "開會中");
+            statuses.put("company-worker3", "");
+            refs.peerTable.putClientProperty(PanelFactory.PEER_STATUS_TEXTS_KEY, statuses);
+            refs.peerTableModel.addRow(new Object[]{"company-worker2", "☆"});
+            refs.peerTableModel.addRow(new Object[]{"company-worker3", "★"});
             assertPeerIdsFit(refs.peerTable, 300);
             assertPeerColumnAlignments(refs.peerTable);
             assertPeerOnlineDotsDiffer(refs.peerTable);
+            refs.peerTable.setRowSelectionInterval(0, 0);
+            java.awt.Component selected = refs.peerTable.prepareRenderer(refs.peerTable.getCellRenderer(0, 0), 0, 0);
+            assertEquals(CandyTheme.PINK_INK.getRGB(), selected.getForeground().getRGB());
+            assertTrue(refs.statusApplyButton != null);
+            assertFits(scroll, refs.statusApplyButton);
             assertEquals("★", refs.peerTableModel.getValueAt(1, PanelFactory.PEER_FAVORITE_COLUMN));
             refs.peerTableModel.setValueAt(PanelFactory.PEER_FAVORITE_OFF, 1, PanelFactory.PEER_FAVORITE_COLUMN);
             assertEquals("☆", refs.peerTableModel.getValueAt(1, PanelFactory.PEER_FAVORITE_COLUMN));
@@ -267,7 +276,13 @@ public class NarrowShellLayoutTest {
             int colW = table.getColumnModel().getColumn(0).getWidth();
             assertTrue("id row " + row + " pref " + cell.getPreferredSize().width + " col " + colW,
                     cell.getPreferredSize().width <= colW);
-            assertEquals(String.valueOf(table.getValueAt(row, 0)), ((javax.swing.JLabel) cell).getText());
+            String id = String.valueOf(table.getValueAt(row, 0));
+            String labelText = ((javax.swing.JLabel) cell).getText();
+            assertTrue("id " + id + " in " + labelText, labelText.contains(id));
+            String status = PanelFactory.peerRowStatusText(table, id);
+            if (status != null && !status.isBlank()) {
+                assertTrue("status in " + labelText, labelText.contains(status));
+            }
         }
     }
 
