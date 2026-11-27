@@ -1371,14 +1371,15 @@ button.pt-hud-id-plate {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   width: 100%;
 }
 
 .pt-pocket-screen-bezel {
+  position: relative;
   width: 100%;
-  max-width: min(78vw, 340px);
-  padding: 10px 12px 8px;
+  max-width: min(92vw, 380px);
+  padding: 6px 8px 5px;
   background: linear-gradient(180deg, #54545c 0%, #3e3e46 100%);
   border-radius: 6px 6px 18px 6px;
   border: 2px solid #2e2e34;
@@ -1387,31 +1388,30 @@ button.pt-hud-id-plate {
     0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.pt-pocket-screen-inner {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 8px;
-}
-
 .pt-pocket-power-led {
+  position: absolute;
+  left: 6px;
+  top: 50%;
+  transform: translateY(-50%);
   display: block;
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: #e03030;
   box-shadow:
     0 0 6px rgba(224, 48, 48, 0.75),
     inset 0 -1px 2px rgba(0, 0, 0, 0.35);
-  flex-shrink: 0;
-  margin-left: 2px;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .pt-pocket-screen-wrap {
-  padding: 6px;
+  width: 100%;
+  padding: 3px;
   background: #2a2a30;
   border-radius: 4px;
   border: 1px solid #1a1a1e;
+  box-sizing: border-box;
 }
 
 .pt-pocket-lcd {
@@ -1704,9 +1704,32 @@ button.pt-hud-id-plate {
 
 @media (max-width: 420px) {
   .pt-pocket-shell {
-    padding: 32px 10px 20px;
+    padding: 28px 8px 14px;
     max-width: 100%;
     border-radius: 8px 8px 48px 8px;
+  }
+
+  .pt-pocket-screen-bezel {
+    max-width: min(94vw, 100%);
+    padding: 5px 7px 4px;
+  }
+
+  .pt-pocket-screen-wrap {
+    padding: 2px;
+  }
+
+  .pt-pocket-meta {
+    gap: 6px;
+    font-size: 0.72rem;
+  }
+
+  .pt-pocket-device {
+    gap: 6px;
+  }
+
+  .pt-pocket-controls {
+    gap: 10px 6px;
+    padding-bottom: 12px;
   }
 
   .pt-pocket-dpad {
