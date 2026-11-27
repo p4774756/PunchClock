@@ -55,10 +55,36 @@ jobs:
           mvn -B -q versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
           mvn -B -q -pl client -am package -DskipTests -P '!git-commit-time'
 
+      - name: Upload shade jar workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SKLbaby-jar
+          path: client/target/SKLbaby.jar
+          if-no-files-found: error
+
+      - name: Upload jar to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" \
+            client/target/SKLbaby.jar \
+            --clobber
+
+      - name: Upload jar to GitHub Release (published event)
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          gh release upload "$TAG" \
+            client/target/SKLbaby.jar \
+            --clobber
+
       - name: Build .icns
         run: |
           chmod +x scripts/package-desktop-macos-icon.sh
-          scripts/package-desktop-macos-icon.sh design/issue-305/app-icon.png build/desktop/app-icon.icns
+          scripts/package-desktop-macos-icon.sh client/src/main/resources/app-icon.png build/desktop/app-icon.icns
 
       - name: jlink + jpackage (.dmg, Apple 晶片)
         run: |
@@ -73,32 +99,6 @@ jobs:
           name: SKLbaby-mac-arm-dmg
           path: build/desktop/SKLbaby-mac-arm.dmg
           if-no-files-found: error
-
-      - name: Upload shade jar workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SKLbaby-jar
-          path: client/target/SKLbaby.jar
-          if-no-files-found: error
-
-      - name: Upload to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release upload "${GITHUB_REF_NAME}" \
-            client/target/SKLbaby.jar \
-            --clobber
-
-      - name: Upload to GitHub Release (published event)
-        if: github.event_name == 'release'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          TAG="${{ github.event.release.tag_name }}"
-          gh release upload "$TAG" \
-            client/target/SKLbaby.jar \
-            --clobber
 
   package-macos-intel:
     needs: create-release
@@ -124,7 +124,7 @@ jobs:
       - name: Build .icns
         run: |
           chmod +x scripts/package-desktop-macos-icon.sh
-          scripts/package-desktop-macos-icon.sh design/issue-305/app-icon.png build/desktop/app-icon.icns
+          scripts/package-desktop-macos-icon.sh client/src/main/resources/app-icon.png build/desktop/app-icon.icns
 
       - name: jlink + jpackage (.dmg, Intel)
         run: |
@@ -171,7 +171,7 @@ jobs:
         shell: bash
         run: |
           npm install --no-save to-ico pngjs
-          node scripts/package-desktop-windows-icon.mjs design/issue-305/app-icon.png build/desktop/app-icon.ico
+          node scripts/package-desktop-windows-icon.mjs client/src/main/resources/app-icon.png build/desktop/app-icon.ico
 
       - name: jlink + jpackage (.exe)
         shell: bash
