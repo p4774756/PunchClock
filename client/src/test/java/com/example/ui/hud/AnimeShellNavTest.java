@@ -105,8 +105,7 @@ public class AnimeShellNavTest {
             assertTrue("active " + id, active.ready());
             assertTrue(idle.partCount() > 0);
             assertTrue(active.partCount() > 0);
-            assertTrue("active differs from idle for " + id, active.partCount() != idle.partCount()
-                    || !sameResource(id, false, id, true));
+            assertTrue("active differs from idle for " + id, active.pixelDigest() != idle.pixelDigest());
         }
     }
 
@@ -118,20 +117,6 @@ public class AnimeShellNavTest {
         assertEquals(muted, AnimeShell.navLabelColor("folder-up"));
         assertEquals(muted, AnimeShell.navLabelColor("notebook-text"));
         assertEquals(muted, AnimeShell.navLabelColor("settings"));
-    }
-
-    private static boolean sameResource(String idA, boolean activeA, String idB, boolean activeB) {
-        String fileA = activeA ? idA + "-active" : idA;
-        String fileB = activeB ? idB + "-active" : idB;
-        try (var a = TabNavIcon.class.getResourceAsStream("/hud/nav/" + fileA + ".svg");
-             var b = TabNavIcon.class.getResourceAsStream("/hud/nav/" + fileB + ".svg")) {
-            if (a == null || b == null) {
-                return false;
-            }
-            return java.util.Arrays.equals(a.readAllBytes(), b.readAllBytes());
-        } catch (java.io.IOException ex) {
-            return false;
-        }
     }
 
     @Test
