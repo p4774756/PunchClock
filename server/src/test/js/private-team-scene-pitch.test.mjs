@@ -8,9 +8,7 @@ const {
   clampPrivateTeamPitch,
   privateTeamPitchFromDragDelta,
   privateTeamPitchDragVelocityRadPerMs,
-  privateTeamPitchMomentumTick,
-  privateTeamYawAtReturn,
-  privateTeamYawReturnProgress
+  privateTeamPitchMomentumTick
 } = await loadPublicModule('private-team-scene.js');
 
 const PITCH_UP_RAD = (PRIVATE_TEAM_PITCH_MAX_UP_DEG * Math.PI) / 180;
@@ -38,13 +36,15 @@ test('垂直拖曳：上拉為正、下拉為負', () => {
   assert.ok(Math.abs(atDown + PITCH_DOWN_RAD) < 1e-6);
 });
 
-test('俯仰慣性與桌面回正一併歸零', () => {
+test('俯仰慣性（窄螢幕與桌面）', () => {
   const velUp = privateTeamPitchDragVelocityRadPerMs(-120, 80, 844);
   assert.ok(velUp > 0);
   assert.equal(privateTeamPitchDragVelocityRadPerMs(-8, 8, 844), 0);
-  const step = privateTeamPitchMomentumTick(0.05, velUp, 32, 844);
-  assert.ok(step.pitch > 0.05);
-  const prog = privateTeamYawReturnProgress(600, false);
-  assert.ok(Math.abs(privateTeamYawAtReturn(0.3, prog)) < 1e-9);
-  assert.ok(Math.abs(privateTeamYawAtReturn(-0.2, prog)) < 1e-9);
+  const narrowStep = privateTeamPitchMomentumTick(0.05, velUp, 32, 844);
+  assert.ok(narrowStep.pitch > 0.05);
+  const desktopVel = privateTeamPitchDragVelocityRadPerMs(100, 80, 800);
+  assert.ok(desktopVel < 0);
+  const desktopStep = privateTeamPitchMomentumTick(-0.05, desktopVel, 32, 800);
+  assert.ok(desktopStep.pitch < -0.05);
+  assert.ok(desktopStep.pitch >= -PITCH_DOWN_RAD - 1e-6);
 });

@@ -10,12 +10,9 @@ const {
   clampPrivateTeamYawViewport,
   privateTeamDragExceedsThreshold,
   privateTeamNarrowPortrait,
-  privateTeamOrbitYawReturnEnabled,
   privateTeamPanHintShouldShow,
   privateTeamYawFromDragDelta,
   privateTeamYawMaxRadians,
-  privateTeamYawReturnProgress,
-  privateTeamYawAtReturn,
   privateTeamYawDragVelocityRadPerMs,
   privateTeamYawMomentumTick
 } = await loadPublicModule('private-team-scene.js');
@@ -33,14 +30,12 @@ test('水平視角偏航夾在左右上限', () => {
   assert.ok(Math.abs(clampPrivateTeamYaw(-YAW_MAX_RAD * 2) + YAW_MAX_RAD) < 1e-9);
 });
 
-test('窄螢幕直向加大偏航上限且鬆手不回正', () => {
+test('窄螢幕直向加大偏航上限且各視窗鬆手不回正', () => {
   assert.equal(privateTeamNarrowPortrait(393, 844), true);
   assert.equal(privateTeamNarrowPortrait(1280, 800), false);
   assert.equal(privateTeamNarrowPortrait(600, 400), false);
   assert.ok(Math.abs(privateTeamYawMaxRadians(393, 844) - NARROW_YAW_MAX_RAD) < 1e-9);
   assert.ok(Math.abs(privateTeamYawMaxRadians(1280, 800) - YAW_MAX_RAD) < 1e-9);
-  assert.equal(privateTeamOrbitYawReturnEnabled(393, 844), false);
-  assert.equal(privateTeamOrbitYawReturnEnabled(1280, 800), true);
   const atEdge = clampPrivateTeamYawViewport(NARROW_YAW_MAX_RAD * 1.5, 393, 844);
   assert.ok(Math.abs(atEdge - NARROW_YAW_MAX_RAD) < 1e-6);
 });
@@ -65,21 +60,18 @@ test('拖曳偏航隨畫布寬度換算且受上限約束', () => {
   assert.ok(Math.abs(narrowHalf + NARROW_YAW_MAX_RAD) < 1e-5);
 });
 
-test('放手回正進度（桌面）', () => {
-  assert.equal(privateTeamYawReturnProgress(0, false), 0);
-  assert.equal(privateTeamYawReturnProgress(600, false), 1);
-  assert.equal(privateTeamYawReturnProgress(100, true), 1);
-  const mid = privateTeamYawAtReturn(0.5, privateTeamYawReturnProgress(300, false));
-  assert.ok(mid > 0 && mid < 0.5);
-  assert.equal(privateTeamYawAtReturn(0.4, 1), 0);
-});
-
-test('窄螢幕慣性與提示條件', () => {
-  const vel = privateTeamYawDragVelocityRadPerMs(120, 80, 393, 844);
-  assert.ok(vel < 0);
+test('桌面與窄螢幕慣性、提示條件', () => {
+  const narrowVel = privateTeamYawDragVelocityRadPerMs(120, 80, 393, 844);
+  assert.ok(narrowVel < 0);
   assert.equal(privateTeamYawDragVelocityRadPerMs(10, 8, 393, 844), 0);
-  const step = privateTeamYawMomentumTick(-0.2, vel, 32, 393, 844);
-  assert.ok(Math.abs(step.yaw) >= 0.2);
+  const narrowStep = privateTeamYawMomentumTick(-0.2, narrowVel, 32, 393, 844);
+  assert.ok(Math.abs(narrowStep.yaw) >= 0.2);
+  const desktopVel = privateTeamYawDragVelocityRadPerMs(120, 80, 1280, 800);
+  assert.ok(desktopVel < 0);
+  const desktopStep = privateTeamYawMomentumTick(0.15, desktopVel, 32, 1280, 800);
+  assert.notEqual(desktopStep.yaw, 0.15);
+  assert.ok(Math.abs(desktopStep.yaw) <= YAW_MAX_RAD + 1e-6);
+  assert.ok(Math.abs(desktopStep.vel) < Math.abs(desktopVel));
   assert.equal(privateTeamPanHintShouldShow(true, false), true);
   assert.equal(privateTeamPanHintShouldShow(true, true), false);
   assert.equal(privateTeamPanHintShouldShow(false, false), false);

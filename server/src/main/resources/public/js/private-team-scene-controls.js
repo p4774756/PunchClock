@@ -65,7 +65,6 @@ export const PRIVATE_TEAM_YAW_MAX_DEG = 35;
 /** 窄螢幕直向加大偏航，讓左右牆面與銅人可滑進畫面 */
 export const PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT = 52;
 export const PRIVATE_TEAM_DRAG_THRESHOLD_PX = 6;
-export const PRIVATE_TEAM_YAW_RETURN_MS = 600;
 export const PRIVATE_TEAM_PAN_HINT_DISMISS_KEY = 'punchclock-pt-pan-seen';
 
 /** localStorage：左牆海報輪播索引（0–3 對應第 1–4 張）。 */
@@ -114,11 +113,6 @@ export function privateTeamYawMaxRadians(width, height) {
     ? PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT
     : PRIVATE_TEAM_YAW_MAX_DEG;
   return (deg * Math.PI) / 180;
-}
-
-/** 桌面／橫向鬆手後回正；窄螢幕直向維持視角 */
-export function privateTeamOrbitYawReturnEnabled(width, height) {
-  return !privateTeamNarrowPortrait(width, height);
 }
 
 export function clampPrivateTeamYaw(radians) {
@@ -183,22 +177,6 @@ export function privateTeamYawMomentumTick(yaw, velRadPerMs, dtMs, canvasWidth, 
   if (Math.abs(y) >= maxRad - 1e-5) v = 0;
   if (Math.abs(v) < 1e-5) v = 0;
   return { yaw: y, vel: v };
-}
-
-export function privateTeamYawReturnProgress(elapsedMs, reducedMotion) {
-  if (reducedMotion) return 1;
-  const t = Number(elapsedMs);
-  if (!Number.isFinite(t) || t <= 0) return 0;
-  if (t >= PRIVATE_TEAM_YAW_RETURN_MS) return 1;
-  const u = t / PRIVATE_TEAM_YAW_RETURN_MS;
-  return 1 - (1 - u) * (1 - u);
-}
-
-export function privateTeamYawAtReturn(startYaw, progress) {
-  const y = Number(startYaw);
-  const p = Math.min(1, Math.max(0, Number(progress)));
-  if (!Number.isFinite(y)) return 0;
-  return y * (1 - p);
 }
 
 /** 上下俯仰上限（度，相對基準鏡頭 camBase→camLook）：上拉平視、下拉俯瞰 */
