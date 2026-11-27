@@ -154,6 +154,8 @@ public class App extends JFrame {
     private Timer clientIdSavedVisibleTimer;
     private Timer clientIdSavedFadeTimer;
     private Color clientIdSavedLabelColor;
+    /** 外觀：Dock／工作列是否使用泳裝角色圖示。 */
+    private boolean dockIconSwimsuit;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -243,28 +245,19 @@ public class App extends JFrame {
     }
 
     private void applyAppIcon() {
-        java.util.List<Image> icons = AppIconImages.loadAll();
+        java.util.List<Image> icons = AppIconImages.loadAll(dockIconSwimsuit);
         if (icons.isEmpty()) {
             appIconImage = null;
+            baseAppIconImages = java.util.Collections.emptyList();
             return;
         }
         baseAppIconImages = icons;
         appIconImage = icons.get(icons.size() - 1);
-        setIconImages(icons);
-        try {
-            if (Taskbar.isTaskbarSupported()) {
-                Taskbar taskbar = Taskbar.getTaskbar();
-                if (taskbar.isSupported(Taskbar.Feature.ICON_IMAGE)) {
-                    taskbar.setIconImage(appIconImage);
-                }
-            }
-        } catch (Exception ignored) {
-            // 部分平台／權限下無法設定 Dock icon
-        }
+        TaskbarPeerUnread.syncBadge(unreadPeerIds.size(), baseAppIconImages, this::applyPeerUnreadFrameIcons);
     }
 
-    private static Image loadAppIcon() {
-        return AppIconImages.primary();
+    private static Image loadAppIcon(boolean dockIconSwimsuit) {
+        return AppIconImages.primary(dockIconSwimsuit);
     }
 
     /** 自繪標題列用趴姿小寶貝；載不到時沿用 App 圖示。 */
@@ -314,6 +307,7 @@ public class App extends JFrame {
         bindWindowTransparencySlider();
         bindHomeIllustrationCombo();
         bindCheckInUiSwitch();
+        bindDockIconSwimsuitSwitch();
         JPanel settingsTab = new JPanel(new BorderLayout());
         settingsTab.setOpaque(false);
         settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
@@ -476,6 +470,18 @@ public class App extends JFrame {
                 return;
             }
             applyCheckInUiVisibility(serverRefs.checkInUiVisibleSwitch.isSelected(), true);
+        });
+    }
+
+    private void bindDockIconSwimsuitSwitch() {
+        if (serverRefs.dockIconSwimsuitSwitch == null) {
+            return;
+        }
+        serverRefs.dockIconSwimsuitSwitch.addActionListener(e -> {
+            if (suppressConfigSave) {
+                return;
+            }
+            applyDockIconSwimsuit(serverRefs.dockIconSwimsuitSwitch.isSelected(), true);
         });
     }
 
@@ -2373,6 +2379,7 @@ public class App extends JFrame {
             slotController.loadConfigToUi(config);
             applyWindowLayout(config);
             applyCheckInUiSelection(config);
+            applyDockIconSwimsuitSelection(config);
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
             applyPeerStatusFromConfig(config);
@@ -2457,6 +2464,37 @@ public class App extends JFrame {
             }
         }
         applyCheckInUiVisibility(visible, false);
+    }
+
+    private void applyDockIconSwimsuitSelection(ConfigPersistenceService.CloudConfig config) {
+        boolean swimsuit = config != null && config.dockIconSwimsuit;
+        if (serverRefs.dockIconSwimsuitSwitch != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.dockIconSwimsuitSwitch.setSelected(swimsuit);
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        applyDockIconSwimsuit(swimsuit, false);
+    }
+
+    private void applyDockIconSwimsuit(boolean swimsuit, boolean persist) {
+        if (dockIconSwimsuit == swimsuit && !persist) {
+            if (slotController != null && slotController.getConfig() != null) {
+                slotController.getConfig().dockIconSwimsuit = swimsuit;
+            }
+            return;
+        }
+        dockIconSwimsuit = swimsuit;
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().dockIconSwimsuit = swimsuit;
+        }
+        applyAppIcon();
+        if (persist) {
+            saveCloudConfig();
+        }
     }
 
     private void applyHomeIllustrationSelection(ConfigPersistenceService.CloudConfig config) {
@@ -2644,6 +2682,11 @@ public class App extends JFrame {
         }
         if (serverRefs.checkInUiVisibleSwitch != null) {
             config.checkInUiVisible = serverRefs.checkInUiVisibleSwitch.isSelected();
+        }
+        if (serverRefs.dockIconSwimsuitSwitch != null) {
+            config.dockIconSwimsuit = serverRefs.dockIconSwimsuitSwitch.isSelected();
+        } else {
+            config.dockIconSwimsuit = dockIconSwimsuit;
         }
         configPersistenceService.saveConfig(config, null);
     }
@@ -3128,7 +3171,8 @@ public class App extends JFrame {
         // macOS：改走 Metal 繪圖管線，避免預設 OpenGL 下字零星消失（必須在 AWT 初始化前）
         com.example.ui.MacGraphicsWorkaround.apply();
         // macOS：盡早設定 Dock icon（需在建立視窗前）
-        Image dockIcon = loadAppIcon();
+        boolean dockSwimsuit = new ConfigPersistenceService().loadConfig(null).dockIconSwimsuit;
+        Image dockIcon = loadAppIcon(dockSwimsuit);
         if (dockIcon != null) {
             try {
                 if (Taskbar.isTaskbarSupported()) {

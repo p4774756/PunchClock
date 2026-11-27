@@ -47,6 +47,7 @@ public class ConfigPersistenceServiceTest {
         assertNotNull(config.skipDates);
         assertTrue(config.skipDates.isEmpty());
         assertTrue(config.checkInUiVisible);
+        assertFalse(config.dockIconSwimsuit);
     }
 
     @Test
@@ -336,6 +337,18 @@ public class ConfigPersistenceServiceTest {
     public void loadConfig_missingCheckInUiVisibleDefaultsToShown() throws Exception {
         Files.writeString(configFile, "{\"serverUrl\":\"http://localhost:3000\"}");
         assertTrue(configService.loadConfig(null).checkInUiVisible);
+    }
+
+    @Test
+    public void saveAndLoad_persistsDockIconSwimsuit() {
+        ConfigPersistenceService.CloudConfig config = new ConfigPersistenceService.CloudConfig();
+        config.dockIconSwimsuit = true;
+        configService.saveConfig(config, null);
+        assertTrue(configService.loadConfig(null).dockIconSwimsuit);
+
+        config.dockIconSwimsuit = false;
+        configService.saveConfig(config, null);
+        assertFalse(configService.loadConfig(null).dockIconSwimsuit);
     }
 
     @Test

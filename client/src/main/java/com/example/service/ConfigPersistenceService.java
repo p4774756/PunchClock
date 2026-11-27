@@ -123,6 +123,9 @@ public class ConfigPersistenceService {
 
         /** 是否顯示打卡相關介面（排程分頁、首頁摘要等）；隱藏時背景排程仍會執行。 */
         public boolean checkInUiVisible = true;
+
+        /** 外觀：Dock／工作列圖示改用泳裝角色（B 款）；預設關閉。 */
+        public boolean dockIconSwimsuit = false;
     }
 
     private static SlotSettings defaultWorkIn() {
