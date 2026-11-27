@@ -2439,6 +2439,9 @@ public final class DesktopPetWindow extends JFrame {
         if (mode == DesktopPetAnimation.Mode.WORRY) {
             return "困擾";
         }
+        if (mode == DesktopPetAnimation.Mode.HUNGRY) {
+            return "餓肚子";
+        }
         if (mode == DesktopPetAnimation.Mode.SIT) {
             return "坐下";
         }

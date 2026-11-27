@@ -502,6 +502,7 @@ public class DesktopPetTest {
         assertEquals(4, frames.thinkCount());
         assertEquals(4, frames.busyCount());
         assertEquals(4, frames.worryCount());
+        assertEquals(4, frames.hungryCount());
         assertEquals(4, frames.feedCount());
         assertEquals(4, frames.patCount());
         assertEquals(4, frames.playCount());

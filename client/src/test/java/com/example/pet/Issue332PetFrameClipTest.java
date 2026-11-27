@@ -148,6 +148,8 @@ public class Issue332PetFrameClipTest {
             anim.setCursorHold(Mode.BUSY);
         } else if (name.startsWith("worry/")) {
             anim.flashWorry(null);
+        } else if (name.startsWith("hungry/")) {
+            anim.flashHungry();
         }
         return anim;
     }
@@ -157,7 +159,8 @@ public class Issue332PetFrameClipTest {
                 || name.startsWith("wave/") || name.startsWith("grab/")
                 || name.startsWith("struggle/") || name.startsWith("release/")
                 || name.startsWith("think/") || name.startsWith("busy/")
-                || name.startsWith("worry/") || name.startsWith("feed/")
+                || name.startsWith("worry/") || name.startsWith("hungry/")
+                || name.startsWith("feed/")
                 || name.startsWith("sit/") || name.startsWith("drag/")
                 || name.startsWith("pat/") || name.startsWith("play/");
     }
