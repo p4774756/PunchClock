@@ -1,11 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readPrivateTeamSceneBundle } from './load-public-module.mjs';
 
-const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
-const sceneJs = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+const sceneJs = readPrivateTeamSceneBundle();
 
 test('首頁場景不再掛新聞電視', () => {
   assert.doesNotMatch(sceneJs, /pickRole = 'news'/);

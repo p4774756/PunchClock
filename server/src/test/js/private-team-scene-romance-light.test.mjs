@@ -3,14 +3,13 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadPublicModule } from './load-public-module.mjs';
+import { loadPublicModule, readPrivateTeamSceneBundle } from './load-public-module.mjs';
 
-const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
-const scenePath = join(publicRoot, 'js/private-team-scene.js');
+const sceneSrc = readPrivateTeamSceneBundle();
 const { privateTeamCandleFlickerMultiplier } = await loadPublicModule('private-team-scene.js');
 
 test('紫藍月光、窗框影子、水光、燭火與暖色洗牆', () => {
-  const src = readFileSync(scenePath, 'utf8');
+  const src = sceneSrc;
   assert.match(src, /0x8898f8/);
   assert.match(src, /makeBathtubCausticsTexture/);
   assert.match(src, /bathtubCaustics/);
@@ -34,7 +33,7 @@ test('蠟燭閃爍在 reducedMotion 時趨於穩定', () => {
 });
 
 test('caustics 位移在 reducedMotion 區塊外、且窄螢較慢', () => {
-  const src = readFileSync(scenePath, 'utf8');
+  const src = sceneSrc;
   assert.match(src, /causticsTex\.offset/);
   assert.match(src, /reducedMotion[\s\S]*causticsMat\.opacity = 0\.28/);
   assert.match(src, /coarsePointer \|\| narrowWin \? 0\.012 : 0\.028/);

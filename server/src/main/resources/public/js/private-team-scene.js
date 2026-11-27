@@ -1,1369 +1,210 @@
 import * as THREE from './vendor/three.module.js';
 import { POCKET_LCD_H, POCKET_LCD_W, drawPocketMaryPreviewLcd } from './private-team-pocket-lcd.js';
-
-export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
-export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typing-b.webp';
-export const SECRETARY_SPRITE_URL_WAVE = '/assets/private-team/secretary-wave.webp';
-export const SECRETARY_SPRITE_URL_YEAH = '/assets/private-team/secretary-yeah.webp';
-export const SECRETARY_SPRITE_URL_IDLE = '/assets/private-team/secretary-idle-tea.webp';
-export const SECRETARY_SPRITE_URL_READ = '/assets/private-team/secretary-read.webp';
-export const SECRETARY_SPRITE_URL_PHONE = '/assets/private-team/secretary-phone.webp';
-export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.webp';
-
-export const SECRETARY_STANDBY_IDLE_URLS = [
+import {
+  SECRETARY_SPRITE_URL_TYPING,
+  SECRETARY_SPRITE_URL_TYPING_B,
+  SECRETARY_SPRITE_URL_WAVE,
+  SECRETARY_SPRITE_URL_YEAH,
   SECRETARY_SPRITE_URL_IDLE,
   SECRETARY_SPRITE_URL_READ,
-  SECRETARY_SPRITE_URL_PHONE
-];
-export const SECRETARY_IDLE_ROTATE_MS = 2 * 60 * 1000;
+  SECRETARY_SPRITE_URL_PHONE,
+  SECRETARY_SPRITE_URL_SLEEP,
+  SECRETARY_CLAP_SPRITE_A,
+  SECRETARY_CLAP_SPRITE_B,
+  SECRETARY_CELEBRATE_STEPS,
+  SECRETARY_STANDBY_IDLE_URLS,
+  SECRETARY_DANCE_DURATION_MS,
+  SECRETARY_IDLE_ROTATE_MS,
+  SECRETARY_IDLE_DANCE_AFTER_MS,
+  SECRETARY_IDLE_DANCE_COOLDOWN_MS,
+  SECRETARY_TYPING_FRAME_MS,
+  SECRETARY_WAVE_MS,
+  SECRETARY_YEAH_MS,
+  SECRETARY_SPRITE_HEIGHT,
+  secretaryCelebrateStateAt,
+  secretaryCelebrateFrameUrlAt,
+  secretaryCelebrateJumpOffsetAt,
+  secretaryTypingDisplayUrl,
+  shouldTriggerIdleStandbyDance,
+  pickNextStandbyIdleUrl,
+  shouldIgnoreStandbyIdleSpriteUpdate,
+  isSecretaryStandbyIdleUrl,
+  isStandbyTigerStatus
+} from './private-team-scene-secretary.js';
 
-const SECRETARY_TYPING_FRAME_MS = 500;
-const SECRETARY_WAVE_MS = 3000;
-const SECRETARY_YEAH_MS = 2500;
+import {
+  clampPrivateTeamZoom,
+  privateTeamNarrowPortrait,
+  PRIVATE_TEAM_CAMERA_FOV,
+  privateTeamDefaultFov,
+  privateTeamDefaultYaw,
+  privateTeamDefaultZoom,
+  privateTeamPinchZoomFactor,
+  PRIVATE_TEAM_DRAG_THRESHOLD_PX,
+  PRIVATE_TEAM_PAN_HINT_DISMISS_KEY,
+  privateTeamOrbitYawReturnEnabled,
+  privateTeamDragExceedsThreshold,
+  privateTeamYawFromDragDelta,
+  privateTeamPanHintShouldShow,
+  privateTeamYawDragVelocityRadPerMs,
+  privateTeamPitchDragVelocityRadPerMs,
+  privateTeamYawMomentumTick,
+  privateTeamPitchMomentumTick,
+  privateTeamYawReturnProgress,
+  privateTeamYawAtReturn,
+  privateTeamPitchFromDragDelta,
+  PRIVATE_TEAM_TRAY_SURFACE_Y,
+  PRIVATE_TEAM_WATER_Y,
+  PRIVATE_TEAM_ZOOM_MIN,
+  PRIVATE_TEAM_ZOOM_MAX,
+  PRIVATE_TEAM_YAW_MAX_DEG,
+  PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT,
+  PRIVATE_TEAM_YAW_RETURN_MS,
+  privateTeamYawMaxRadians,
+  clampPrivateTeamYaw,
+  clampPrivateTeamYawViewport,
+  PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT,
+  PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT,
+  PRIVATE_TEAM_PITCH_MAX_UP_DEG,
+  PRIVATE_TEAM_PITCH_MAX_DOWN_DEG,
+  clampPrivateTeamPitch
+} from './private-team-scene-controls.js';
 
-export const SECRETARY_CLAP_SPRITE_A = '/assets/private-team/secretary-clap-a.webp';
-export const SECRETARY_CLAP_SPRITE_B = '/assets/private-team/secretary-clap-b.webp';
+import {
+  privateTeamSceneLighting,
+  privateTeamCandleFlickerMultiplier,
+  privateTeamSeededRand,
+  makeNightWindowSkyTexture,
+  makeNightSkylineLayerTexture,
+  makeNightCloudLayerTexture,
+  makeWindowRainTexture,
+  makeWindowGlassStreakTexture,
+  makeSkylineFlickerLightsTexture,
+  makeWindowStreetTrafficTexture,
+  makeWindowMoonlightFloorTexture,
+  makeWindowMoonlightWallTexture,
+  stepSkylineFlickerLights,
+  PRIVATE_TEAM_WINDOW_SKY_Z,
+  PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z,
+  PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX,
+  privateTeamWindowSkylineParallaxOffset,
+  privateTeamWindowAmbientMotionEnabled,
+  privateTeamWindowAirplaneBeaconOpacity,
+  skylineLayersInFrontOfWindowSky
+} from './private-team-scene-window.js';
 
-/** 慶祝：拍手兩下 → 比讚 → 小跳（只播一次）。 */
-export const SECRETARY_CELEBRATE_STEPS = [
-  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_A, ms: 250 },
-  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_B, ms: 250 },
-  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_A, ms: 250 },
-  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_B, ms: 250 },
-  { kind: 'frame', url: SECRETARY_SPRITE_URL_YEAH, ms: 700 },
-  { kind: 'jump', ms: 450 }
-];
-export const SECRETARY_DANCE_DURATION_MS = SECRETARY_CELEBRATE_STEPS.reduce((sum, s) => sum + s.ms, 0);
-export const SECRETARY_IDLE_DANCE_AFTER_MS = 4 * 60 * 1000;
-export const SECRETARY_IDLE_DANCE_COOLDOWN_MS = 5 * 60 * 1000;
+import {
+  box,
+  cyl,
+  loadRepeatTex,
+  makeStoneTileTexture,
+  makeWaterRippleTexture,
+  makeBathtubCausticsTexture,
+  addRomanceCandle,
+  addBathPillow,
+  makeScreenPainter,
+  makeBubbleDrawer,
+  lampGlowTexture,
+  softShadowTexture,
+  spriteAspectFromTexture,
+  addMonitor,
+  makeHandheldPreviewLcdTexture,
+  addWindowSillHandheld,
+  addLowPolyPlant,
+  applyUnderwaterTint,
+  extrudedRoundedPlate,
+  extrudedRoundedRing,
+  COL,
+  LEFT_WALL_POSTER_URLS,
+  nextLeftPosterIndex,
+  readLeftPosterIndexFromStorage,
+  formatLeftPosterIndexForStorage,
+  PRIVATE_TEAM_LEFT_POSTER_IDX_KEY,
+  parseLeftPosterIndex
+} from './private-team-scene-room.js';
 
-export function secretaryCelebrateStateAt(elapsedMs) {
-  const t0 = Number(elapsedMs);
-  if (!Number.isFinite(t0) || t0 < 0) {
-    return { kind: 'frame', url: SECRETARY_CELEBRATE_STEPS[0].url, jumpT: null };
-  }
-  if (t0 >= SECRETARY_DANCE_DURATION_MS) {
-    return { kind: 'done', url: '', jumpT: null };
-  }
-  let t = t0;
-  let lastUrl = SECRETARY_CELEBRATE_STEPS[0].url;
-  for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
-    const step = SECRETARY_CELEBRATE_STEPS[i];
-    if (t < step.ms) {
-      if (step.kind === 'frame') {
-        return { kind: 'frame', url: step.url, jumpT: null };
-      }
-      return { kind: 'jump', url: lastUrl, jumpT: t / step.ms };
-    }
-    t -= step.ms;
-    if (step.kind === 'frame') lastUrl = step.url;
-  }
-  return { kind: 'done', url: '', jumpT: null };
-}
-
-export function secretaryCelebrateFrameUrlAt(elapsedMs) {
-  const st = secretaryCelebrateStateAt(elapsedMs);
-  if (st.kind === 'done') return '';
-  return st.url;
-}
-
-export function secretaryCelebrateJumpOffsetAt(elapsedMs) {
-  const st = secretaryCelebrateStateAt(elapsedMs);
-  if (st.kind !== 'jump' || st.jumpT == null) return 0;
-  return Math.sin(st.jumpT * Math.PI) * 0.11;
-}
-
-export function isStandbyTigerStatus(status) {
-  const s = status == null ? '' : String(status).trim();
-  return s === '待命中' || s === '待機';
-}
-
-/** 待命夠久且冷卻後是否該起舞（純函式，供單測）。 */
-export function shouldTriggerIdleStandbyDance({
-  status,
-  standbySinceMs,
-  now,
-  lastIdleDanceMs,
-  dancing,
-  reducedMotion
-}) {
-  if (reducedMotion || dancing) return false;
-  if (!isStandbyTigerStatus(status)) return false;
-  const since = Number(standbySinceMs);
-  const t = Number(now);
-  if (!Number.isFinite(since) || !Number.isFinite(t) || t - since < SECRETARY_IDLE_DANCE_AFTER_MS) {
-    return false;
-  }
-  const last = lastIdleDanceMs == null ? null : Number(lastIdleDanceMs);
-  if (last != null && Number.isFinite(last) && t - last < SECRETARY_IDLE_DANCE_COOLDOWN_MS) {
-    return false;
-  }
-  return true;
-}
-
-export function secretaryTypingDisplayUrl(statusBaseUrl, useTypingB, reducedMotion) {
-  const base = statusBaseUrl == null ? '' : String(statusBaseUrl);
-  if (base === SECRETARY_SPRITE_URL_TYPING && useTypingB && !reducedMotion) {
-    return SECRETARY_SPRITE_URL_TYPING_B;
-  }
-  return base;
-}
-
-export function isSecretaryStandbyIdleUrl(url) {
-  const u = url == null ? '' : String(url).trim();
-  return SECRETARY_STANDBY_IDLE_URLS.includes(u);
-}
-
-/** 心跳輪詢仍傳待命預設喝茶圖時，勿蓋掉輪替中的看書／講電話。 */
-export function shouldIgnoreStandbyIdleSpriteUpdate(currentUrl, incomingUrl) {
-  const cur = currentUrl == null ? '' : String(currentUrl).trim();
-  const inc = incomingUrl == null ? '' : String(incomingUrl).trim();
-  if (inc !== SECRETARY_SPRITE_URL_IDLE || cur === SECRETARY_SPRITE_URL_IDLE) return false;
-  return isSecretaryStandbyIdleUrl(cur);
-}
-
-/** 待命立繪輪替：從三張中選，不連續同一張（randomInt 供單測固定種子）。 */
-export function pickNextStandbyIdleUrl(currentUrl, randomInt) {
-  const cur = currentUrl == null ? '' : String(currentUrl).trim();
-  const pool = SECRETARY_STANDBY_IDLE_URLS.filter((u) => u !== cur);
-  if (pool.length === 0) return SECRETARY_STANDBY_IDLE_URLS[0];
-  const ri = Number(randomInt);
-  const idx = Number.isFinite(ri) ? Math.abs(Math.floor(ri)) % pool.length : 0;
-  return pool[idx];
-}
-
-export const PRIVATE_TEAM_ZOOM_MIN = 0.72;
-export const PRIVATE_TEAM_ZOOM_MAX = 2.05;
-
-/** 鍵盤托盤上緣（與原桌面高度相近） */
-export const PRIVATE_TEAM_TRAY_SURFACE_Y = 0.498;
-
-/** 浴缸水面高度（約齊腰，略高於托盤，鍵盤仍露出） */
-export const PRIVATE_TEAM_WATER_Y = 0.468;
-
-/** 立繪在場景中的高度（公尺比例）；寬度依紋理長寬比計算 */
-const SECRETARY_SPRITE_HEIGHT = 1.42;
-
-const FLOOR_SIZE = 3.6;
-const FLOOR_HALF = FLOOR_SIZE / 2;
-const WALL_THICK = 0.14;
-const TEX_BASE = '/assets/private-team/textures/';
-
-const COL = {
-  wood: 0xc9a66b,
-  woodDk: 0xa07840,
-  wall: 0x243248,
-  wallDk: 0x1a2438,
-  desk: 0x8b6914,
-  tub: 0x7a7268,
-  tubInner: 0x24343c,
-  tubRim: 0x9a9084,
-  water: 0x2c7a88,
-  waterHi: 0xc4f0f2,
-  towel: 0xefe4d4,
-  towelDk: 0xddcbb3,
-  screen: 0x1a2438,
-  screenStand: 0x2a3648,
-  progress: 0x2e9a4a,
-  plant: 0x3d8b4a,
-  pot: 0xc4a882,
-  mug: 0xf8fbff,
-  skyNight: 0x1a2848,
-  building: 0x4a5c7a,
-  buildingLit: 0xf8dc6e,
-  frame: 0x141c28,
-  lampBase: 0x4a3c30,
-  lampMetal: 0x6a5a48,
-  lampShade: 0xe2cfb0
+export {
+  SECRETARY_SPRITE_URL_TYPING,
+  SECRETARY_SPRITE_URL_TYPING_B,
+  SECRETARY_SPRITE_URL_WAVE,
+  SECRETARY_SPRITE_URL_YEAH,
+  SECRETARY_SPRITE_URL_IDLE,
+  SECRETARY_SPRITE_URL_READ,
+  SECRETARY_SPRITE_URL_PHONE,
+  SECRETARY_SPRITE_URL_SLEEP,
+  SECRETARY_STANDBY_IDLE_URLS,
+  SECRETARY_IDLE_ROTATE_MS,
+  SECRETARY_CLAP_SPRITE_A,
+  SECRETARY_CLAP_SPRITE_B,
+  SECRETARY_CELEBRATE_STEPS,
+  SECRETARY_DANCE_DURATION_MS,
+  SECRETARY_IDLE_DANCE_AFTER_MS,
+  SECRETARY_IDLE_DANCE_COOLDOWN_MS,
+  secretaryCelebrateStateAt,
+  secretaryCelebrateFrameUrlAt,
+  secretaryCelebrateJumpOffsetAt,
+  isStandbyTigerStatus,
+  shouldTriggerIdleStandbyDance,
+  secretaryTypingDisplayUrl,
+  isSecretaryStandbyIdleUrl,
+  shouldIgnoreStandbyIdleSpriteUpdate,
+  pickNextStandbyIdleUrl,
+  SECRETARY_TYPING_FRAME_MS,
+  SECRETARY_WAVE_MS,
+  SECRETARY_YEAH_MS,
+  SECRETARY_SPRITE_HEIGHT,
+  PRIVATE_TEAM_ZOOM_MIN,
+  PRIVATE_TEAM_ZOOM_MAX,
+  PRIVATE_TEAM_TRAY_SURFACE_Y,
+  PRIVATE_TEAM_WATER_Y,
+  clampPrivateTeamZoom,
+  privateTeamNarrowPortrait,
+  PRIVATE_TEAM_CAMERA_FOV,
+  PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT,
+  PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT,
+  privateTeamDefaultFov,
+  privateTeamDefaultYaw,
+  privateTeamDefaultZoom,
+  privateTeamPinchZoomFactor,
+  PRIVATE_TEAM_YAW_MAX_DEG,
+  PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT,
+  PRIVATE_TEAM_DRAG_THRESHOLD_PX,
+  PRIVATE_TEAM_YAW_RETURN_MS,
+  PRIVATE_TEAM_PAN_HINT_DISMISS_KEY,
+  privateTeamYawMaxRadians,
+  privateTeamOrbitYawReturnEnabled,
+  clampPrivateTeamYaw,
+  clampPrivateTeamYawViewport,
+  privateTeamDragExceedsThreshold,
+  privateTeamYawFromDragDelta,
+  privateTeamPanHintShouldShow,
+  privateTeamYawDragVelocityRadPerMs,
+  privateTeamYawMomentumTick,
+  privateTeamYawReturnProgress,
+  privateTeamYawAtReturn,
+  PRIVATE_TEAM_PITCH_MAX_UP_DEG,
+  PRIVATE_TEAM_PITCH_MAX_DOWN_DEG,
+  clampPrivateTeamPitch,
+  privateTeamPitchFromDragDelta,
+  privateTeamPitchDragVelocityRadPerMs,
+  privateTeamPitchMomentumTick,
+  privateTeamSceneLighting,
+  privateTeamCandleFlickerMultiplier,
+  PRIVATE_TEAM_WINDOW_SKY_Z,
+  PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z,
+  skylineLayersInFrontOfWindowSky,
+  privateTeamWindowAmbientMotionEnabled,
+  PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX,
+  privateTeamWindowSkylineParallaxOffset,
+  privateTeamWindowAirplaneBeaconOpacity,
+  makeNightWindowSkyTexture,
+  PRIVATE_TEAM_LEFT_POSTER_IDX_KEY,
+  LEFT_WALL_POSTER_URLS,
+  parseLeftPosterIndex,
+  nextLeftPosterIndex,
+  readLeftPosterIndexFromStorage,
+  formatLeftPosterIndexForStorage
 };
-
-export function clampPrivateTeamZoom(z) {
-  const n = Number(z);
-  if (!Number.isFinite(n)) return 1;
-  return Math.min(PRIVATE_TEAM_ZOOM_MAX, Math.max(PRIVATE_TEAM_ZOOM_MIN, n));
-}
-
-/** 窄螢幕直向（含手機直立） */
-export function privateTeamNarrowPortrait(width, height) {
-  const w = Number(width);
-  const h = Number(height);
-  if (!(w > 0) || !(h > 0)) return false;
-  return w < 640 && h > w;
-}
-
-/** 預設垂直視野角；窄螢幕直向略加大，讓窗台掌機與秘書同時入鏡 */
-export const PRIVATE_TEAM_CAMERA_FOV = 42;
-export const PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT = 50;
-/** 窄螢幕直向預設略向左轉（弧度），把右緣窗台與掌機收進畫面 */
-export const PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT = -0.25;
-
-export function privateTeamDefaultFov(width, height) {
-  const w = Number(width);
-  const h = Number(height);
-  if (!(w > 0) || !(h > 0)) return PRIVATE_TEAM_CAMERA_FOV;
-  if (privateTeamNarrowPortrait(w, h)) return PRIVATE_TEAM_CAMERA_FOV_NARROW_PORTRAIT;
-  return PRIVATE_TEAM_CAMERA_FOV;
-}
-
-export function privateTeamDefaultYaw(width, height) {
-  const w = Number(width);
-  const h = Number(height);
-  if (!(w > 0) || !(h > 0)) return 0;
-  if (privateTeamNarrowPortrait(w, h)) return PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT;
-  return 0;
-}
-
-/** 首次載入預設鏡頭距離：窄螢幕直向拉遠，桌面／橫向維持約 1 */
-export function privateTeamDefaultZoom(width, height) {
-  const w = Number(width);
-  const h = Number(height);
-  if (!(w > 0) || !(h > 0)) return 1;
-  if (privateTeamNarrowPortrait(w, h)) return clampPrivateTeamZoom(1.52);
-  return 1;
-}
-
-/** 雙指捏合縮放倍率（距離變大＝拉近，變小＝拉遠） */
-export function privateTeamPinchZoomFactor(pinchStartZoom, pinchStartDist, dist) {
-  if (!(pinchStartDist > 0) || !(dist > 0)) return pinchStartZoom;
-  return pinchStartZoom * (pinchStartDist / dist);
-}
-
-/** 水平拖曳視角左右上限（度） */
-export const PRIVATE_TEAM_YAW_MAX_DEG = 35;
-/** 窄螢幕直向加大偏航，讓左右牆面與銅人可滑進畫面 */
-export const PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT = 52;
-export const PRIVATE_TEAM_DRAG_THRESHOLD_PX = 6;
-export const PRIVATE_TEAM_YAW_RETURN_MS = 600;
-export const PRIVATE_TEAM_PAN_HINT_DISMISS_KEY = 'punchclock-pt-pan-seen';
-
-/** localStorage：左牆海報輪播索引（0–3 對應第 1–4 張）。 */
-export const PRIVATE_TEAM_LEFT_POSTER_IDX_KEY = 'punchclock.office.leftPosterIdx';
-
-export const LEFT_WALL_POSTER_URLS = [
-  '/assets/private-team/posters/poster-1-beach-sunset.webp',
-  '/assets/private-team/posters/poster-2-infinity-pool.webp',
-  '/assets/private-team/posters/poster-3-resort-terrace.webp',
-  '/assets/private-team/posters/poster-4-retro-neon.webp'
-];
-
-/** 將 localStorage 字串正規為 0–3；缺鍵或非法值回 0（第 1 張）。 */
-export function parseLeftPosterIndex(raw) {
-  if (raw == null || raw === '') return 0;
-  const n = Number.parseInt(String(raw), 10);
-  if (!Number.isFinite(n) || n < 0 || n > 3) return 0;
-  return n;
-}
-
-export function nextLeftPosterIndex(current) {
-  const cur = parseLeftPosterIndex(current);
-  return (cur + 1) % LEFT_WALL_POSTER_URLS.length;
-}
-
-export function readLeftPosterIndexFromStorage(getItem) {
-  let raw = null;
-  try {
-    if (typeof getItem === 'function') {
-      raw = getItem(PRIVATE_TEAM_LEFT_POSTER_IDX_KEY);
-    }
-  } catch (_e) {
-    return 0;
-  }
-  return parseLeftPosterIndex(raw);
-}
-
-export function formatLeftPosterIndexForStorage(index) {
-  return String(parseLeftPosterIndex(index));
-}
-
-const PRIVATE_TEAM_YAW_MAX_RAD = (PRIVATE_TEAM_YAW_MAX_DEG * Math.PI) / 180;
-
-export function privateTeamYawMaxRadians(width, height) {
-  const deg = privateTeamNarrowPortrait(width, height)
-    ? PRIVATE_TEAM_YAW_MAX_DEG_NARROW_PORTRAIT
-    : PRIVATE_TEAM_YAW_MAX_DEG;
-  return (deg * Math.PI) / 180;
-}
-
-/** 桌面／橫向鬆手後回正；窄螢幕直向維持視角 */
-export function privateTeamOrbitYawReturnEnabled(width, height) {
-  return !privateTeamNarrowPortrait(width, height);
-}
-
-export function clampPrivateTeamYaw(radians) {
-  const n = Number(radians);
-  if (!Number.isFinite(n)) return 0;
-  return Math.min(PRIVATE_TEAM_YAW_MAX_RAD, Math.max(-PRIVATE_TEAM_YAW_MAX_RAD, n));
-}
-
-export function clampPrivateTeamYawViewport(radians, width, height) {
-  const n = Number(radians);
-  if (!Number.isFinite(n)) return 0;
-  const max = privateTeamYawMaxRadians(width, height);
-  return Math.min(max, Math.max(-max, n));
-}
-
-/** 位移未超過門檻時仍視為點擊（不觸發旋轉） */
-export function privateTeamDragExceedsThreshold(dx, dy) {
-  return Math.hypot(Number(dx), Number(dy)) > PRIVATE_TEAM_DRAG_THRESHOLD_PX;
-}
-
-/** 依水平拖曳距離與畫布寬度換算繞 camLook 的偏航角 */
-export function privateTeamYawFromDragDelta(deltaX, canvasWidth, startYaw, canvasHeight) {
-  const w = Math.max(Number(canvasWidth), 1);
-  const h = Number(canvasHeight);
-  const base = Number(startYaw);
-  const maxRad =
-    Number.isFinite(h) && h > 0 ? privateTeamYawMaxRadians(w, h) : PRIVATE_TEAM_YAW_MAX_RAD;
-  const scale = (2 * maxRad) / w;
-  const next = (Number.isFinite(base) ? base : 0) - Number(deltaX) * scale;
-  if (Number.isFinite(h) && h > 0) return clampPrivateTeamYawViewport(next, w, h);
-  return clampPrivateTeamYaw(next);
-}
-
-export function privateTeamPanHintShouldShow(narrowPortrait, dismissed) {
-  return !!narrowPortrait && !dismissed;
-}
-
-/** 拖曳釋放後的慣性（rad/ms）；reduced motion 時應略過 */
-export function privateTeamYawDragVelocityRadPerMs(deltaPx, dtMs, canvasWidth, canvasHeight) {
-  const dt = Number(dtMs);
-  const dx = Number(deltaPx);
-  if (!Number.isFinite(dt) || dt < 12 || !Number.isFinite(dx)) return 0;
-  const w = Math.max(Number(canvasWidth), 1);
-  const h = Number(canvasHeight);
-  if (!(h > 0)) return 0;
-  const maxRad = privateTeamYawMaxRadians(w, h);
-  const scale = (2 * maxRad) / w;
-  return (-dx / dt) * scale * 0.38;
-}
-
-export function privateTeamYawMomentumTick(yaw, velRadPerMs, dtMs, canvasWidth, canvasHeight) {
-  const dt = Number(dtMs);
-  let v = Number(velRadPerMs);
-  let y = Number(yaw);
-  if (!Number.isFinite(y) || !Number.isFinite(v) || !(dt > 0)) return { yaw: 0, vel: 0 };
-  const w = Math.max(Number(canvasWidth), 1);
-  const h = Number(canvasHeight);
-  if (!(h > 0)) return { yaw: y, vel: 0 };
-  y = clampPrivateTeamYawViewport(y + v * dt, w, h);
-  v *= Math.exp(-5.2 * (dt / 1000));
-  const maxRad = privateTeamYawMaxRadians(w, h);
-  if (Math.abs(y) >= maxRad - 1e-5) v = 0;
-  if (Math.abs(v) < 1e-5) v = 0;
-  return { yaw: y, vel: v };
-}
-
-export function privateTeamYawReturnProgress(elapsedMs, reducedMotion) {
-  if (reducedMotion) return 1;
-  const t = Number(elapsedMs);
-  if (!Number.isFinite(t) || t <= 0) return 0;
-  if (t >= PRIVATE_TEAM_YAW_RETURN_MS) return 1;
-  const u = t / PRIVATE_TEAM_YAW_RETURN_MS;
-  return 1 - (1 - u) * (1 - u);
-}
-
-export function privateTeamYawAtReturn(startYaw, progress) {
-  const y = Number(startYaw);
-  const p = Math.min(1, Math.max(0, Number(progress)));
-  if (!Number.isFinite(y)) return 0;
-  return y * (1 - p);
-}
-
-/** 上下俯仰上限（度，相對基準鏡頭 camBase→camLook）：上拉平視、下拉俯瞰 */
-export const PRIVATE_TEAM_PITCH_MAX_UP_DEG = 20;
-export const PRIVATE_TEAM_PITCH_MAX_DOWN_DEG = 14;
-const PRIVATE_TEAM_PITCH_MAX_UP_RAD = (PRIVATE_TEAM_PITCH_MAX_UP_DEG * Math.PI) / 180;
-const PRIVATE_TEAM_PITCH_MAX_DOWN_RAD = (PRIVATE_TEAM_PITCH_MAX_DOWN_DEG * Math.PI) / 180;
-
-export function clampPrivateTeamPitch(radians) {
-  const n = Number(radians);
-  if (!Number.isFinite(n)) return 0;
-  return Math.min(
-    PRIVATE_TEAM_PITCH_MAX_UP_RAD,
-    Math.max(-PRIVATE_TEAM_PITCH_MAX_DOWN_RAD, n)
-  );
-}
-
-/** 依垂直拖曳與畫布高度換算俯仰；往上拖為正（平視窗外／秘書） */
-export function privateTeamPitchFromDragDelta(deltaY, canvasHeight, startPitch) {
-  const h = Math.max(Number(canvasHeight), 1);
-  const base = Number(startPitch);
-  const range = PRIVATE_TEAM_PITCH_MAX_UP_RAD + PRIVATE_TEAM_PITCH_MAX_DOWN_RAD;
-  const scale = range / h;
-  const next = (Number.isFinite(base) ? base : 0) - Number(deltaY) * scale;
-  return clampPrivateTeamPitch(next);
-}
-
-export function privateTeamPitchDragVelocityRadPerMs(deltaPx, dtMs, canvasHeight) {
-  const dt = Number(dtMs);
-  const dy = Number(deltaPx);
-  if (!Number.isFinite(dt) || dt < 12 || !Number.isFinite(dy)) return 0;
-  const h = Math.max(Number(canvasHeight), 1);
-  if (!(h > 0)) return 0;
-  const range = PRIVATE_TEAM_PITCH_MAX_UP_RAD + PRIVATE_TEAM_PITCH_MAX_DOWN_RAD;
-  const scale = range / h;
-  return (-dy / dt) * scale * 0.38;
-}
-
-export function privateTeamPitchMomentumTick(pitch, velRadPerMs, dtMs, canvasHeight) {
-  const dt = Number(dtMs);
-  let v = Number(velRadPerMs);
-  let p = Number(pitch);
-  if (!Number.isFinite(p) || !Number.isFinite(v) || !(dt > 0)) return { pitch: 0, vel: 0 };
-  const h = Math.max(Number(canvasHeight), 1);
-  if (!(h > 0)) return { pitch: p, vel: 0 };
-  p = clampPrivateTeamPitch(p + v * dt);
-  v *= Math.exp(-5.2 * (dt / 1000));
-  const up = PRIVATE_TEAM_PITCH_MAX_UP_RAD;
-  const down = PRIVATE_TEAM_PITCH_MAX_DOWN_RAD;
-  if (Math.abs(p - up) < 1e-5 || Math.abs(p + down) < 1e-5) v = 0;
-  if (Math.abs(v) < 1e-5) v = 0;
-  return { pitch: p, vel: v };
-}
-
-/** 夜間全域與檯燈強度（供單測） */
-export function privateTeamSceneLighting() {
-  return {
-    amb: 0.35,
-    dir: 0.42,
-    point: 1.05,
-    spot: 5.4,
-    spotDistance: 7.8,
-    spotPenumbra: 0.72,
-    spotDecay: 1.25,
-    pointDistance: 4.6,
-    bulbOpacity: 0.84,
-    haloOpacity: 0.5,
-    shadeEmissive: 0.58
-  };
-}
-
-/** 蠟燭點光閃爍倍率（供單測）；lowMotion 為窄螢或粗指標時較緩。 */
-export function privateTeamCandleFlickerMultiplier(elapsedSec, reducedMotion, lowMotion) {
-  if (reducedMotion) return 0.7;
-  const t = Number(elapsedSec);
-  if (!Number.isFinite(t)) return 0.85;
-  if (lowMotion) {
-    return 0.8 + ((Math.sin(t * 1.6) + 1) / 2) * 0.1;
-  }
-  return (
-    0.76 +
-    ((Math.sin(t * 4.8) + 1) / 2) * 0.16 +
-    ((Math.sin(t * 10.5 + 0.7) + 1) / 2) * 0.08
-  );
-}
-
-function box(w, h, d, color, basic) {
-  const g = new THREE.BoxGeometry(w, h, d);
-  const m = basic
-    ? new THREE.MeshBasicMaterial({ color })
-    : new THREE.MeshLambertMaterial({ color });
-  return new THREE.Mesh(g, m);
-}
-
-function cyl(rt, rb, h, seg, color) {
-  const g = new THREE.CylinderGeometry(rt, rb, h, seg);
-  const m = new THREE.MeshLambertMaterial({ color });
-  return new THREE.Mesh(g, m);
-}
-
-function roundedRectShape(hw, hh, r) {
-  const shape = new THREE.Shape();
-  const x = -hw;
-  const y = -hh;
-  const w = hw * 2;
-  const h = hh * 2;
-  shape.moveTo(x + r, y);
-  shape.lineTo(x + w - r, y);
-  shape.quadraticCurveTo(x + w, y, x + w, y + r);
-  shape.lineTo(x + w, y + h - r);
-  shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  shape.lineTo(x + r, y + h);
-  shape.quadraticCurveTo(x, y + h, x, y + h - r);
-  shape.lineTo(x, y + r);
-  shape.quadraticCurveTo(x, y, x + r, y);
-  return shape;
-}
-
-function extrudedRoundedPlate(hw, hh, depth, radius, mat) {
-  const shape = roundedRectShape(hw, hh, radius);
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: depth,
-    bevelEnabled: true,
-    bevelThickness: 0.012,
-    bevelSize: 0.012,
-    bevelSegments: 2,
-    curveSegments: 6
-  });
-  geo.rotateX(-Math.PI / 2);
-  return new THREE.Mesh(geo, mat);
-}
-
-function extrudedRoundedRing(hw, hh, inHw, inHh, depth, radius, mat) {
-  const shape = roundedRectShape(hw, hh, radius);
-  const hole = roundedRectShape(inHw, inHh, Math.max(0.02, radius * 0.55));
-  shape.holes.push(hole);
-  const geo = new THREE.ExtrudeGeometry(shape, {
-    depth: depth,
-    bevelEnabled: true,
-    bevelThickness: 0.01,
-    bevelSize: 0.01,
-    bevelSegments: 2,
-    curveSegments: 6
-  });
-  geo.rotateX(-Math.PI / 2);
-  return new THREE.Mesh(geo, mat);
-}
-
-function loadRepeatTex(loader, file, rx, ry) {
-  const tex = loader.load(TEX_BASE + file);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.repeat.set(rx, ry);
-  return tex;
-}
-
-function makeStoneTileTexture(repeatX, repeatY) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#94897b';
-  ctx.fillRect(0, 0, 128, 128);
-  for (let row = 0; row < 4; row++) {
-    for (let col = 0; col < 4; col++) {
-      const shade = 140 + ((row * 3 + col * 5) % 7) * 5;
-      ctx.fillStyle = 'rgb(' + (shade + 8) + ',' + (shade - 2) + ',' + (shade - 14) + ')';
-      ctx.fillRect(col * 32 + 2, row * 32 + 2, 28, 28);
-    }
-  }
-  ctx.strokeStyle = '#5c564e';
-  ctx.lineWidth = 3;
-  for (let i = 0; i <= 4; i++) {
-    ctx.beginPath();
-    ctx.moveTo(i * 32, 0);
-    ctx.lineTo(i * 32, 128);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, i * 32);
-    ctx.lineTo(128, i * 32);
-    ctx.stroke();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.repeat.set(repeatX, repeatY);
-  tex.anisotropy = 4;
-  return tex;
-}
-
-function makeWaterRippleTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, 128, 128);
-  const g = ctx.createRadialGradient(64, 64, 8, 64, 64, 62);
-  g.addColorStop(0, 'rgba(255,255,255,0.0)');
-  g.addColorStop(0.35, 'rgba(220,250,255,0.28)');
-  g.addColorStop(0.55, 'rgba(255,255,255,0.0)');
-  g.addColorStop(0.78, 'rgba(200,240,245,0.22)');
-  g.addColorStop(1, 'rgba(255,255,255,0.0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.repeat.set(2.2, 1.6);
-  return tex;
-}
-
-function privateTeamSeededRand(seed) {
-  let s = seed >>> 0;
-  return () => {
-    s = (Math.imul(s, 16807) + 1) >>> 0;
-    return (s & 0x7fffffff) / 0x7fffffff;
-  };
-}
-
-/** 落地窗外天空平面深度（愈大愈靠後）。 */
-export const PRIVATE_TEAM_WINDOW_SKY_Z = 0.22;
-
-/** 落地窗外天際線平面層深度（愈大愈靠後；各層須小於 {@link PRIVATE_TEAM_WINDOW_SKY_Z}），供單測鎖定多層景深。 */
-export const PRIVATE_TEAM_WINDOW_SKYLINE_LAYER_Z = [0.16, 0.11, 0.06];
-
-/** 天際線各層須比天空更靠鏡頭（offset 較小）。 */
-export function skylineLayersInFrontOfWindowSky(skyZ, layerZs) {
-  const sky = Number(skyZ);
-  if (!Number.isFinite(sky) || !layerZs || !layerZs.length) return false;
-  return layerZs.every((z) => Number(z) < sky);
-}
-
-export function privateTeamWindowAmbientMotionEnabled(reducedMotion) {
-  return !reducedMotion;
-}
-
-/** 窗外天際線各層視差係數（愈近愈大）。 */
-export const PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX = {
-  sky: 0.06,
-  far: 0.1,
-  mid: 0.22,
-  near: 0.45,
-  clouds: 0.14,
-  flicker: 0.3
-};
-
-/** 鏡頭微動時依層別計算平面位移；reducedMotion 時歸零。 */
-export function privateTeamWindowSkylineParallaxOffset(yawRad, pitchRad, parallaxScale, reducedMotion) {
-  if (reducedMotion) return { x: 0, y: 0 };
-  const y = Number(yawRad);
-  const p = Number(pitchRad);
-  const s = Number(parallaxScale);
-  if (!Number.isFinite(y) || !Number.isFinite(p) || !Number.isFinite(s)) return { x: 0, y: 0 };
-  return { x: y * s * 0.38, y: p * s * 0.2 };
-}
-
-/** 飛機燈緩慢明滅係數（0.35–1）。 */
-export function privateTeamWindowAirplaneBeaconOpacity(elapsedSec, reducedMotion) {
-  if (reducedMotion) return 0.85;
-  const t = Number(elapsedSec);
-  if (!Number.isFinite(t)) return 0.85;
-  const wave = (Math.sin(t * 1.35) + 1) / 2;
-  return 0.38 + wave * 0.58;
-}
-
-export function makeNightWindowSkyTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 640;
-  canvas.height = 400;
-  const ctx = canvas.getContext('2d');
-  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0, '#080e1c');
-  grad.addColorStop(0.45, '#101a30');
-  grad.addColorStop(0.72, '#142438');
-  grad.addColorStop(1, '#182c44');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const horizonGlow = ctx.createLinearGradient(0, canvas.height * 0.62, 0, canvas.height);
-  horizonGlow.addColorStop(0, 'rgba(0,0,0,0)');
-  horizonGlow.addColorStop(0.45, 'rgba(70,90,130,0.12)');
-  horizonGlow.addColorStop(0.85, 'rgba(110,85,55,0.18)');
-  horizonGlow.addColorStop(1, 'rgba(80,60,40,0.14)');
-  ctx.fillStyle = horizonGlow;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const moonX = canvas.width * 0.76;
-  const moonY = canvas.height * 0.2;
-  const moonG = ctx.createRadialGradient(moonX, moonY, 0, moonX, moonY, 38);
-  moonG.addColorStop(0, 'rgba(210,218,255,0.55)');
-  moonG.addColorStop(0.35, 'rgba(165,175,245,0.22)');
-  moonG.addColorStop(0.55, 'rgba(120,135,210,0.09)');
-  moonG.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = moonG;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const rand = privateTeamSeededRand(503);
-  for (let i = 0; i < 48; i++) {
-    const sx = rand() * canvas.width;
-    const sy = rand() * canvas.height * 0.58;
-    const br = rand() * 1.1 + 0.35;
-    ctx.fillStyle = 'rgba(255,255,255,' + (0.12 + rand() * 0.45) + ')';
-    ctx.fillRect(sx, sy, br, br);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function makeNightSkylineLayerTexture(layer) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 640;
-  canvas.height = 320;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const rand = privateTeamSeededRand(layer === 'far' ? 11 : layer === 'mid' ? 23 : 37);
-  const baseY = canvas.height * (layer === 'far' ? 0.78 : layer === 'mid' ? 0.62 : 0.5);
-  const maxH = canvas.height * (layer === 'far' ? 0.2 : layer === 'mid' ? 0.36 : 0.46);
-  const fog = layer === 'far' ? 0.38 : layer === 'mid' ? 0.68 : 1;
-  let x = -12;
-  while (x < canvas.width + 8) {
-    const bw = (layer === 'near' ? 34 : 26) + rand() * (layer === 'near' ? 48 : 32);
-    const bh = maxH * (0.32 + rand() * 0.68);
-    const tone = layer === 'far' ? 14 + rand() * 14 : layer === 'mid' ? 20 + rand() * 22 : 24 + rand() * 30;
-    const rCh = layer === 'far' ? tone + 6 : tone + 14;
-    const gCh = layer === 'far' ? tone + 14 : tone + 22;
-    const bCh = layer === 'far' ? tone + 44 : layer === 'mid' ? tone + 36 : tone + 32;
-    ctx.fillStyle = 'rgba(' + rCh + ',' + gCh + ',' + bCh + ',' + fog + ')';
-    ctx.fillRect(x, baseY - bh, bw, bh);
-    const cols = Math.max(1, Math.floor(bw / 13));
-    const rows = Math.max(1, Math.floor(bh / 15));
-    for (let c = 0; c < cols; c++) {
-      for (let r = 0; r < rows; r++) {
-        if (rand() < (layer === 'far' ? 0.72 : 0.38)) continue;
-        const warm = rand() > 0.4;
-        const wx = x + 5 + c * 12 + rand() * 2;
-        const wy = baseY - bh + 5 + r * 14 + rand();
-        const ww = 3.5 + rand() * 3;
-        const wh = 4 + rand() * 4;
-        ctx.fillStyle = warm
-          ? 'rgba(245,205,100,' + (0.35 + rand() * 0.55) + ')'
-          : 'rgba(175,205,228,' + (0.28 + rand() * 0.42) + ')';
-        ctx.fillRect(wx, wy, ww, wh);
-      }
-    }
-    if (layer === 'near' && rand() > 0.55) {
-      ctx.fillStyle = 'rgba(40,48,62,0.9)';
-      const rw = bw * (0.5 + rand() * 0.35);
-      ctx.fillRect(x + (bw - rw) / 2, baseY - bh - 4 - rand() * 6, rw, 4 + rand() * 5);
-    }
-    x += bw - rand() * 10;
-  }
-  if (layer === 'far') {
-    const mist = ctx.createLinearGradient(0, canvas.height * 0.42, 0, canvas.height);
-    mist.addColorStop(0, 'rgba(0,0,0,0)');
-    mist.addColorStop(0.55, 'rgba(14,22,40,0.14)');
-    mist.addColorStop(0.85, 'rgba(18,28,48,0.22)');
-    mist.addColorStop(1, 'rgba(16,26,44,0.28)');
-    ctx.fillStyle = mist;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-  if (layer === 'mid') {
-    const midMist = ctx.createLinearGradient(0, canvas.height * 0.62, 0, canvas.height);
-    midMist.addColorStop(0, 'rgba(0,0,0,0)');
-    midMist.addColorStop(1, 'rgba(18,28,48,0.12)');
-    ctx.fillStyle = midMist;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function makeNightCloudLayerTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 200;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const rand = privateTeamSeededRand(71);
-  for (let i = 0; i < 5; i++) {
-    const cx = rand() * canvas.width;
-    const cy = 30 + rand() * 90;
-    const rw = 70 + rand() * 110;
-    const rh = 22 + rand() * 28;
-    const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, rw);
-    g.addColorStop(0, 'rgba(120,140,175,0.2)');
-    g.addColorStop(0.55, 'rgba(95,115,155,0.12)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function makeWindowRainTexture(lineCount) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const rand = privateTeamSeededRand(97);
-  const n = Math.max(16, Math.min(120, lineCount | 0));
-  const rainTop = canvas.height * 0.46;
-  for (let i = 0; i < n; i++) {
-    const x = rand() * canvas.width;
-    const y0 = rand() * rainTop * 0.85;
-    const len = Math.min(10 + rand() * 18, rainTop - y0 - 2);
-    if (len < 4) continue;
-    const w = 0.5 + rand() * 0.65;
-    ctx.strokeStyle = 'rgba(175,195,230,' + (0.14 + rand() * 0.2) + ')';
-    ctx.lineWidth = w;
-    ctx.beginPath();
-    ctx.moveTo(x, y0);
-    ctx.lineTo(x + 1.2, y0 + len);
-    ctx.stroke();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function makeWindowGlassStreakTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 400;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const rand = privateTeamSeededRand(113);
-  for (let d = 0; d < 14; d++) {
-    const dx = rand() * canvas.width;
-    const dy = rand() * canvas.height;
-    const r = 2 + rand() * 5;
-    const g = ctx.createRadialGradient(dx, dy, 0, dx, dy, r);
-    g.addColorStop(0, 'rgba(210,230,250,0.28)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.fillRect(dx - r, dy - r, r * 2, r * 2);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function makeSkylineFlickerLightsTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-  const rand = privateTeamSeededRand(89);
-  const lights = [];
-  for (let i = 0; i < 14; i++) {
-    lights.push({
-      x: rand() * canvas.width,
-      y: canvas.height * (0.35 + rand() * 0.55),
-      w: 2 + rand() * 3,
-      h: 2 + rand() * 4,
-      on: rand() > 0.32,
-      warm: rand() > 0.45
-    });
-  }
-  const antenna = { x: canvas.width * 0.68, y: canvas.height * 0.4, on: false };
-  const paint = () => {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (let li = 0; li < lights.length; li++) {
-      const L = lights[li];
-      if (!L.on) continue;
-      ctx.fillStyle = L.warm ? 'rgba(255,210,120,0.78)' : 'rgba(180,215,240,0.68)';
-      ctx.fillRect(L.x, L.y, L.w, L.h);
-    }
-    if (antenna.on) {
-      ctx.fillStyle = 'rgba(255,232,160,0.88)';
-      ctx.fillRect(antenna.x, antenna.y, 3, 3);
-      const ag = ctx.createRadialGradient(antenna.x, antenna.y, 0, antenna.x, antenna.y, 10);
-      ag.addColorStop(0, 'rgba(255,220,140,0.55)');
-      ag.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = ag;
-      ctx.fillRect(antenna.x - 10, antenna.y - 10, 20, 20);
-    }
-  };
-  paint();
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return { tex, lights, antenna, paint, rand: privateTeamSeededRand(91) };
-}
-
-function makeWindowStreetTrafficTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 160;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const rand = privateTeamSeededRand(131);
-  const groundY = canvas.height * 0.72;
-  ctx.fillStyle = 'rgba(28,36,52,0.55)';
-  ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
-  for (let lx = 36; lx < canvas.width; lx += 88 + rand() * 40) {
-    const poleH = 48 + rand() * 22;
-    ctx.strokeStyle = 'rgba(60,70,88,0.75)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(lx, groundY);
-    ctx.lineTo(lx, groundY - poleH);
-    ctx.stroke();
-    const lampG = ctx.createRadialGradient(lx, groundY - poleH, 0, lx, groundY - poleH, 18);
-    lampG.addColorStop(0, 'rgba(255,228,150,0.85)');
-    lampG.addColorStop(0.45, 'rgba(255,210,120,0.35)');
-    lampG.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = lampG;
-    ctx.fillRect(lx - 22, groundY - poleH - 22, 44, 44);
-  }
-  for (let t = 0; t < 28; t++) {
-    const tx = rand() * canvas.width;
-    const ty = groundY + 4 + rand() * 10;
-    const warm = rand() > 0.22;
-    ctx.fillStyle = warm
-      ? 'rgba(255,72,58,' + (0.55 + rand() * 0.4) + ')'
-      : 'rgba(230,240,255,' + (0.35 + rand() * 0.45) + ')';
-    ctx.fillRect(tx, ty, 2.5 + rand() * 4, 1.2 + rand() * 1.5);
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = THREE.RepeatWrapping;
-  tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function makeWindowMoonlightFloorTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 384;
-  canvas.height = 240;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const cols = 3;
-  const rows = 2;
-  const padX = 14;
-  const padY = 10;
-  const muntin = 11;
-  const innerW = canvas.width - padX * 2;
-  const innerH = canvas.height - padY * 2;
-  const paneW = (innerW - muntin * (cols - 1)) / cols;
-  const paneH = (innerH - muntin * (rows - 1)) / rows;
-  const cornerR = 7;
-
-  function strokeRoundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
-
-  function fillRoundRect(x, y, w, h, r) {
-    strokeRoundRect(x, y, w, h, r);
-    ctx.fill();
-  }
-
-  ctx.save();
-  ctx.transform(1, 0, 0.2, 1, 18, 4);
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      const x = padX + col * (paneW + muntin);
-      const y = padY + row * (paneH + muntin);
-      const fade = 0.35 + ((cols - 1 - col) / (cols - 1)) * 0.65;
-      const lg = ctx.createLinearGradient(x, y, x + paneW, y + paneH);
-      lg.addColorStop(0, 'rgba(185,202,255,' + (0.42 * fade) + ')');
-      lg.addColorStop(0.4, 'rgba(155,180,252,' + (0.78 * fade) + ')');
-      lg.addColorStop(0.75, 'rgba(130,160,245,' + (0.62 * fade) + ')');
-      lg.addColorStop(1, 'rgba(95,125,225,' + (0.28 * fade) + ')');
-      ctx.fillStyle = lg;
-      fillRoundRect(x, y, paneW, paneH, cornerR);
-      const cx = x + paneW * 0.38;
-      const cy = y + paneH * 0.36;
-      const edge = Math.max(paneW, paneH) * 0.58;
-      const pg = ctx.createRadialGradient(cx, cy, 1, cx, cy, edge);
-      pg.addColorStop(0, 'rgba(225,235,255,' + (0.55 * fade) + ')');
-      pg.addColorStop(0.55, 'rgba(165,188,252,' + (0.32 * fade) + ')');
-      pg.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = pg;
-      fillRoundRect(x + 2, y + 2, paneW - 4, paneH - 4, Math.max(2, cornerR - 2));
-    }
-  }
-  ctx.strokeStyle = 'rgba(16,22,52,0.72)';
-  ctx.lineWidth = muntin;
-  ctx.lineCap = 'square';
-  for (let row = 1; row < rows; row++) {
-    const ly = padY + row * paneH + (row - 0.5) * muntin;
-    ctx.beginPath();
-    ctx.moveTo(padX - 3, ly);
-    ctx.lineTo(padX + cols * paneW + (cols - 1) * muntin + 3, ly);
-    ctx.stroke();
-  }
-  ctx.restore();
-  ctx.strokeStyle = 'rgba(28,36,68,0.48)';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(padX + 1, padY + 1, innerW - 2, innerH - 2);
-  const castFade = ctx.createLinearGradient(0, canvas.height * 0.48, 0, canvas.height);
-  castFade.addColorStop(0, 'rgba(0,0,0,0)');
-  castFade.addColorStop(0.72, 'rgba(0,0,0,0.35)');
-  castFade.addColorStop(1, 'rgba(0,0,0,0.92)');
-  ctx.globalCompositeOperation = 'destination-out';
-  ctx.fillStyle = castFade;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.globalCompositeOperation = 'source-over';
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function makeWindowMoonlightWallTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 192;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  const cx = canvas.width * 0.5;
-  const g = ctx.createRadialGradient(cx, 18, 6, cx, 48, 200);
-  g.addColorStop(0, 'rgba(210,224,255,0.92)');
-  g.addColorStop(0.28, 'rgba(160,185,252,0.62)');
-  g.addColorStop(0.62, 'rgba(120,150,240,0.28)');
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const baseWash = ctx.createLinearGradient(0, 0, canvas.width, 0);
-  baseWash.addColorStop(0, 'rgba(88,108,168,0.2)');
-  baseWash.addColorStop(0.35, 'rgba(72,92,152,0.14)');
-  baseWash.addColorStop(0.68, 'rgba(58,78,138,0.1)');
-  baseWash.addColorStop(1, 'rgba(48,68,128,0.08)');
-  ctx.fillStyle = baseWash;
-  ctx.fillRect(0, canvas.height * 0.22, canvas.width, canvas.height * 0.62);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function makeBathtubCausticsTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, 128, 128);
-  const rand = privateTeamSeededRand(617);
-  for (let i = 0; i < 18; i++) {
-    const cx = 16 + rand() * 96;
-    const cy = 16 + rand() * 96;
-    const rw = 6 + rand() * 14;
-    const rh = 5 + rand() * 12;
-    const g = ctx.createRadialGradient(cx, cy, 1, cx, cy, Math.max(rw, rh));
-    g.addColorStop(0, 'rgba(210,238,255,0.68)');
-    g.addColorStop(0.5, 'rgba(148,198,248,0.3)');
-    g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.ellipse(cx, cy, rw, rh, rand() * Math.PI, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.repeat.set(1.4, 1.1);
-  return tex;
-}
-
-function addRomanceCandle(parent, x, y, z, name) {
-  const group = new THREE.Group();
-  group.name = name;
-  group.position.set(x, y, z);
-  const wax = cyl(0.011, 0.013, 0.055, 8, 0xe6ddd4);
-  wax.position.y = 0.028;
-  group.add(wax);
-  const flameMat = new THREE.MeshBasicMaterial({
-    color: 0xffcc66,
-    transparent: true,
-    opacity: 0.9,
-    depthWrite: false
-  });
-  const flame = new THREE.Mesh(new THREE.SphereGeometry(0.013, 6, 5), flameMat);
-  flame.position.y = 0.06;
-  flame.scale.set(0.65, 1.15, 0.65);
-  flame.name = 'candleFlame';
-  group.add(flame);
-  const glow = new THREE.PointLight(0xffb848, 0.42, 2.55, 2);
-  glow.position.y = 0.058;
-  group.add(glow);
-  parent.add(group);
-  return { flameMat, glow, baseIntensity: 0.42 };
-}
-
-function stepSkylineFlickerLights(flicker) {
-  const r = flicker.rand();
-  const n = 2 + Math.floor(r() * 3);
-  for (let i = 0; i < n; i++) {
-    const L = flicker.lights[Math.floor(r() * flicker.lights.length)];
-    if (r() > 0.5) L.on = !L.on;
-  }
-  flicker.paint();
-}
-
-function applyUnderwaterTint(mat, waterYUniform) {
-  mat.alphaTest = 0.02;
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uWaterY = waterYUniform;
-    shader.vertexShader = 'varying vec3 vWorldPos;\n' + shader.vertexShader.replace(
-      '#include <project_vertex>',
-      'vec4 worldPos = modelMatrix * vec4(transformed, 1.0);\n  vWorldPos = worldPos.xyz;\n  #include <project_vertex>'
-    );
-    shader.fragmentShader = 'uniform float uWaterY;\nvarying vec3 vWorldPos;\n' + shader.fragmentShader.replace(
-      '#include <dithering_fragment>',
-      [
-        '#include <dithering_fragment>',
-        'float sub = uWaterY - vWorldPos.y;',
-        'if (sub > 0.0) {',
-        '  float fade = smoothstep(0.0, 0.08, sub);',
-        '  gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.22, 0.48, 0.58), fade);',
-        '  gl_FragColor.a *= 1.0 - 0.97 * smoothstep(0.015, 0.12, sub);',
-        '  if (gl_FragColor.a < 0.03) discard;',
-        '}'
-      ].join('\n')
-    );
-  };
-  mat.customProgramCacheKey = () => 'secretary-underwater-tint-v2';
-}
-
-function addBathPillow(parent) {
-  if (parent.getObjectByName('bathPillow')) return;
-  const group = new THREE.Group();
-  group.name = 'bathPillow';
-  group.position.set(0.04, 0.48, -0.3);
-  function towelBox(w, h, d, color) {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, d),
-      new THREE.MeshBasicMaterial({ color })
-    );
-    mesh.renderOrder = 1;
-    return mesh;
-  }
-  const cushion = towelBox(0.42, 0.3, 0.1, COL.towel);
-  cushion.name = 'bathPillowCushion';
-  cushion.position.set(0, 0.02, 0.03);
-  cushion.rotation.x = 0.24;
-  const roll = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.055, 0.055, 0.26, 14),
-    new THREE.MeshBasicMaterial({ color: COL.towelDk })
-  );
-  roll.name = 'bathPillowRoll';
-  roll.rotation.z = Math.PI / 2;
-  roll.position.set(0.06, 0.17, 0.05);
-  roll.renderOrder = 1;
-  const fold = towelBox(0.14, 0.18, 0.05, COL.towelDk);
-  fold.name = 'bathPillowFold';
-  fold.position.set(-0.14, 0.05, 0.04);
-  fold.rotation.z = -0.18;
-  group.add(cushion, roll, fold);
-  parent.add(group);
-}
-
-function makeScreenPainter() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 160;
-  canvas.height = 110;
-  const ctx = canvas.getContext('2d');
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshBasicMaterial({ map: tex });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.38), mat);
-  mesh.position.z = 0.04;
-  function draw(pulse) {
-    ctx.fillStyle = '#121a2c';
-    ctx.fillRect(0, 0, 160, 110);
-    const glow = '#b9e2ff';
-    ctx.fillStyle = 'rgba(94, 186, 255, ' + (0.45 + pulse * 0.45) + ')';
-    ctx.fillRect(12, 14, 136, 82);
-    ctx.fillStyle = glow;
-    const slide = (pulse * 28) | 0;
-    ctx.fillRect(22, 26, 48 + slide, 10);
-    ctx.fillRect(22, 46, 90, 8);
-    ctx.fillRect(22, 64, 62 + (18 - slide / 2), 8);
-    tex.needsUpdate = true;
-  }
-  return { mesh, draw };
-}
-
-function makeBubbleDrawer() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 320;
-  canvas.height = 112;
-  const ctx = canvas.getContext('2d');
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  function draw(text) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const x = 20;
-    const y = 16;
-    const w = 272;
-    const h = 56;
-    const r = h / 2;
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(x + 168, y + h);
-    ctx.lineTo(x + 154, y + h + 12);
-    ctx.lineTo(x + 148, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.arc(x + r, y + r, r, Math.PI / 2, -Math.PI / 2);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(18,32,58,0.74)';
-    ctx.fill();
-    ctx.strokeStyle = '#c9a850';
-    ctx.lineWidth = 2.2;
-    ctx.stroke();
-    ctx.fillStyle = '#52d86e';
-    ctx.beginPath();
-    ctx.arc(x + 22, y + r, 5, 0, Math.PI * 2);
-    ctx.fill();
-    const label = text == null || String(text).trim() === '' ? '…' : String(text);
-    const size = label.length > 6 ? 26 : label.length > 4 ? 30 : 34;
-    ctx.fillStyle = '#e6f0ff';
-    ctx.font = size + 'px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, x + w / 2 + 6, y + r);
-    tex.needsUpdate = true;
-  }
-  draw('…');
-  return { tex, draw };
-}
-
-function lampGlowTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-  const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 62);
-  g.addColorStop(0, 'rgba(255, 228, 180, 0.9)');
-  g.addColorStop(0.4, 'rgba(255, 196, 120, 0.35)');
-  g.addColorStop(1, 'rgba(255, 170, 90, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 128);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function softShadowTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 64;
-  const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, 128, 64);
-  const g = ctx.createRadialGradient(64, 32, 2, 64, 32, 60);
-  g.addColorStop(0, 'rgba(10, 18, 36, 0.55)');
-  g.addColorStop(0.55, 'rgba(10, 18, 36, 0.22)');
-  g.addColorStop(1, 'rgba(10, 18, 36, 0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 128, 64);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function spriteAspectFromTexture(tex) {
-  const img = tex && tex.image;
-  if (img && img.width > 0 && img.height > 0) {
-    return img.width / img.height;
-  }
-  return 526 / 768;
-}
-
-function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
-  const group = new THREE.Group();
-  group.userData.pickRole = 'monitor';
-  const s = scale == null ? 1 : scale;
-  const trayY = traySurfaceY == null ? PRIVATE_TEAM_TRAY_SURFACE_Y : traySurfaceY;
-  group.position.set(x, 0.86, z);
-  group.scale.set(s, s, s);
-  const bezel = box(0.58, 0.42, 0.05, COL.screen);
-  const painter = makeScreenPainter();
-  const mountLocalY = trayY - group.position.y;
-  const bezelBottom = -0.21;
-  const standBottom = mountLocalY + 0.008;
-  const standH = Math.max(0.08, bezelBottom - standBottom);
-  const stand = box(0.09, standH, 0.07, COL.screenStand);
-  stand.position.y = (bezelBottom + standBottom) / 2;
-  const basePlate = box(0.15, 0.018, 0.11, COL.screenStand);
-  basePlate.position.y = standBottom - 0.009;
-  const bracket = box(0.04, standH * 0.55, 0.05, COL.screenStand);
-  bracket.position.set(0, standBottom + standH * 0.22, 0.04);
-  group.add(bezel, painter.mesh, stand, basePlate, bracket);
-  group.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
-  root.add(group);
-
-  const screenGlow = new THREE.PointLight(0x8ab8e8, 0.28, 2.4, 2);
-  screenGlow.position.set(0, 0.05, 0.12);
-  group.add(screenGlow);
-
-  return { painter, screenGlow, group, bezel };
-}
-
-function makeHandheldPreviewLcdTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = POCKET_LCD_W;
-  canvas.height = POCKET_LCD_H;
-  const ctx = canvas.getContext('2d');
-  drawPocketMaryPreviewLcd(ctx);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestFilter;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.needsUpdate = true;
-  return tex;
-}
-
-/** 窗台掌機（馬克杯右側立放）。 */
-function addWindowSillHandheld(root, sillY, sillZ, mugX) {
-  const group = new THREE.Group();
-  group.userData.pickRole = 'handheld';
-  const gx = mugX + 0.11;
-  group.position.set(gx, sillY + 0.078, sillZ + 0.098);
-  group.rotation.y = -0.3;
-  group.scale.set(1.9, 1.9, 1.9);
-
-  const bodyMat = new THREE.MeshLambertMaterial({
-    color: 0xc8dc88,
-    emissive: 0x1e542e,
-    emissiveIntensity: 0.28
-  });
-  const body = box(0.056, 0.098, 0.03, bodyMat);
-  body.name = 'windowSillHandheldBody';
-  body.userData.pickRole = 'handheld';
-  group.add(body);
-
-  const lcdTex = makeHandheldPreviewLcdTexture();
-  const screenMat = new THREE.MeshBasicMaterial({
-    map: lcdTex,
-    toneMapped: false
-  });
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.05, 0.046), screenMat);
-  screen.position.set(0, 0.02, 0.016);
-  screen.name = 'windowSillHandheldScreen';
-  screen.userData.pickRole = 'handheld';
-  group.add(screen);
-
-  const lens = box(0.008, 0.008, 0.004, 0x302018, true);
-  lens.position.set(-0.015, -0.03, 0.016);
-  lens.name = 'windowSillHandheldLens';
-  group.add(lens);
-
-  const pickMat = new THREE.MeshBasicMaterial({
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    depthTest: false
-  });
-  const pick = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.26, 0.16), pickMat);
-  pick.position.set(0, 0.01, 0.04);
-  pick.name = 'windowSillHandheldPick';
-  pick.userData.pickRole = 'handheld';
-  pick.renderOrder = 10;
-  group.add(pick);
-
-  const glow = new THREE.PointLight(0x5ec87a, 0.62, 1.05, 2);
-  glow.position.set(0, 0.024, 0.038);
-  glow.name = 'windowSillHandheldGlow';
-  group.add(glow);
-
-  group.name = 'windowSillHandheld';
-  root.add(group);
-  return { group, body, screen, glow, pick };
-}
-
-function addLowPolyPlant(root, x, z) {
-  const pot = cyl(0.09, 0.075, 0.11, 10, COL.pot);
-  pot.position.set(x, 0.055, z);
-  root.add(pot);
-  const leafMat = new THREE.MeshLambertMaterial({ color: COL.plant });
-  for (let i = 0; i < 6; i++) {
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.055, 6, 5), leafMat);
-    const a = (i / 6) * Math.PI * 2;
-    leaf.position.set(x + Math.cos(a) * 0.06, 0.15 + (i % 3) * 0.04, z + Math.sin(a) * 0.06);
-    leaf.scale.set(1.05, 0.5, 0.9);
-    root.add(leaf);
-  }
-}
 
 export function mountPrivateTeamScene(canvas, opts) {
   const win = (opts && opts.win) || globalThis;
