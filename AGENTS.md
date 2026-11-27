@@ -4,7 +4,7 @@
 
 ## 這是什麼
 
-Java 多模組專案（Swing 桌面端 + Javalin 伺服器）：桌面端負責本機排程、Playwright 瀏覽器自動化、心跳與傳檔；伺服器收心跳、提供 Web 監控與夜間 3D 私人秘書辦公室，遠端只能取消任務（不能建立排程）。
+Java 多模組專案（Swing 桌面端 + Javalin 伺服器）：桌面端負責本機排程、Playwright 瀏覽器自動化、心跳與傳檔；伺服器收心跳、提供 Web 監控與夜間 3D 私人秘書辦公室（窗台 Game Boy 掌機＋彈窗，見 `private-team-pocket.js`），遠端只能取消任務（不能建立排程）。開發筆電狀態另見 `scripts/dev-heartbeat.sh`。
 
 ## 模組地圖
 
