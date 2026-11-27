@@ -173,6 +173,7 @@ public class PanelFactory {
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.addTab("外觀", settingsPage(
                 settingsSection("視窗透明度", boldFont, windowTransparencyRow(refs, mainFont, boldFont)),
+                settingsSection("Dock 圖示", boldFont, dockIconSwimsuitRow(refs, mainFont, boldFont)),
                 settingsSection("首頁插畫", boldFont, homeIllustrationRow(refs, mainFont, boldFont)),
                 settingsSection("打卡介面", boldFont, checkInUiRow(refs, mainFont, boldFont)),
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
@@ -180,7 +181,7 @@ public class PanelFactory {
                 settingsSection("版本", boldFont, versionInfo),
                 settingsSection("程式更新", boldFont, updates)));
         tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與中繼 Proxy");
-        tabs.setToolTipTextAt(SETTINGS_APPEARANCE_TAB, "視窗透明度與桌面寵物");
+        tabs.setToolTipTextAt(SETTINGS_APPEARANCE_TAB, "視窗透明度、Dock 圖示與桌面寵物");
         tabs.setToolTipTextAt(SETTINGS_ABOUT_TAB, "版本資訊與程式更新");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
@@ -355,6 +356,50 @@ public class PanelFactory {
         column.add(header);
         column.add(Box.createVerticalStrut(4));
         column.add(refs.windowTransparencySlider);
+        column.add(Box.createVerticalStrut(4));
+        column.add(hint);
+        return column;
+    }
+
+    private static JPanel dockIconSwimsuitRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        refs.dockIconSwimsuitSwitch = new CandySwitch();
+        refs.dockIconSwimsuitSwitch.setSelected(false);
+        refs.dockIconSwimsuitSwitch.setFont(boldFont);
+        refs.dockIconSwimsuitSwitch.getAccessibleContext().setAccessibleName("Dock 圖示泳裝角色");
+        String tip = "開啟後 Dock／工作列圖示改為泳裝角色（B 款：月光薄荷綠半身泳裝）。";
+        refs.dockIconSwimsuitSwitch.setToolTipText(tip);
+
+        JLabel title = new JLabel("泳裝角色");
+        title.setFont(boldFont);
+        title.setLabelFor(refs.dockIconSwimsuitSwitch);
+        title.setToolTipText(tip);
+        title.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        title.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (refs.dockIconSwimsuitSwitch.isEnabled()) {
+                    refs.dockIconSwimsuitSwitch.doClick();
+                }
+            }
+        });
+
+        JLabel hint = new CompactShellPanels.WrappingLabel(
+                "切換後立刻更新程式圖示；有好友未讀時紅點／角標仍會疊在圖示上。");
+        hint.setFont(mainFont);
+        hint.setForeground(NightTheme.MUTED);
+
+        JPanel line = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        line.setOpaque(false);
+        line.add(refs.dockIconSwimsuitSwitch);
+        line.add(title);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        line.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(line);
         column.add(Box.createVerticalStrut(4));
         column.add(hint);
         return column;
@@ -713,6 +758,7 @@ public class PanelFactory {
         public JLabel backgroundOpacityValueLabel;
         public JComboBox<String> homeIllustrationCombo;
         public JToggleButton checkInUiVisibleSwitch;
+        public JToggleButton dockIconSwimsuitSwitch;
         public JToggleButton desktopPetSwitch;
         public JSlider windowTransparencySlider;
         public JLabel windowTransparencyValueLabel;
