@@ -72,4 +72,5 @@ node_modules/
 .env.local
 .DS_Store
 Thumbs.db
+blender.crash.txt
 tools/blender/__pycache__/
