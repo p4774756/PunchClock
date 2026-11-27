@@ -5,7 +5,6 @@ import org.junit.Test;
 import javax.imageio.ImageIO;
 import javax.swing.JTabbedPane;
 import java.awt.Color;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -36,17 +35,7 @@ public class Issue271ScreenshotTest {
         tabs.setSelectedIndex(1);
         int w = 860;
         int h = 620;
-        tabs.setSize(w, h);
-        tabs.doLayout();
-        BufferedImage settings = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = settings.createGraphics();
-        try {
-            g.setColor(new Color(28, 20, 48));
-            g.fillRect(0, 0, w, h);
-            tabs.paint(g);
-        } finally {
-            g.dispose();
-        }
+        BufferedImage settings = WindowChrome.renderOffscreen(tabs, w, h, new Color(28, 20, 48));
         Path appearance = OUT_DIR.resolve("settings-appearance-860x620.png");
         assertTrue(ImageIO.write(settings, "png", appearance.toFile()));
         assertTrue(Files.size(appearance) > 500L);

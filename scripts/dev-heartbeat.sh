@@ -58,9 +58,13 @@ dev_chains_running() {
   esac
     return 1
   fi
-  ps_out=$(ps -axo command= 2>/dev/null) || return 1
+  if [ -n "$MOCK_PS_CHAINS" ]; then
+    ps_out="$MOCK_PS_CHAINS"
+  else
+    ps_out=$(ps -axo command= 2>/dev/null) || return 1
+  fi
   case "$ps_out" in
-    *chainrun.sh*|*chainmed.sh*|*chainfast2.sh*|*loopfast.sh*) return 0 ;;
+    *chainrun-verify.sh*|*chainmed-verify.sh*|*chainrun.sh*|*chainmed.sh*|*chainfast2.sh*|*loopfast.sh*) return 0 ;;
   esac
   return 1
 }
@@ -676,7 +680,20 @@ read_chain_runs() {
       }
       return 0
     }
-    function add_issue(issue, started,    branch) {
+    function chain_name(port,    p) {
+      p = port + 0
+      if (p == 9474) return "青龍"
+      if (p == 9475) return "白虎"
+      if (p == 9476) return "朱雀"
+      if (p == 9477) return "玄武"
+      return ""
+    }
+    function set_chain(issue, port,    name) {
+      if (issue < 1 || port < 1) return
+      name = chain_name(port)
+      if (name != "") best_chain[issue] = name
+    }
+    function add_issue(issue, started, port,    branch) {
       if (issue < 1) return
       branch = "ai/issue-" issue
       if (!(issue in best_started) || started < best_started[issue]) {
@@ -685,6 +702,7 @@ read_chain_runs() {
         best_branch[issue] = branch
         best_wt[issue] = ""
       }
+      if (port > 0) set_chain(issue, port)
     }
     function after_script(rest, script,    pos, tail, tok) {
       pos = index(rest, script)
@@ -693,36 +711,51 @@ read_chain_runs() {
       sub(/^[ \t]+/, "", tail)
       return tail
     }
-    function loopfast_issue(rest,    tail, issue) {
+    function loopfast_issue(rest,    tail, issue, n, i, last_port) {
       tail = after_script(rest, "loopfast.sh")
-      if (tail == "") return 0
-      if (match(tail, /^[0-9]+/)) return substr(tail, RSTART, RLENGTH) + 0
-      return 0
+      if (tail == "") return ""
+      issue = 0
+      last_port = 0
+      n = split(tail, parts, /[ \t]+/)
+      for (i = 1; i <= n; i++) {
+        if (parts[i] ~ /^[0-9]+$/) {
+          if (issue < 1) issue = parts[i] + 0
+          if (parts[i] + 0 >= 9474 && parts[i] + 0 <= 9477) last_port = parts[i] + 0
+        }
+      }
+      if (issue < 1) return ""
+      return issue SUBSEP last_port
     }
-    function chainmed_issue(rest,    tail, n, i, seen_port) {
-      tail = after_script(rest, "chainmed.sh")
-      if (tail == "") return 0
+    function chainmed_style(rest, script,    tail, n, i, seen_port, port, issue) {
+      tail = after_script(rest, script)
+      if (tail == "") return ""
+      port = 0
+      issue = 0
       n = split(tail, parts, /[ \t]+/)
       seen_port = 0
       for (i = 1; i <= n; i++) {
         if (parts[i] ~ /^[0-9]+$/) {
           if (!seen_port) {
+            port = parts[i] + 0
             seen_port = 1
             continue
           }
-          return parts[i] + 0
+          issue = parts[i] + 0
+          break
         }
       }
-      return 0
+      if (issue < 1) return ""
+      return issue SUBSEP port
     }
-    function chainfast_issue(line, started,    tail, n, tok) {
+    function chainfast_issue(line, started,    tail, n, tok, port) {
       tail = after_script(line, "chainfast2.sh")
       if (tail == "") return
       n = split(tail, parts, /[ \t]+/)
       if (n < 2) return
+      port = parts[1] + 0
       tok = parts[2]
       sub(/\+.*/, "", tok)
-      if (tok ~ /^[0-9]+$/) add_issue(tok + 0, started)
+      if (tok ~ /^[0-9]+$/) add_issue(tok + 0, started, port)
     }
     BEGIN { count = 0 }
     {
@@ -730,13 +763,35 @@ read_chain_runs() {
       et = $1
       started = now_ms - etime_ms(et)
       if (line ~ /loopfast\.sh/) {
-        issue = loopfast_issue(line)
-        add_issue(issue, started)
+        pair = loopfast_issue(line)
+        if (pair != "") {
+          split(pair, lp, SUBSEP)
+          add_issue(lp[1] + 0, started, lp[2] + 0)
+        }
+        next
+      }
+      if (line ~ /chainmed-verify\.sh/) {
+        pair = chainmed_style(line, "chainmed-verify.sh")
+        if (pair != "") {
+          split(pair, cp, SUBSEP)
+          add_issue(cp[1] + 0, started, cp[2] + 0)
+        }
+        next
+      }
+      if (line ~ /chainrun-verify\.sh/) {
+        pair = chainmed_style(line, "chainrun-verify.sh")
+        if (pair != "") {
+          split(pair, cp, SUBSEP)
+          add_issue(cp[1] + 0, started, cp[2] + 0)
+        }
         next
       }
       if (line ~ /chainmed\.sh/) {
-        issue = chainmed_issue(line)
-        add_issue(issue, started)
+        pair = chainmed_style(line, "chainmed.sh")
+        if (pair != "") {
+          split(pair, cp, SUBSEP)
+          add_issue(cp[1] + 0, started, cp[2] + 0)
+        }
         next
       }
       if (line ~ /chainfast2\.sh/) {
@@ -746,13 +801,14 @@ read_chain_runs() {
     END {
       for (i in best_started) {
         if (count >= 12) continue
-        printf "%s\t%s\t%s\t%s\t%s\n", i, best_round[i], best_branch[i], best_started[i], best_wt[i]
+        cname = (i in best_chain) ? best_chain[i] : ""
+        printf "%s\t%s\t%s\t%s\t%s\n", i, best_round[i], best_branch[i], best_started[i], cname
         count++
       }
     }
   ')
   [ -z "$tsv" ] && return 0
-  while IFS='	' read -r issue round branch started wt; do
+  while IFS='	' read -r issue round branch started chain_label; do
     [ -z "$issue" ] && continue
     case "$RUNS_JSON" in
       *"\"issue\":$issue"*) continue ;;
@@ -769,8 +825,12 @@ read_chain_runs() {
     if [ -n "$wt" ]; then
       wt_json=$(printf ',"worktree":"%s"' "$wt")
     fi
-    part=$(printf '{"issue":%s,"round":%s,"branch":"%s","startedAt":%s,"role":"dev"%s%s}' \
-      "$issue" "$round" "$branch" "$started" "$wt_json" "$commit_json")
+    chain_json=""
+    if [ -n "$chain_label" ]; then
+      chain_json=$(printf ',"chain":"%s"' "$chain_label")
+    fi
+    part=$(printf '{"issue":%s,"round":%s,"branch":"%s","startedAt":%s,"role":"dev"%s%s%s}' \
+      "$issue" "$round" "$branch" "$started" "$wt_json" "$commit_json" "$chain_json")
     if [ "$RUNS_JSON" = "[]" ] || [ -z "$RUNS_JSON" ]; then
       RUNS_JSON="[$part]"
     else

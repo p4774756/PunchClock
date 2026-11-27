@@ -8,7 +8,6 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.SwingUtilities;
 import java.awt.Font;
-import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -49,12 +48,7 @@ public class Issue360ScreenshotTest {
                 refs.peerTable.doLayout();
                 refs.peerStatusLabel.setText("共 2 位好友 · 1 位在線");
                 JScrollPane scroll = CompactShellPanels.wrap(panel);
-                scroll.setSize(380, 560);
-                scroll.doLayout();
-                BufferedImage shot = new BufferedImage(380, 560, BufferedImage.TYPE_INT_RGB);
-                Graphics2D g = shot.createGraphics();
-                scroll.paint(g);
-                g.dispose();
+                BufferedImage shot = WindowChrome.renderOffscreen(scroll, 380, 560, null);
                 write("peer-friends-no-status-column.png", shot);
             } catch (IOException ex) {
                 throw new RuntimeException(ex);
