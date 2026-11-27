@@ -1,6 +1,6 @@
 # PunchClock
 
-小寶貝（PunchClock）由 Java 桌面端與 Javalin 伺服器組成：公開的 2D 虛擬辦公室網站、桌面排程與傳檔、經絡研習室，以及管理主控台。
+小寶貝（PunchClock）由 Java 桌面端與 Javalin 伺服器組成：夜間 3D 私人秘書辦公室網站、桌面排程與傳檔，以及管理主控台。
 
 ## 架構
 
@@ -10,8 +10,7 @@
 │  SKLbaby.jar    │ ◄── action / actions ── │  (Javalin)       │ ── WS 狀態推送 ─► │  /console   │
 └─────────────────┘                        └──────────────────┘                   └─────────────┘
          │                                           │
-         │                                           ├── GET /  公開虛擬辦公室
-         │                                           ├── /atlas/tcm-3d/  經絡研習室（免登入）
+         │                                           ├── GET /  夜間 3D 私人秘書辦公室
          │                                           └── /download  SKLbaby.jar
 ```
 
@@ -24,7 +23,6 @@
 | [`client/`](client/) | 桌面端：排程、好友傳檔、連線與外觀 | Java 11、Swing、Playwright |
 | [`server/`](server/) | 伺服器：心跳、網站、主控台 | Java 11、Javalin、WebSocket |
 | [`shared/`](shared/) | 共用程式（`PeerFileRules` 等） | Java 11 |
-| [`atlas-src/tcm-3d/`](atlas-src/tcm-3d/) | 經絡研習室靜態站（建置後掛在 server） | Vite、Three.js |
 
 ## 快速開始
 
@@ -35,7 +33,7 @@ mvn -pl server -am package -DskipTests
 java -jar server/target/punchclock-server.jar
 ```
 
-預設 `http://localhost:3000`。**首頁 `/` 是公開虛擬辦公室**；管理主控台在 `/console`（或先開 `/login`）。
+預設 `http://localhost:3000`。**首頁 `/` 是夜間 3D 私人秘書辦公室**；管理主控台在 `/console`（或先開 `/login`）。
 
 ### 2. 啟動桌面端
 
@@ -68,8 +66,7 @@ java -jar client/target/SKLbaby.jar
 
 ### 5. 公開網站
 
-- **虛擬辦公室**（`GET /`）：3D 私人女秘書場景；左上任務／登入、右下可開「下載 App」；施工進度與路線圖請至主控台 `/console`。
-- **經絡研習室**（`/atlas/tcm-3d/`，免登入）：穴位練習用角色模型，搜尋支援穴名、注音或編號。本機須先 `./scripts/build-atlas.sh`（需 Node.js ≥ 22），否則會提示尚未建置。開發檢查與烘焙流程見 `atlas-src/tcm-3d` 目錄內文件。
+- **私人秘書辦公室**（`GET /`）：3D 夜間場景；左上任務／登入、右下可開「下載 App」；施工進度與路線圖請至主控台 `/console`。
 - **下載頁**（`/download`）與首頁下載浮窗：僅提供 `SKLbaby.jar`（`GET /download/app.jar`、`/download/SKLbaby.jar` 仍接受舊檔名 `XiaoBaobei.jar`）；需先安裝 Java 11 或以上，再以 `java -jar SKLbaby.jar` 執行。
 
 ### 6. 管理主控台
@@ -92,13 +89,13 @@ java -jar client/target/SKLbaby.jar
 
 ### 網站（桌機 1280／手機 390）
 
-| 虛擬辦公室 | 經絡研習室 |
+| 私人秘書辦公室 | 下載頁 |
 | ------ | ------ |
-| ![辦公室桌機](docs/screenshots/web/office-desktop.jpg) | ![研習室桌機](docs/screenshots/web/atlas-desktop.jpg) |
-| 下載頁 | 登入 |
-| ![下載桌機](docs/screenshots/web/download-desktop.jpg) | ![登入桌機](docs/screenshots/web/login-desktop.jpg) |
-| 主控台任務 | 施工進度 |
-| ![主控台](docs/screenshots/web/console-tasks-desktop.jpg) | ![施工進度](docs/screenshots/web/roadmap-desktop.jpg) |
+| ![辦公室桌機](docs/screenshots/web/office-desktop.jpg) | ![下載桌機](docs/screenshots/web/download-desktop.jpg) |
+| 登入 | 主控台任務 |
+| ![登入桌機](docs/screenshots/web/login-desktop.jpg) | ![主控台](docs/screenshots/web/console-tasks-desktop.jpg) |
+| 施工進度 | |
+| ![施工進度](docs/screenshots/web/roadmap-desktop.jpg) | |
 
 手機版範例：![辦公室手機](docs/screenshots/web/office-mobile.jpg)
 

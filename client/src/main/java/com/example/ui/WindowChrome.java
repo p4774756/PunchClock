@@ -530,6 +530,44 @@ public final class WindowChrome {
         return image;
     }
 
+    /**
+     * headless 整頁離屏：掛進暫時 {@link JFrame}、{@code addNotify} 並遞迴 {@code validate} 後再繪製。
+     */
+    public static BufferedImage renderOffscreen(JComponent component, int width, int height, Color background) {
+        JPanel host = new JPanel(null);
+        host.setSize(width, height);
+        component.setBounds(0, 0, width, height);
+        host.add(component);
+        if (!host.isDisplayable()) {
+            host.addNotify();
+        }
+        validateComponentTree(host);
+        component.doLayout();
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            if (background != null) {
+                g.setColor(background);
+                g.fillRect(0, 0, width, height);
+            }
+            host.paint(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
+    private static void validateComponentTree(Container root) {
+        root.validate();
+        for (Component child : root.getComponents()) {
+            if (child instanceof Container) {
+                validateComponentTree((Container) child);
+            } else if (child != null) {
+                child.validate();
+            }
+        }
+    }
+
     public static void setWallpaperEffects(JFrame frame, int blurPercent, int opacityPercent) {
         if (frame == null) {
             return;

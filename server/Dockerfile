@@ -1,10 +1,4 @@
 # Build from monorepo root (PunchClock/). Render: Dockerfile Path = server/Dockerfile
-# 經穴圖在這個階段編譯，最後的執行映像只留下靜態網站。
-FROM node:22-bookworm AS atlas
-WORKDIR /src
-COPY atlas-src/tcm-3d tcm-3d
-RUN cd tcm-3d && npm ci && npm run build:punchclock
-
 FROM maven:3.9-eclipse-temurin-11 AS build
 WORKDIR /app
 
@@ -30,10 +24,8 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY --from=build /app/server/target/punchclock-server.jar app.jar
-COPY --from=atlas /src/tcm-3d/dist /app/atlas/tcm-3d
 
 ENV PORT=3000
-ENV ATLAS_ROOT=/app/atlas
 # 512MB 機器：heap 約 256MB，其餘留給 metaspace／執行緒／寫檔時的 page cache，避免整個容器被 OOM kill。
 # 傳檔是串流落地，不需要大 heap。
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=50.0"
