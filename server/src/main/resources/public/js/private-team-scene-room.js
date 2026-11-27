@@ -1,12 +1,13 @@
 import * as THREE from './vendor/three.module.js';
 import { POCKET_LCD_H, POCKET_LCD_W, drawPocketMaryPreviewLcd } from './private-team-pocket-lcd.js';
+import { privateTeamSeededRand } from './private-team-scene-window.js';
 
 /** 立繪在場景中的高度（公尺比例）；寬度依紋理長寬比計算 */
 const SECRETARY_SPRITE_HEIGHT = 1.42;
 
-const FLOOR_SIZE = 3.6;
-const FLOOR_HALF = FLOOR_SIZE / 2;
-const WALL_THICK = 0.14;
+export const FLOOR_SIZE = 3.6;
+export const FLOOR_HALF = FLOOR_SIZE / 2;
+export const WALL_THICK = 0.14;
 const TEX_BASE = '/assets/private-team/textures/';
 
 export const COL = {
