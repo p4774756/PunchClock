@@ -218,6 +218,17 @@ function createDocument() {
     };
     node.click = () => node.dispatchEvent({ type: 'click' });
     node.focus = () => { doc.activeElement = node; };
+    node.offsetHeight = 58;
+    node.getBoundingClientRect = () => ({
+      left: 8,
+      top: 8,
+      right: 108,
+      bottom: 66,
+      width: 100,
+      height: 58,
+      x: 8,
+      y: 8
+    });
     node.querySelector = (sel) => queryAll(node, sel)[0] || null;
     node.querySelectorAll = (sel) => queryAll(node, sel);
     Object.defineProperty(node, 'firstChild', {
