@@ -724,25 +724,25 @@ public class App extends JFrame {
         }
         if (peerRefs.statusTextField != null) {
             peerRefs.statusTextField.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-                private void onChange() {
-                    applyPeerStatusFromUi();
-                }
-
                 @Override
                 public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                    onChange();
+                    updateStatusApplyButtonState();
                 }
 
                 @Override
                 public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                    onChange();
+                    updateStatusApplyButtonState();
                 }
 
                 @Override
                 public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                    onChange();
+                    updateStatusApplyButtonState();
                 }
             });
+            peerRefs.statusTextField.addActionListener(e -> applyPeerStatusFromUi());
+        }
+        if (peerRefs.statusApplyButton != null) {
+            peerRefs.statusApplyButton.addActionListener(e -> applyPeerStatusFromUi());
         }
     }
 
@@ -1417,6 +1417,7 @@ public class App extends JFrame {
         int onlineCount = 0;
         int friendCount = 0;
         List<PeerInfo> seenPeers = new ArrayList<>();
+        java.util.Map<String, String> statusById = new java.util.LinkedHashMap<>();
 
         List<PeerInfo> ordered = orderPeers(peers, favoritePeerIds);
 
@@ -1431,9 +1432,10 @@ public class App extends JFrame {
                 onlinePeerIds.add(peer.clientId);
             }
             friendCount++;
+            String statusText = peer.statusText != null ? peer.statusText : "";
+            statusById.put(peer.clientId, statusText);
             peerRefs.peerTableModel.addRow(new Object[]{
                     peer.clientId,
-                    peer.statusText,
                     favoritePeerIds.contains(peer.clientId)
                             ? PanelFactory.PEER_FAVORITE_ON
                             : PanelFactory.PEER_FAVORITE_OFF
@@ -1460,6 +1462,7 @@ public class App extends JFrame {
                 onlineById.put(peer.clientId, "ONLINE".equalsIgnoreCase(peer.status));
             }
             peerRefs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, onlineById);
+            peerRefs.peerTable.putClientProperty(PanelFactory.PEER_STATUS_TEXTS_KEY, statusById);
         }
 
         if (peerRefs.peerStatusLabel != null) {
@@ -1776,6 +1779,7 @@ public class App extends JFrame {
         if (slotController != null && slotController.getConfig() != null) {
             slotController.getConfig().statusText = text;
         }
+        updateStatusApplyButtonState();
     }
 
     private void applyPeerStatusFromUi() {
@@ -1792,6 +1796,16 @@ public class App extends JFrame {
             slotController.getConfig().statusText = text;
         }
         saveCloudConfig();
+        updateStatusApplyButtonState();
+    }
+
+    private void updateStatusApplyButtonState() {
+        if (peerRefs.statusApplyButton == null || peerRefs.statusTextField == null) {
+            return;
+        }
+        String draft = com.example.PeerFileRules.sanitizeStatusText(peerRefs.statusTextField.getText());
+        String effective = com.example.PeerFileRules.sanitizeStatusText(heartbeatService.getStatusText());
+        peerRefs.statusApplyButton.setEnabled(!draft.equals(effective));
     }
 
     private void refreshAvatarPreview(String encoded) {
