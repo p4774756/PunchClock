@@ -37,7 +37,6 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.FlowLayout;
 import java.awt.GridBagLayout;
-import java.awt.GridLayout;
 import java.awt.Image;
 import java.awt.Toolkit;
 import java.awt.datatransfer.Clipboard;
@@ -68,6 +67,9 @@ import java.util.function.Consumer;
  * 附圖（Ctrl+V／⌘V 可貼多張）、附加檔案（先列出，按傳送才送給這個人）。
  */
 public class PeerChatWindow extends JFrame {
+
+    static final Dimension PREVIEW_DEFAULT_SIZE = new Dimension(520, 600);
+    static final Dimension PREVIEW_MINIMUM_SIZE = new Dimension(500, 440);
 
     /** 視窗對外的動作，由 App 實作。 */
     public interface Host {
@@ -229,103 +231,14 @@ public class PeerChatWindow extends JFrame {
         fileRow.add(clearFilesButton, BorderLayout.EAST);
         fileRow.setVisible(false);
 
-        input = new JTextArea(2, 24) {
-            @Override
-            protected void paintComponent(java.awt.Graphics g) {
-                super.paintComponent(g);
-                if (getDocument().getLength() == 0) {
-                    java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
-                    g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
-                            java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-                    g2.setColor(NightTheme.MUTED);
-                    g2.setFont(getFont());
-                    java.awt.Insets in = getInsets();
-                    int y = in.top + g2.getFontMetrics().getAscent();
-                    g2.drawString("輸入訊息…", in.left, y);
-                    g2.dispose();
-                }
-            }
-        };
-        input.setFont(plain);
-        input.setLineWrap(true);
-        input.setWrapStyleWord(true);
-        input.setToolTipText("Enter 送出，Shift+Enter 換行；Ctrl+V 或 ⌘V 可貼多張截圖（最多 "
-                + MAX_TEXT_CHARS + " 字，一則最多 " + ChatProtocol.MAX_PEER_IMAGES
-                + " 張）。拖曳檔案規則與「附加」相同");
-        bindInputKeys();
-        CandyTextField.dressArea(input);
-        input.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
-            private void resize() {
-                SwingUtilities.invokeLater(() -> {
-                    int rows = Math.min(8, Math.max(2, input.getLineCount()));
-                    if (input.getRows() != rows) {
-                        input.setRows(rows);
-                        input.revalidate();
-                    }
-                });
-            }
-
-            @Override
-            public void insertUpdate(javax.swing.event.DocumentEvent e) {
-                resize();
-            }
-
-            @Override
-            public void removeUpdate(javax.swing.event.DocumentEvent e) {
-                resize();
-            }
-
-            @Override
-            public void changedUpdate(javax.swing.event.DocumentEvent e) {
-                resize();
-            }
-        });
-        JScrollPane inputScroll = new JScrollPane(input,
-                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
-                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
-        PeerChatScrollBar.install(inputScroll);
-        inputScroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
-
-        attachButton = new CandyButton("附加", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
-        attachButton.setFont(plain);
-        attachButton.setToolTipText("選檔案、資料夾或圖片（可多選）。純圖片會跟文字一起送出；其餘先列在這裡，按傳送才送出");
-        attachButton.addActionListener(e -> chooseAttach());
-        graffitiButton = new CandyButton("塗鴉", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
-        graffitiButton.setFont(plain);
-        graffitiButton.setToolTipText("開啟迷你畫板，手繪塗鴉直接送出或包成卡片");
-        graffitiButton.addActionListener(e -> openGraffitiBoard());
-        sendButton = new CandyButton("傳送", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
-        sendButton.setFont(bold);
-        sendButton.addActionListener(e -> send());
-        Dimension actionBtn = new Dimension(52, 0);
-        attachButton.setPreferredSize(actionBtn);
-        attachButton.setMinimumSize(actionBtn);
-        attachButton.setMaximumSize(new Dimension(52, Integer.MAX_VALUE));
-        graffitiButton.setPreferredSize(actionBtn);
-        graffitiButton.setMinimumSize(actionBtn);
-        graffitiButton.setMaximumSize(new Dimension(52, Integer.MAX_VALUE));
-        sendButton.setPreferredSize(actionBtn);
-        sendButton.setMinimumSize(actionBtn);
-        sendButton.setMaximumSize(new Dimension(52, Integer.MAX_VALUE));
-
-        JPanel composeActions = new JPanel(new GridLayout(textOnly ? 1 : 3, 1, 0, 4));
-        composeActions.setOpaque(false);
-        if (!textOnly) {
-            composeActions.add(attachButton);
-            composeActions.add(graffitiButton);
-        }
-        composeActions.add(sendButton);
-
-        JPanel compose = new JPanel(new BorderLayout(6, 0));
-        compose.setOpaque(false);
-        compose.setBorder(new EmptyBorder(8, 12, 0, 12));
-        compose.add(inputScroll, BorderLayout.CENTER);
-        compose.add(textOnly ? sendButton : composeActions, BorderLayout.EAST);
-
-        JLabel composeHint = new JLabel("Enter 送出 · Shift+Enter 換行 · 可貼上圖片或拖曳檔案");
-        composeHint.setFont(plain.deriveFont((float) Math.max(10, plain.getSize() - 2)));
-        composeHint.setForeground(NightTheme.MUTED);
-        composeHint.setBorder(new EmptyBorder(2, 12, 6, 12));
+        ComposeAreaParts composeParts = ComposeAreaBuilder.create(plain, bold, textOnly);
+        this.input = composeParts.input;
+        this.attachButton = composeParts.attachButton;
+        this.graffitiButton = composeParts.graffitiButton;
+        this.sendButton = composeParts.sendButton;
+        composeParts.wire(this);
+        JPanel compose = composeParts.compose;
+        JLabel composeHint = composeParts.composeHint;
 
         JPanel south = new JPanel();
         south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
@@ -348,8 +261,8 @@ public class PeerChatWindow extends JFrame {
         installFileDrop(root);
         WindowChrome.setStatusStripVisible(this, false);
 
-        setMinimumSize(new Dimension(500, 440));
-        setSize(520, 600);
+        setMinimumSize(PREVIEW_MINIMUM_SIZE);
+        setSize(PREVIEW_DEFAULT_SIZE);
 
         addWindowListener(new WindowAdapter() {
             @Override
@@ -1077,6 +990,164 @@ public class PeerChatWindow extends JFrame {
     /** 測試與診斷用：目前附的圖片（多張以逗號串起），沒有是空字串。 */
     String attachedImage() {
         return ChatProtocol.joinPeerImages(attachedImages);
+    }
+
+    /** 離屏驗收：等同聊天視窗內容區，不需要頂層視窗。 */
+    static JPanel createHeadlessPreviewRoot(String peerId) {
+        java.awt.Font plain = UiFonts.chinesePlain(13);
+        java.awt.Font bold = UiFonts.chineseBold(13);
+        JLabel avatarLabel = new JLabel(PeerAvatar.previewIcon("", null, 36));
+        JLabel nameLabel = new JLabel(peerId);
+        nameLabel.setFont(UiFonts.chineseBold(15));
+        JLabel statusLabel = new JLabel("在線");
+        statusLabel.setFont(UiFonts.chinesePlain(12));
+        JPanel names = new JPanel();
+        names.setLayout(new BoxLayout(names, BoxLayout.Y_AXIS));
+        names.setOpaque(false);
+        names.add(nameLabel);
+        names.add(statusLabel);
+        JPanel header = new JPanel(new BorderLayout(10, 0));
+        header.setBorder(new EmptyBorder(8, 12, 8, 12));
+        header.add(avatarLabel, BorderLayout.WEST);
+        header.add(names, BorderLayout.CENTER);
+
+        PeerChatTranscript transcript = new PeerChatTranscript(peerId, plain.getFamily(), 13);
+        JScrollPane transcriptScroll = new JScrollPane(transcript,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        PeerChatScrollBar.install(transcriptScroll);
+        transcriptScroll.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, CandyTheme.EDGE));
+
+        ComposeAreaParts composeParts = ComposeAreaBuilder.create(plain, bold, false);
+
+        JPanel south = new JPanel();
+        south.setLayout(new BoxLayout(south, BoxLayout.Y_AXIS));
+        composeParts.compose.setAlignmentX(Component.LEFT_ALIGNMENT);
+        composeParts.composeHint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        south.add(composeParts.compose);
+        south.add(composeParts.composeHint);
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.add(header, BorderLayout.NORTH);
+        root.add(transcriptScroll, BorderLayout.CENTER);
+        root.add(south, BorderLayout.SOUTH);
+        NightTheme.apply(root);
+        return root;
+    }
+
+    private static final class ComposeAreaParts {
+        final JTextArea input;
+        final CandyButton attachButton;
+        final CandyButton graffitiButton;
+        final CandyButton sendButton;
+        final JPanel compose;
+        final JLabel composeHint;
+
+        ComposeAreaParts(JTextArea input, CandyButton attachButton, CandyButton graffitiButton,
+                         CandyButton sendButton, JPanel compose, JLabel composeHint) {
+            this.input = input;
+            this.attachButton = attachButton;
+            this.graffitiButton = graffitiButton;
+            this.sendButton = sendButton;
+            this.compose = compose;
+            this.composeHint = composeHint;
+        }
+
+        void wire(PeerChatWindow window) {
+            attachButton.addActionListener(e -> window.chooseAttach());
+            graffitiButton.addActionListener(e -> window.openGraffitiBoard());
+            sendButton.addActionListener(e -> window.send());
+            window.bindInputKeys();
+        }
+    }
+
+    private static final class ComposeAreaBuilder {
+        static ComposeAreaParts create(java.awt.Font plain, java.awt.Font bold, boolean textOnly) {
+            JTextArea input;
+            input = new JTextArea(2, 24) {
+                @Override
+                protected void paintComponent(java.awt.Graphics g) {
+                    super.paintComponent(g);
+                    if (getDocument().getLength() == 0) {
+                        java.awt.Graphics2D g2 = (java.awt.Graphics2D) g.create();
+                        g2.setRenderingHint(java.awt.RenderingHints.KEY_TEXT_ANTIALIASING,
+                                java.awt.RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                        g2.setColor(NightTheme.MUTED);
+                        g2.setFont(getFont());
+                        java.awt.Insets in = getInsets();
+                        int y = in.top + g2.getFontMetrics().getAscent();
+                        g2.drawString("輸入訊息…", in.left, y);
+                        g2.dispose();
+                    }
+                }
+            };
+            input.setFont(plain);
+            input.setLineWrap(true);
+            input.setWrapStyleWord(true);
+            input.setToolTipText("Enter 送出，Shift+Enter 換行；Ctrl+V 或 ⌘V 可貼多張截圖（最多 "
+                    + MAX_TEXT_CHARS + " 字，一則最多 " + ChatProtocol.MAX_PEER_IMAGES
+                    + " 張）。拖曳檔案規則與「附加」相同");
+            CandyTextField.dressArea(input);
+            input.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+                private void resize() {
+                    SwingUtilities.invokeLater(() -> {
+                        int rows = Math.min(8, Math.max(2, input.getLineCount()));
+                        if (input.getRows() != rows) {
+                            input.setRows(rows);
+                            input.revalidate();
+                        }
+                    });
+                }
+
+                @Override
+                public void insertUpdate(javax.swing.event.DocumentEvent e) {
+                    resize();
+                }
+
+                @Override
+                public void removeUpdate(javax.swing.event.DocumentEvent e) {
+                    resize();
+                }
+
+                @Override
+                public void changedUpdate(javax.swing.event.DocumentEvent e) {
+                    resize();
+                }
+            });
+            JScrollPane inputScroll = new JScrollPane(input,
+                    ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                    ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+            PeerChatScrollBar.install(inputScroll);
+            inputScroll.setBorder(BorderFactory.createLineBorder(CandyTheme.EDGE));
+
+            CandyButton attachButton = new CandyButton("附加", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+            attachButton.setFont(plain);
+            attachButton.setToolTipText("選檔案、資料夾或圖片（可多選）。純圖片會跟文字一起送出；其餘先列在這裡，按傳送才送出");
+            CandyButton graffitiButton = new CandyButton("塗鴉", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+            graffitiButton.setFont(plain);
+            graffitiButton.setToolTipText("開啟迷你畫板，手繪塗鴉直接送出或包成卡片");
+            CandyButton sendButton = new CandyButton("傳送", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
+            sendButton.setFont(bold);
+            JPanel composeActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+            composeActions.setOpaque(false);
+            if (!textOnly) {
+                composeActions.add(attachButton);
+                composeActions.add(graffitiButton);
+            }
+            composeActions.add(sendButton);
+
+            JPanel compose = new JPanel(new BorderLayout(0, 6));
+            compose.setOpaque(false);
+            compose.setBorder(new EmptyBorder(8, 12, 0, 12));
+            compose.add(inputScroll, BorderLayout.CENTER);
+            compose.add(composeActions, BorderLayout.SOUTH);
+
+            JLabel composeHint = new JLabel("Enter 送出 · Shift+Enter 換行 · 可貼上圖片或拖曳檔案");
+            composeHint.setFont(plain.deriveFont((float) Math.max(10, plain.getSize() - 2)));
+            composeHint.setForeground(NightTheme.MUTED);
+            composeHint.setBorder(new EmptyBorder(2, 12, 6, 12));
+            return new ComposeAreaParts(input, attachButton, graffitiButton, sendButton, compose, composeHint);
+        }
     }
 
     private static final class EncodedPick {
