@@ -178,6 +178,14 @@ public final class ServerApp {
                 sf.mimeTypes.add("image/webp", "webp");
                 applyStaticCache(sf, "public, max-age=86400");
             });
+            /* 辦公室背景音樂（點 3D 唱片機播放）：自製 lo-fi 循環，m4a(AAC) 約 370KB。 */
+            config.staticFiles.add(sf -> {
+                sf.hostedPath = "/audio";
+                sf.directory = "/public/audio";
+                sf.location = Location.CLASSPATH;
+                sf.mimeTypes.add("audio/mp4", "m4a");
+                applyStaticCache(sf, "public, max-age=86400");
+            });
             config.showJavalinBanner = false;
             long maxRequest = MAX_HTTP_REQUEST_BYTES;
             config.http.maxRequestSize = maxRequest;
