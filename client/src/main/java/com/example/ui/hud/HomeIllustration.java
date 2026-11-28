@@ -6,7 +6,9 @@ public enum HomeIllustration {
     POOL_C("c", "頂樓泳池"),
     CHERRY_PARK_D("d", "櫻花公園"),
     NIGHT_MARKET_E("e", "台灣夜市"),
-    OVERTIME_F("f", "加班夜景");
+    OVERTIME_F("f", "加班夜景"),
+    CHEER_PURPLE_G("g", "加油女孩（紫衣）"),
+    CHEER_RED_H("h", "加油女孩（紅衣）");
 
     private final String id;
     private final String label;

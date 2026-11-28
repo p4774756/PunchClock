@@ -67,6 +67,10 @@ public final class HomeBubbleAnchor {
         BY_ID.put("d", new Spec(0.56, 0.26, 0.40, 0.13));
         BY_ID.put("e", new Spec(0.44, 0.27, 0.30, 0.14));
         BY_ID.put("f", new Spec(0.51, 0.25, 0.37, 0.12));
+        // g 正面中景：臉在水平中央、上方三分之一；泡泡放左上避開臉與右手。
+        BY_ID.put("g", new Spec(0.50, 0.22, 0.22, 0.11, 0.32, 0.07, 0.36, 0.28));
+        // h 側身舞蹈中景：臉略偏右；泡泡放左上避開臉與舉手。
+        BY_ID.put("h", new Spec(0.56, 0.20, 0.22, 0.10, 0.42, 0.07, 0.36, 0.28));
     }
 
     private HomeBubbleAnchor() {
@@ -108,17 +112,19 @@ public final class HomeBubbleAnchor {
         return id != null && BY_ID.containsKey(id.trim().toLowerCase());
     }
 
-    /** 多數 3:4 場景圖（d–f）頂端約四分之一為 AI 填補糊帶；頂樓泳池（c）人物靠上，不裁頂；夜晚房間（b）無此帶。 */
+    /** 僅 d–f 場景圖頂端約四分之一為 AI 填補糊帶；b／c 與加油女孩中景人像（g／h）不裁頂。 */
     private static final double SCENE_TOP_PADDING_NORM = 0.25;
 
     public static int sourceTopCropPx(HomeIllustration illustration, int imgH) {
         if (illustration == null || imgH <= 0) {
             return 0;
         }
-        if (illustration == HomeIllustration.ROOM_B || illustration == HomeIllustration.POOL_C) {
-            return 0;
+        if (illustration == HomeIllustration.CHERRY_PARK_D
+                || illustration == HomeIllustration.NIGHT_MARKET_E
+                || illustration == HomeIllustration.OVERTIME_F) {
+            return (int) Math.round(imgH * SCENE_TOP_PADDING_NORM);
         }
-        return (int) Math.round(imgH * SCENE_TOP_PADDING_NORM);
+        return 0;
     }
 
     public static Rectangle imageDrawRect(int panelW, int panelH, int imgW, int imgH) {
