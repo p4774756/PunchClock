@@ -186,4 +186,11 @@ public class HomeIllustrationTest {
         shell.openTab(0);
         assertFalse(shell.swapIllustrationButtonForTests().isVisible());
     }
+
+    @Test
+    public void constructorDoesNotDecodeEveryIllustration() {
+        AnimeShell shell = new AnimeShell(null, new javax.swing.JTabbedPane());
+        assertEquals(0, shell.loadedHomeIllustrationCountForTests());
+    }
+
 }

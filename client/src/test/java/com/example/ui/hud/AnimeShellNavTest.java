@@ -22,19 +22,21 @@ public class AnimeShellNavTest {
 
     @Test
     public void iconTabsKeepTabIndexes() {
-        assertEquals(6, AnimeShell.navCount());
+        assertEquals(5, AnimeShell.navCount());
         assertEquals("首頁", AnimeShell.navLabel(0));
         assertEquals("排程", AnimeShell.navLabel(1));
         assertEquals("好友傳檔", AnimeShell.navLabel(2));
-        assertEquals("相簿", AnimeShell.navLabel(3));
-        assertEquals("日誌", AnimeShell.navLabel(4));
-        assertEquals("設定", AnimeShell.navLabel(5));
+        assertEquals("日誌", AnimeShell.navLabel(3));
+        assertEquals("設定", AnimeShell.navLabel(4));
         assertEquals(-1, AnimeShell.tabForNav(0));
         assertEquals(0, AnimeShell.tabForNav(1));
         assertEquals(2, AnimeShell.tabForNav(2));
-        assertEquals(4, AnimeShell.tabForNav(3));
-        assertEquals(3, AnimeShell.tabForNav(4));
-        assertEquals(1, AnimeShell.tabForNav(5));
+        assertEquals(3, AnimeShell.tabForNav(3));
+        assertEquals(1, AnimeShell.tabForNav(4));
+        for (int i = 0; i < AnimeShell.navCount(); i++) {
+            assertFalse("nav should not include a dedicated album tab",
+                    "相簿".equals(AnimeShell.navLabel(i)));
+        }
     }
 
     @Test
@@ -153,18 +155,19 @@ public class AnimeShellNavTest {
     }
 
     @Test
-    public void hiddenPrivateAlbumOmitsAlbumNavSlot() {
+    public void albumHasNoDedicatedNavSlot() {
         JTabbedPane tabs = new JTabbedPane();
         for (int i = 0; i < 5; i++) {
             tabs.addTab("", new javax.swing.JPanel());
         }
         AnimeShell shell = new AnimeShell(null, tabs);
-        assertFalse(shell.privateAlbumNavVisibleForTests());
         assertEquals(5, shell.visibleNavSlotCountForTests());
         assertEquals("日誌", AnimeShell.navLabel(shell.navIdForSlotForTests(3)));
-        shell.setPrivateAlbumNavVisible(true);
-        assertEquals(6, shell.visibleNavSlotCountForTests());
-        assertEquals("相簿", AnimeShell.navLabel(shell.navIdForSlotForTests(3)));
+        assertEquals("設定", AnimeShell.navLabel(shell.navIdForSlotForTests(4)));
+        for (int slot = 0; slot < shell.visibleNavSlotCountForTests(); slot++) {
+            assertFalse("album must not appear as a bottom nav tab",
+                    "相簿".equals(AnimeShell.navLabel(shell.navIdForSlotForTests(slot))));
+        }
     }
 
     @Test

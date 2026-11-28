@@ -133,24 +133,16 @@ final class HomeAlbumAnchor {
         double mouthY = box.mouthY;
         double leftGap = faceX;
         double rightGap = 1 - (faceX + faceW);
+        // 一律放在頭頂上空的左右角落，不要落到臉下方（胸口／手）約 y 0.4 的位置。
+        double bubbleY = Math.max(0.07, Math.min(0.13, faceY * 0.45 + 0.04));
+        if (bubbleY + 0.08 > faceY && faceY > 0.10) {
+            bubbleY = Math.max(0.06, faceY - 0.10);
+        }
         double bubbleX;
-        double bubbleY;
-        if (leftGap >= rightGap && leftGap >= 0.16) {
-            bubbleX = Math.max(0.12, faceX * 0.45);
-            bubbleY = Math.max(0.09, Math.min(0.18, faceY + 0.04));
-        } else if (rightGap >= 0.16) {
-            bubbleX = Math.min(0.88, faceX + faceW + rightGap * 0.45);
-            bubbleY = Math.max(0.09, Math.min(0.18, faceY + 0.04));
-        } else if (faceY >= 0.14) {
-            bubbleX = faceX < 0.5
-                    ? Math.max(0.14, faceX * 0.5)
-                    : Math.min(0.86, faceX + faceW + 0.06);
-            bubbleY = Math.max(0.08, faceY * 0.45);
+        if (leftGap >= rightGap) {
+            bubbleX = Math.max(0.10, Math.min(0.22, faceX * 0.42));
         } else {
-            bubbleX = leftGap >= rightGap
-                    ? Math.max(0.10, faceX * 0.42)
-                    : Math.min(0.90, faceX + faceW + Math.max(0.06, rightGap * 0.4));
-            bubbleY = Math.min(0.22, faceY + 0.10);
+            bubbleX = Math.min(0.90, Math.max(0.78, faceX + faceW + rightGap * 0.40));
         }
         return HomeBubbleAnchor.spec(mouthX, mouthY, bubbleX, bubbleY, faceX, faceY, faceW, faceH);
     }

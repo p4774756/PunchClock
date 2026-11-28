@@ -852,21 +852,23 @@ public final class DesktopPetWindow extends JFrame {
         return new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    if (careEnabled() && (e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) != 0) {
+                if (isPetMenuGesture(e)) {
+                    if (careEnabled()
+                            && SwingUtilities.isRightMouseButton(e)
+                            && (e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) != 0) {
                         debug = !debug;
                         repaint();
+                        suppressMenuOnRelease = true;
                         return;
                     }
-                    if (!careEnabled()) {
-                        // 養成關閉：右鍵在 released 開選單；Shift+右鍵仍切換除錯。
-                        pressScreen = null;
-                        grabOffset = null;
-                        return;
-                    }
-                    // 養成開啟：右鍵在 released 開選單，這裡先不拖曳。
+                    // 右鍵／macOS ctrl-click：不要開始拖曳。選單在 isPopupTrigger 時打開
+                    //（Windows 多在 released，macOS 多在 pressed）。
                     pressScreen = null;
                     grabOffset = null;
+                    if (e.isPopupTrigger() && (e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) == 0) {
+                        showPetMenu(e);
+                        suppressMenuOnRelease = true;
+                    }
                     return;
                 }
                 if (!SwingUtilities.isLeftMouseButton(e)) {
@@ -927,12 +929,15 @@ public final class DesktopPetWindow extends JFrame {
 
             @Override
             public void mouseReleased(MouseEvent e) {
-                if (SwingUtilities.isRightMouseButton(e)) {
-                    if ((e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) == 0) {
-                        if (suppressMenuOnRelease) {
-                            suppressMenuOnRelease = false;
-                            return;
-                        }
+                if (isPetMenuGesture(e)) {
+                    if ((e.getModifiersEx() & InputEvent.SHIFT_DOWN_MASK) != 0) {
+                        return;
+                    }
+                    if (suppressMenuOnRelease) {
+                        suppressMenuOnRelease = false;
+                        return;
+                    }
+                    if (e.isPopupTrigger() || SwingUtilities.isRightMouseButton(e)) {
                         showPetMenu(e);
                     }
                     return;
@@ -969,18 +974,6 @@ public final class DesktopPetWindow extends JFrame {
                     }
                 } else if (e.getClickCount() >= 2) {
                     summonMainWindow();
-                } else if (careEnabled() && !control.isActive()) {
-                    if (animation.isNotice()) {
-                        noticeOpen = null;
-                        if (noticeReleased != null) {
-                            noticeReleased.run();
-                        }
-                    }
-                    if (suppressMenuOnRelease) {
-                        suppressMenuOnRelease = false;
-                    } else {
-                        showPetMenu(e);
-                    }
                 } else if (animation.isNotice()) {
                     noticeOpen = null;
                     animation.poke();
@@ -999,6 +992,21 @@ public final class DesktopPetWindow extends JFrame {
                 repaint();
             }
         };
+    }
+
+    /** 右鍵，或 macOS ctrl-click 這類 {@link MouseEvent#isPopupTrigger()}。左鍵拖曳不當成開選單。 */
+    static boolean isPetMenuGesture(MouseEvent e) {
+        if (e == null) {
+            return false;
+        }
+        return e.isPopupTrigger() || SwingUtilities.isRightMouseButton(e);
+    }
+
+    static boolean shouldStartCarry(MouseEvent e) {
+        return e != null
+                && e.getID() == MouseEvent.MOUSE_PRESSED
+                && SwingUtilities.isLeftMouseButton(e)
+                && !isPetMenuGesture(e);
     }
 
     private boolean careEnabled() {
@@ -1705,15 +1713,10 @@ public final class DesktopPetWindow extends JFrame {
             if (grabInStage != null) {
                 radians = Math.toRadians(animation.leanDegrees());
                 if (Math.abs(radians) >= 1e-4) {
-                    int size = DesktopPetSpriteLoader.DISPLAY;
-                    int spriteX = (WIDTH - size) / 2;
-                    int spriteY = BUBBLE_SLOT;
                     pivotX = grabInStage.x + view.x;
                     pivotY = grabInStage.y + view.y;
-                    scale = fitScale(
-                            spriteX - view.x, spriteY - view.y, size,
-                            grabInStage.x, grabInStage.y, radians,
-                            Math.max(1, view.width), Math.max(1, view.height), 2);
+                    // 拖曳時保持原尺寸。依傾角縮放會讓角色忽大忽小。
+                    scale = 1;
                 }
             }
             int w = Math.max(1, view.width);
@@ -1814,14 +1817,10 @@ public final class DesktopPetWindow extends JFrame {
             int spriteY = milu != null ? BUBBLE_SLOT : HEIGHT - size - 12 + animation.bob();
             int pivotX = grabInStage.x + view.x;
             int pivotY = grabInStage.y + view.y;
-            double scale = fitScale(
-                    spriteX - view.x, spriteY - view.y, size,
-                    grabInStage.x, grabInStage.y, radians,
-                    Math.max(1, view.width), Math.max(1, view.height), 2);
             Graphics2D layer = (Graphics2D) g.create();
             layer.translate(pivotX, pivotY);
             layer.rotate(radians);
-            layer.scale(scale, scale);
+            layer.scale(1, 1);
             layer.translate(-pivotX, -pivotY);
             return layer;
         }
