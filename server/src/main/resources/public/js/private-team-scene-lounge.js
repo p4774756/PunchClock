@@ -728,23 +728,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   }
   root.add(turntable);
 
-  const lampGrp = new THREE.Group();
-  lampGrp.name = 'loungeLamp';
-  lampGrp.position.set(sbX + sbHalfW * 0.55, sbTopY + 0.02, sbZ);
-  const lampBase = cyl(0.045, 0.05, 0.04, 8, COL.lampBase);
-  lampBase.position.set(0, 0.02, 0);
-  lampGrp.add(lampBase);
-  const stem = cyl(0.012, 0.012, 0.14, 6, COL.lampMetal);
-  stem.position.set(0, 0.1, 0);
-  lampGrp.add(stem);
-  const shade = cyl(0.09, 0.11, 0.08, 12, COL.lampShade);
-  shade.position.set(0, 0.2, 0);
-  lampGrp.add(shade);
-  const bulb = new THREE.PointLight(0xffd8a8, 0.35, 0.9, 2);
-  bulb.position.set(0, 0.16, 0);
-  bulb.name = 'loungeLampBulb';
-  lampGrp.add(bulb);
-  root.add(lampGrp);
+  // 窗邊櫃上的小檯燈已移除（燈太多，#911）。
 
   const noteMat = new THREE.MeshBasicMaterial({
     color: 0xe8d8b0,
