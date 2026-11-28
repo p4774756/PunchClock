@@ -1423,9 +1423,8 @@ button.pt-hud-id-plate {
 
 .pt-pocket-power-led {
   position: absolute;
-  left: 6px;
-  top: 50%;
-  transform: translateY(-50%);
+  left: 5px;
+  top: 5px;
   display: block;
   width: 6px;
   height: 6px;
@@ -1439,6 +1438,7 @@ button.pt-hud-id-plate {
 }
 
 .pt-pocket-screen-wrap {
+  position: relative;
   width: 100%;
   padding: 3px;
   background: #2a2a30;

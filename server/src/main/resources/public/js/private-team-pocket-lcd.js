@@ -224,16 +224,11 @@ function drawRingCell(ctx, i, lit, flashOn) {
 function drawMaryTitle(ctx, cx, cy, frame) {
   const fr = frame % 48;
   const shift = fr < 8 ? 0 : fr < 16 ? 1 : 0;
-  ctx.fillStyle = PAL.bgHi;
-  ctx.fillRect(cx - 30 - shift, cy - 9, 60, 12);
-  ctx.strokeStyle = PAL.ink;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(cx - 30 - shift, cy - 9, 60, 12);
   ctx.fillStyle = PAL.ink;
   ctx.font = 'bold 9px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('小瑪莉', cx - shift, cy - 3);
+  ctx.fillText('小瑪莉', cx - shift, cy - 9);
 }
 
 function drawBetRow(ctx, st, lit, flashOn) {
@@ -283,32 +278,33 @@ export function drawPocketMaryLcd(ctx, state, frame) {
   }
 
   const { x: cx, y: cy } = pocketMaryRingHoleCenter();
+  const panelHalfH = 20;
   ctx.fillStyle = PAL.bgHi;
-  ctx.fillRect(cx - 32, cy - 14, 64, 28);
+  ctx.fillRect(cx - 32, cy - panelHalfH, 64, panelHalfH * 2);
   ctx.strokeStyle = PAL.ink;
   ctx.lineWidth = 1;
-  ctx.strokeRect(cx - 32, cy - 14, 64, 28);
+  ctx.strokeRect(cx - 32, cy - panelHalfH, 64, panelHalfH * 2);
 
-  drawMaryTitle(ctx, cx, cy - 6, fr);
+  drawMaryTitle(ctx, cx, cy, fr);
 
   ctx.fillStyle = PAL.ink;
   ctx.font = '7px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const statusShort = st.status || '';
-  ctx.fillText(statusShort.slice(0, 10), cx, cy + 8);
+  ctx.fillText(statusShort.slice(0, 10), cx, cy + 2);
 
   if (st.phase === MARY_PHASE.BET) {
     const total = maryTotalBet(st);
     ctx.font = '6px monospace';
-    ctx.fillText('總' + total, cx, cy + 17);
+    ctx.fillText('總' + total, cx, cy + 11);
   } else if (st.phase === MARY_PHASE.DOUBLE) {
     const hint = st.doublePick === 'small' ? '1-6小' : st.doublePick === 'big' ? '8-13大' : '左右押';
     ctx.font = '6px monospace';
-    ctx.fillText(hint + ' A比', cx, cy + 17);
+    ctx.fillText(hint + ' A比', cx, cy + 11);
   } else if (st.phase === MARY_PHASE.WIN) {
     ctx.font = '6px monospace';
-    ctx.fillText('A收 B比', cx, cy + 17);
+    ctx.fillText('A收 B比', cx, cy + 11);
   }
 
   drawBetRow(ctx, st, lit, flashOn);
