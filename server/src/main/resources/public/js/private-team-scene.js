@@ -85,14 +85,24 @@ import {
   makeWindowMoonlightFloorTexture,
   makeWindowMoonlightWallTexture,
   makeWindowTowerBeaconOverlayTexture,
+  makeWindowVistaAirplaneOverlayTexture,
+  makeSkylineFlickerLightsTexture,
+  stepSkylineFlickerLights,
+  makeDayVistaCloudLayerTexture,
   makeWindowVistaTrafficOverlayTexture,
   makeWindowRiverShimmerTexture,
   PRIVATE_TEAM_WINDOW_SKY_Z,
   PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX,
+  PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
   privateTeamWindowSkylineParallaxOffset,
   privateTeamWindowAmbientMotionEnabled,
   privateTeamWindowTowerBeaconOpacity,
-  privateTeamWindowAirplaneBeaconOpacity
+  privateTeamWindowAirplaneBeaconOpacity,
+  privateTeamSeededRand,
+  PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS,
+  PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y,
+  PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y,
+  privateTeamWindowAirplaneXNorm
 } from './private-team-scene-window.js';
 
 import {
@@ -224,6 +234,13 @@ export {
   privateTeamWindowSkylineParallaxOffset,
   privateTeamWindowTowerBeaconOpacity,
   privateTeamWindowAirplaneBeaconOpacity,
+  stepSkylineFlickerLights,
+  privateTeamSeededRand,
+  PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS,
+  PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y,
+  PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y,
+  PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
+  privateTeamWindowAirplaneXNorm,
   PRIVATE_TEAM_LEFT_POSTER_IDX_KEY,
   LEFT_WALL_POSTER_URLS,
   parseLeftPosterIndex,
@@ -638,6 +655,59 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowVistaBeacon.name = 'windowVistaBeacon';
   root.add(windowVistaBeacon);
   trackVistaParallax(windowVistaBeacon, 0, windowSkyY, beaconZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.flicker);
+
+  const skylineFlicker = makeSkylineFlickerLightsTexture();
+  const windowVistaFlicker = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.02, winH + 0.02),
+    new THREE.MeshBasicMaterial({
+      map: skylineFlicker.tex,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.88,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  windowVistaFlicker.position.set(0, windowSkyY, beaconZ + 0.002);
+  windowVistaFlicker.name = 'windowVistaFlicker';
+  root.add(windowVistaFlicker);
+  trackVistaParallax(windowVistaFlicker, 0, windowSkyY, beaconZ + 0.002, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.mid);
+
+  const vistaAirplane = makeWindowVistaAirplaneOverlayTexture();
+  const windowVistaAirBeacon = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.02, winH + 0.02),
+    new THREE.MeshBasicMaterial({
+      map: vistaAirplane.tex,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.78,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  windowVistaAirBeacon.position.set(0, windowSkyY, beaconZ + 0.004);
+  windowVistaAirBeacon.name = 'windowVistaAirBeacon';
+  root.add(windowVistaAirBeacon);
+  trackVistaParallax(windowVistaAirBeacon, 0, windowSkyY, beaconZ + 0.004, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.far);
+
+  const dayCloudTex = makeDayVistaCloudLayerTexture();
+  const cloudZ = beaconZ + 0.01;
+  const cloudPlaneH = winH * 0.48;
+  const cloudY = winBottom + winH - cloudPlaneH * 0.52;
+  const windowVistaClouds = new THREE.Mesh(
+    new THREE.PlaneGeometry(winW + 0.08, cloudPlaneH),
+    new THREE.MeshBasicMaterial({
+      map: dayCloudTex,
+      transparent: true,
+      depthWrite: false,
+      opacity: 0.42,
+      blending: THREE.NormalBlending
+    })
+  );
+  windowVistaClouds.position.set(0, cloudY, cloudZ);
+  windowVistaClouds.name = 'windowVistaClouds';
+  root.add(windowVistaClouds);
+  trackVistaParallax(windowVistaClouds, 0, cloudY, cloudZ, PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX.clouds);
+
+  let vistaFlickerAccumMs = 0;
 
   const streetTrafficTex = makeWindowVistaTrafficOverlayTexture();
   const windowStreetTraffic = new THREE.Mesh(
@@ -1138,6 +1208,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     lampHaloMat.opacity = lt.haloOpacity;
     candlePeriodMul = lt.candleMul;
     windowVistaBeacon.visible = period === 'night' || period === 'sunset';
+    windowVistaFlicker.visible = period === 'night' || period === 'sunset';
+    windowVistaAirBeacon.visible = period === 'night' || period === 'sunset';
+    windowVistaClouds.visible = period === 'day' || period === 'sunset';
+    windowVistaClouds.material.opacity = period === 'day' ? 0.46 : 0.34;
     const riverOp = period === 'day' ? 0.22 : period === 'sunset' ? 0.32 : 0.38;
     windowVistaRiver.material.opacity = riverOp;
     windowStreetTraffic.material.opacity = period === 'day' ? 0.55 : 0.72;
@@ -2073,12 +2147,37 @@ export function mountPrivateTeamScene(canvas, opts) {
       const beaconOp = privateTeamWindowTowerBeaconOpacity(elapsed, reducedMotion);
       windowVistaBeacon.material.opacity =
         windowVistaPeriod === 'day' ? 0 : beaconOp * (windowVistaPeriod === 'sunset' ? 0.62 : 0.82);
+      if (windowVistaPeriod === 'night' || windowVistaPeriod === 'sunset') {
+        vistaFlickerAccumMs += frameDt;
+        if (vistaFlickerAccumMs >= 200) {
+          vistaFlickerAccumMs = 0;
+          stepSkylineFlickerLights(skylineFlicker);
+          skylineFlicker.tex.needsUpdate = true;
+        }
+        vistaAirplane.paint(elapsed);
+        vistaAirplane.tex.needsUpdate = true;
+        const airOp = privateTeamWindowAirplaneBeaconOpacity(elapsed, reducedMotion);
+        windowVistaAirBeacon.material.opacity = airOp * (windowVistaPeriod === 'sunset' ? 0.55 : 0.78);
+      }
+      if (windowVistaPeriod === 'day' || windowVistaPeriod === 'sunset') {
+        dayCloudTex.offset.x = (elapsed * PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC) % 1;
+        dayCloudTex.needsUpdate = true;
+      }
     } else {
       streetTrafficTex.offset.x = 0;
       riverShimmerTex.offset.x = 0;
       towerBeacon.paint(null);
       towerBeacon.tex.needsUpdate = true;
       windowVistaBeacon.material.opacity = windowVistaPeriod === 'night' ? 0.72 : 0;
+      vistaFlickerAccumMs = 0;
+      if (windowVistaPeriod === 'night' || windowVistaPeriod === 'sunset') {
+        vistaAirplane.paint(null);
+        vistaAirplane.tex.needsUpdate = true;
+        windowVistaAirBeacon.material.opacity = 0.62;
+      }
+      if (windowVistaPeriod === 'day' || windowVistaPeriod === 'sunset') {
+        dayCloudTex.offset.x = 0;
+      }
     }
 
     if (
