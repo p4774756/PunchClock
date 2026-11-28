@@ -12,7 +12,6 @@ export function mountJournalPanel(opts) {
   const doc = opts && opts.doc;
   const win = opts && opts.win;
   const root = opts && opts.root;
-  const authed = !!(win && win.PUNCHCLOCK_AUTHENTICATED);
   const compose = root && root.querySelector('[data-journal-compose]');
   const listEl = root && root.querySelector('[data-journal-list]');
   const statusEl = root && root.querySelector('[data-journal-status]');
@@ -21,12 +20,21 @@ export function mountJournalPanel(opts) {
   const nickEl = root && root.querySelector('[data-journal-nickname]');
   const bodyEl = root && root.querySelector('[data-journal-body]');
   const countEl = root && root.querySelector('[data-journal-count]');
+  const AUTH_EVENT = 'punchclock:auth-changed';
   let nextBefore = null;
   let loading = false;
 
-  if (compose) compose.hidden = false;
-  if (whoEl) whoEl.hidden = !authed;
-  if (nickEl) nickEl.hidden = authed;
+  function isAuthed() {
+    return !!(win && win.PUNCHCLOCK_AUTHENTICATED);
+  }
+
+  function syncAuthUi() {
+    if (compose) compose.hidden = false;
+    if (whoEl) whoEl.hidden = !isAuthed();
+    if (nickEl) nickEl.hidden = isAuthed();
+    if (nickEdit && nickEdit.root) nickEdit.root.hidden = isAuthed();
+  }
+
 
   let nickEdit = null;
   if (nickEl) {
@@ -39,8 +47,9 @@ export function mountJournalPanel(opts) {
       canSave: (draft) => normalizeNickname(draft) != null,
       onConfirm: (value) => writeStored(win && win.localStorage, JOURNAL_NICK_KEY, value)
     });
-    if (nickEdit.root) nickEdit.root.hidden = authed;
+    if (nickEdit.root) nickEdit.root.hidden = isAuthed();
   }
+  syncAuthUi();
 
   function setStatus(text) {
     if (statusEl) statusEl.textContent = text || '';
@@ -86,7 +95,7 @@ export function mountJournalPanel(opts) {
     const name = post.authorName || (post.owner ? '站長' : ANONYMOUS);
     head.appendChild(elText('span', name, 'journal-author'));
     head.appendChild(elText('time', formatJournalWhen(post.createdAt), 'journal-post-time'));
-    if (authed) {
+    if (isAuthed()) {
       const del = doc.createElement('button');
       del.type = 'button';
       del.className = 'journal-post-delete';
@@ -111,7 +120,8 @@ export function mountJournalPanel(opts) {
   }
 
   async function fetchJson(url, init) {
-    const res = await fetch(url, init || {});
+    const fetchFn = (win && typeof win.fetch === 'function') ? win.fetch.bind(win) : fetch;
+    const res = await fetchFn(url, init || {});
     const data = await res.json().catch(() => ({}));
     return { res, data };
   }
@@ -171,12 +181,12 @@ export function mountJournalPanel(opts) {
         setStatus('正文最多 280 個字');
         return;
       }
-      if (!authed && containsForbiddenLink(body)) {
+      if (!isAuthed() && containsForbiddenLink(body)) {
         setStatus('不可包含網址或連結');
         return;
       }
       const payload = { body };
-      if (!authed) {
+      if (!isAuthed()) {
         const nickname = normalizeNickname(fd.get('nickname'));
         if (!nickname) {
           setStatus('暱稱太長');
@@ -195,8 +205,7 @@ export function mountJournalPanel(opts) {
         return;
       }
       compose.reset();
-      if (whoEl) whoEl.hidden = !authed;
-      if (nickEl) nickEl.hidden = authed;
+      syncAuthUi();
       updateCount();
       nextBefore = null;
       await loadPage(true);
@@ -204,10 +213,21 @@ export function mountJournalPanel(opts) {
     });
   }
 
+  function onAuthChanged() {
+    syncAuthUi();
+    nextBefore = null;
+    loadPage(true);
+  }
+
+  if (win && typeof win.addEventListener === 'function') {
+    win.addEventListener(AUTH_EVENT, onAuthChanged);
+  }
+
   return {
     onOpen() {
+      syncAuthUi();
       nextBefore = null;
-      loadPage(true);
+      return loadPage(true);
     }
   };
 }
