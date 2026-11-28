@@ -206,6 +206,7 @@ public final class ServerApp {
         app.post("/login", this::loginPost);
         app.get("/logout", this::logoutGet);
         app.post("/logout", this::logoutPost);
+        app.get("/api/auth/session", this::authSessionGet);
         app.get("/ping", this::ping);
         app.post("/api/heartbeat", this::heartbeat);
         relayRoutes.register(app);
@@ -343,6 +344,21 @@ public final class ServerApp {
             return;
         }
         ctx.redirect("/");
+    }
+
+    /** 已登入時回傳 CSRF，供重整後或記憶體遺失時補拿；未登入不發 token。 */
+    private void authSessionGet(Context ctx) {
+        if (!authService.isAuth(ctx)) {
+            ctx.status(HttpStatus.OK).json(Map.of("authenticated", false));
+            return;
+        }
+        String session = ctx.cookie("auth");
+        String csrf = session != null ? authService.csrfTokenForSession(session) : "";
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("authenticated", true);
+        body.put("username", "root");
+        body.put("csrfToken", csrf);
+        ctx.status(HttpStatus.OK).json(body);
     }
 
     private void ping(Context ctx) {

@@ -1,6 +1,7 @@
 /** 首頁登入浮動視窗（外觀對齊 #roadmapBoard）。 */
 
 import { ensureHomeLoginCss } from './home-panel-css-loader.js';
+import { persistCsrf } from './admin-session.js';
 
 const LOGIN_RESULT_UNKNOWN = '[警告] 登入失敗，請稍後再試';
 const LOGIN_FAILURE_MESSAGE = '[警告] 密碼錯誤';
@@ -9,7 +10,7 @@ const LOGIN_FAILURE_MESSAGE = '[警告] 密碼錯誤';
 function applyLoginCsrf(win, data) {
   const token = data && typeof data.csrfToken === 'string' ? data.csrfToken.trim() : '';
   if (token) {
-    win.PUNCHCLOCK_CSRF = token;
+    persistCsrf(win, token);
     return true;
   }
   if (win && win.location && typeof win.location.reload === 'function') {

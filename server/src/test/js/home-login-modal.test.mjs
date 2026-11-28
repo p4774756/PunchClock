@@ -319,7 +319,7 @@ test('首頁登入浮動視窗標記與 fetch JSON', () => {
   assert.match(js, /Accept: 'application\/json'/);
   assert.match(js, /credentials: 'same-origin'/);
   assert.match(js, /POST/);
-  assert.match(js, /PUNCHCLOCK_CSRF/);
+  assert.match(js, /persistCsrf/);
   assert.match(js, /csrfToken/);
   assert.match(js, /location\.reload/);
   assert.doesNotMatch(js, /innerHTML/);

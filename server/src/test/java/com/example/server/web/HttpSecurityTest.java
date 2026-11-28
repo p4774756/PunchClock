@@ -121,6 +121,15 @@ public class HttpSecurityTest {
     }
 
     @Test
+    public void postLogoutWithoutCsrfIsForbiddenAndKeepsSession() throws Exception {
+        HttpResponse<String> denied = send("POST", "/logout", adminCookie, null, null);
+        assertEquals(403, denied.statusCode());
+        assertTrue(denied.body().contains("CSRF"));
+        HttpResponse<String> status = send("GET", "/api/status", adminCookie, null, null);
+        assertEquals(200, status.statusCode());
+    }
+
+    @Test
     public void postLogoutClearsSession() throws Exception {
         HttpResponse<String> logout = send("POST", "/logout", adminCookie, csrf, null);
         assertEquals(302, logout.statusCode());
