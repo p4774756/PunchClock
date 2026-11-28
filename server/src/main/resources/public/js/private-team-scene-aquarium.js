@@ -22,7 +22,6 @@ export const PRIVATE_TEAM_TUB_FLOOR_AQUARIUM_OPACITY = 0.06;
 export const PRIVATE_TEAM_AQUARIUM_UNDER_GLOW = 1.15;
 export const PRIVATE_TEAM_AQUARIUM_GLASS_OPACITY = 0.38;
 
-const SWIMSUIT = 0xd85a82;
 const SAND = 0xc4a882;
 const GLASS = 0xb8d4e4;
 
@@ -303,17 +302,9 @@ export function addSecretaryBathLegs(parent) {
     emissive: 0x8a5a48,
     emissiveIntensity: 0.55
   });
-  const suitMat = new THREE.MeshLambertMaterial({
-    color: SWIMSUIT,
-    emissive: 0x5a1830,
-    emissiveIntensity: 0.62
-  });
-  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.09, 0.16), skinMat);
+  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.2, 0.05), skinMat);
   pelvis.name = 'bathLegPelvis';
   group.add(pelvis);
-  const hem = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.05, 0.17), suitMat);
-  hem.name = 'bathLegHem';
-  group.add(hem);
   function leg(side) {
     const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.075, 1, 10), skinMat);
     thigh.name = 'bathLegThigh' + side;
@@ -339,9 +330,9 @@ const _dir = new THREE.Vector3();
 const _up = new THREE.Vector3(0, 1, 0);
 
 /** 膝蓋往浴缸前方（+z）彎出的距離，讓俯視時小腿不被正上方的鍵盤托盤擋住。 */
-export const PRIVATE_TEAM_BATH_KNEE_FORWARD = 0.36;
+export const PRIVATE_TEAM_BATH_KNEE_FORWARD = 0.52;
 const TUB_WORLD_Z_MAX = 0.98;
-const TUB_WORLD_Z_MIN = 0.3;
+const TUB_WORLD_Z_MIN = 0.5;
 const TUB_WORLD_X_MAX = 0.68;
 
 function clamp(v, lo, hi) {
@@ -380,14 +371,10 @@ export function syncSecretaryBathLegs(parent, sprite, spriteHeight) {
   const py = parent.position.y;
 
   const pelvis = group.getObjectByName('bathLegPelvis');
-  const hem = group.getObjectByName('bathLegHem');
   if (pelvis) {
     pelvis.quaternion.copy(sprite.quaternion);
-    pelvis.position.set(0, -0.04, 0).applyQuaternion(sprite.quaternion).add(_hipLocal);
-  }
-  if (hem) {
-    hem.quaternion.copy(sprite.quaternion);
-    hem.position.set(0, -0.085, 0.01).applyQuaternion(sprite.quaternion).add(_hipLocal);
+    // 骨盆板稍微塞進精靈圖後方：精靈內容蓋在上面，只在精靈邊緣鏤空處露出，補掉腰臀破洞。
+    pelvis.position.set(0, 0.03, -0.04).applyQuaternion(sprite.quaternion).add(_hipLocal);
   }
   const sides = ['L', 'R'];
   for (let si = 0; si < sides.length; si++) {
