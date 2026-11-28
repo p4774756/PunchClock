@@ -82,25 +82,33 @@ public class HomeIllustrationTest {
     }
 
     @Test
-    public void cherryParkSkipsTopPaddingBand() throws Exception {
+    public void sceneIllustrationsSkipTopPaddingBand() throws Exception {
         int[][] shells = {{380, 520}, {417, 644}};
-        try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(
-                HomeIllustration.CHERRY_PARK_D.resourcePath())) {
-            var img = ImageIO.read(in);
-            int imgW = img.getWidth();
-            int imgH = img.getHeight();
-            int crop = HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.CHERRY_PARK_D, imgH);
-            assertEquals(288, crop);
-            for (int[] shell : shells) {
-                int panelH = shell[1] - ShellDimensions.TAB_BAR_HEIGHT;
-                int panelW = shell[0];
-                java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
-                        panelW, panelH, imgW, imgH, crop);
-                assertTrue(draw.width >= panelW);
-                assertTrue(draw.height >= panelH);
-                double scale = draw.width / (double) imgW;
-                int visibleTopSrcY = (int) Math.round((-draw.y) / scale) + crop;
-                assertTrue("skip blur band", visibleTopSrcY >= crop);
+        HomeIllustration[] scenes = {
+                HomeIllustration.POOL_C,
+                HomeIllustration.CHERRY_PARK_D,
+                HomeIllustration.NIGHT_MARKET_E,
+                HomeIllustration.OVERTIME_F,
+        };
+        assertEquals(0, HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.ROOM_B, 1152));
+        for (HomeIllustration illustration : scenes) {
+            try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(illustration.resourcePath())) {
+                var img = ImageIO.read(in);
+                int imgW = img.getWidth();
+                int imgH = img.getHeight();
+                int crop = HomeBubbleAnchor.sourceTopCropPx(illustration, imgH);
+                assertEquals(illustration.id() + " crop", 288, crop);
+                for (int[] shell : shells) {
+                    int panelH = shell[1] - ShellDimensions.TAB_BAR_HEIGHT;
+                    int panelW = shell[0];
+                    java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
+                            panelW, panelH, imgW, imgH, crop);
+                    assertTrue(draw.width >= panelW);
+                    assertTrue(draw.height >= panelH);
+                    double scale = draw.width / (double) imgW;
+                    int visibleTopSrcY = (int) Math.round((-draw.y) / scale) + crop;
+                    assertTrue(illustration.id() + " @" + shell[0] + "x" + shell[1], visibleTopSrcY >= crop);
+                }
             }
         }
     }

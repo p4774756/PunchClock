@@ -59,14 +59,14 @@ public final class HomeBubbleAnchor {
         return id != null && BY_ID.containsKey(id.trim().toLowerCase());
     }
 
-    /** 櫻花公園圖檔頂端約四分之一為 AI 填補糊帶，繪製前先略過。 */
-    private static final double CHERRY_TOP_PADDING_NORM = 0.25;
+    /** 3:4 場景圖（c–f）頂端約四分之一為 AI 填補糊帶，繪製前先略過；夜晚房間（b）無此帶。 */
+    private static final double SCENE_TOP_PADDING_NORM = 0.25;
 
     public static int sourceTopCropPx(HomeIllustration illustration, int imgH) {
-        if (illustration == HomeIllustration.CHERRY_PARK_D && imgH > 0) {
-            return (int) Math.round(imgH * CHERRY_TOP_PADDING_NORM);
+        if (illustration == null || illustration == HomeIllustration.ROOM_B || imgH <= 0) {
+            return 0;
         }
-        return 0;
+        return (int) Math.round(imgH * SCENE_TOP_PADDING_NORM);
     }
 
     public static Rectangle imageDrawRect(int panelW, int panelH, int imgW, int imgH) {
@@ -115,7 +115,8 @@ public final class HomeBubbleAnchor {
         int iy = (int) Math.round(normY * imgH);
         int px = drawRect.x + (int) Math.round(ix * scale);
         int crop = Math.max(0, Math.min(sourceTopPx, imgH - 1));
-        int py = drawRect.y + (int) Math.round((iy - crop) * scale);
+        int contentY = Math.max(0, iy - crop);
+        int py = drawRect.y + (int) Math.round(contentY * scale);
         return new Point(px, py);
     }
 
