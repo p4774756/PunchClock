@@ -1,6 +1,10 @@
 // 首頁秘書：GET /api/office/public 的 tiger 欄位解析與小卡內容組裝。
 
 import { formatTaipeiClock, viewerCanLink } from './dev-machines-format.js';
+import {
+  parseSecretaryOutfitId,
+  secretarySpritePackForOutfit
+} from './private-team-secretary-outfit.js';
 
 const FORBIDDEN = /(?:ai\/issue-|\/Users\/|worktree|battery|charging|\.log\b)/i;
 
@@ -207,11 +211,6 @@ export function taskProgressFromTiger(tiger) {
   };
 }
 
-const SPRITE_TYPING = '/assets/private-team/secretary-typing-a.webp';
-const SPRITE_IDLE_TEA = '/assets/private-team/secretary-idle-tea.webp';
-const SPRITE_SLEEP = '/assets/private-team/secretary-sleep.webp';
-const SPRITE_SOFA = '/assets/private-team/secretary-sofa.webp';
-
 /** 秘書「工作中」：舊文案、「工作中 ×N」與「…結界展開中」。 */
 export function isWorkingStatus(status) {
   const s = status == null ? '' : String(status).trim();
@@ -220,11 +219,12 @@ export function isWorkingStatus(status) {
 }
 
 /** 秘書狀態對應立繪（工作中浴缸打字；待命／休息坐休憩區沙發，素材缺失時場景改用站姿立繪仍留沙發位）。 */
-export function secretarySpriteUrlForStatus(status) {
+export function secretarySpriteUrlForStatus(status, outfitId = 'default') {
+  const pack = secretarySpritePackForOutfit(parseSecretaryOutfitId(outfitId));
   const s = status == null ? '' : String(status).trim();
-  if (isWorkingStatus(s)) return SPRITE_TYPING;
-  if (s === '待命中' || s === '待機' || s === '休息中') return SPRITE_SOFA;
-  return SPRITE_IDLE_TEA;
+  if (isWorkingStatus(s)) return pack.typing;
+  if (s === '待命中' || s === '待機' || s === '休息中') return pack.sofa;
+  return pack.idle;
 }
 
 const GUARDIAN_BARRIER_NAMES = ['青龍', '白虎', '朱雀', '玄武'];

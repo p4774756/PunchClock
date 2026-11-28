@@ -19,7 +19,8 @@ const {
 test('私人女秘書 HUD 標記與身分文案', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
   assert.match(js, /class="pt-hud-task"[^>]*data-pt-task-btn/);
-  assert.match(js, /<img src="\/assets\/private-team\/secretary-avatar\.webp"/);
+  assert.match(js, /data-pt-secretary-avatar/);
+  assert.match(js, /secretary-avatar\.webp/);
   assert.match(js, /alt="" aria-hidden="true"/);
   assert.match(js, /data-pt-auth-label/);
   assert.match(js, /訪客・點此登入/);

@@ -146,6 +146,14 @@ test('secretarySpriteUrlForStatus 對應三張立繪', () => {
   assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-sofa.webp');
   assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-sofa.webp');
   assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sofa.webp');
+  assert.equal(
+    secretarySpriteUrlForStatus('工作中', 'stage'),
+    '/assets/private-team/secretary-stage-typing-a.webp'
+  );
+  assert.equal(
+    secretarySpriteUrlForStatus('休息中', 'stage'),
+    '/assets/private-team/secretary-stage-sofa.webp'
+  );
 });
 
 test('bubbleTextForStatus 秘書口吻與待命／休息', () => {
