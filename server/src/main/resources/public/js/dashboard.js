@@ -1,3 +1,8 @@
+    function punchclockAdminHeaders() {
+      var token = window.PUNCHCLOCK_CSRF;
+      return token ? { 'X-Csrf-Token': token } : {};
+    }
+
     let ws;
     let clientData = [];
     let clientLogs = {};
@@ -906,7 +911,7 @@
 
     function deleteClient(clientId) {
       if (confirm('確定要把【' + clientId + '】從設備名單移除嗎？')) {
-        fetch('/api/clients/' + encodeURIComponent(clientId), { method: 'DELETE' })
+        fetch('/api/clients/' + encodeURIComponent(clientId), { method: 'DELETE', headers: punchclockAdminHeaders() })
           .then(res => res.json())
           .then(data => { if (!data.success) alert(data.message || '刪除失敗'); })
           .catch(err => console.error(err));
@@ -920,7 +925,7 @@
       markTaskCancelPending(clientId, taskId);
       refreshTaskCancelUi(clientId, taskId);
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在取消這筆任務 (' + taskId + ')…');
-      fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST' })
+      fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-task/' + encodeURIComponent(taskId), { method: 'POST', headers: punchclockAdminHeaders() })
         .then(res => res.json())
         .then(data => {
           if (data.success) {
@@ -948,7 +953,7 @@
       refreshCancelAllUi(clientId);
       appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 正在取消全部任務…');
       try {
-        const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-schedule', { method: 'POST' });
+        const res = await fetch('/api/clients/' + encodeURIComponent(clientId) + '/cancel-schedule', { method: 'POST', headers: punchclockAdminHeaders() });
         const data = await res.json();
         if (data.success) {
           appendLog(clientId, '[' + new Date().toLocaleTimeString('zh-TW') + '] 已送出取消囉，等對方收到就會全部取消');

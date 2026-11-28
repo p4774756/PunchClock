@@ -28,8 +28,10 @@ import com.example.server.web.DevStatusRoutes;
 import com.example.server.store.DevMachineStore;
 import com.example.server.web.RoadmapRoutes;
 import com.example.server.web.RouteSupport;
+import com.example.server.web.HttpSecurity;
 import com.example.server.web.LoginNextPath;
 import com.example.server.web.LoginPageRenderer;
+import com.example.server.util.HtmlEscape;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import io.javalin.Javalin;
@@ -55,8 +57,10 @@ public final class ServerApp {
     private static final String STATIC_JS_CSS_CACHE = "public, max-age=86400";
     private static final String PAGE_CACHE = "no-cache, must-revalidate";
     private static final long MAX_HTTP_REQUEST_BYTES = 64L * 1024L * 1024L;
+    private static final String LOGIN_FAILURE_MESSAGE = "[警告] 密碼錯誤";
 
     private final AuthService authService;
+    private HttpSecurity httpSecurity;
     private final ClientStore clientStore;
     private final RelayStore relayStore;
     private final Gson gson;
@@ -168,6 +172,9 @@ public final class ServerApp {
             config.jetty.multipartConfig.maxInMemoryFileSize(1, SizeUnit.MB);
         });
 
+        httpSecurity = new HttpSecurity(authService, System.getenv());
+        graffitiRoutes.bindHttpSecurity(httpSecurity);
+        httpSecurity.register(app);
         registerRoutes(app);
         registerWebSocket(app);
 
@@ -197,13 +204,9 @@ public final class ServerApp {
     private void registerRoutes(Javalin app) {
         app.get("/login", this::loginGet);
         app.post("/login", this::loginPost);
-        app.get("/logout", this::logout);
-        app.get("/ping", ctx -> ctx.json(Map.of(
-                "message", "pong",
-                "timestamp", Instant.now().toString(),
-                "version", SERVER_VERSION,
-                "buildTime", BUILD_INFO.buildTimeIso()
-        )));
+        app.get("/logout", this::logoutGet);
+        app.post("/logout", this::logoutPost);
+        app.get("/ping", this::ping);
         app.post("/api/heartbeat", this::heartbeat);
         relayRoutes.register(app);
         chatRoutes.register(app);
@@ -250,15 +253,8 @@ public final class ServerApp {
         String ip = IpResolver.clientIp(ctx);
         AuthService.LoginLockStatus lockStatus = authService.getLoginLockStatus(ip);
         String alertMessage = "";
-        if (lockStatus.isLocked()) {
-            int mins = lockStatus.remainingSec / 60;
-            int secs = lockStatus.remainingSec % 60;
-            String timeDisplay = mins > 0 ? mins + " 分 " + secs + " 秒" : secs + " 秒";
-            alertMessage = "<div class=\"error-alert\" id=\"lockAlert\">[警告] 嘗試錯誤過多！帳號已鎖定，請等待 <span id=\"countdown\">"
-                    + timeDisplay + "</span>。</div>";
-        } else if ("1".equals(ctx.queryParam("error"))) {
-            int remainingAttempts = Math.max(0, 5 - lockStatus.attempts);
-            alertMessage = "<div class=\"error-alert\">[警告] 密碼錯誤！剩餘嘗試次數：" + remainingAttempts + " 次 (滿5次鎖定15分鐘)</div>";
+        if (lockStatus.isLocked() || "1".equals(ctx.queryParam("error"))) {
+            alertMessage = "<div class=\"error-alert\">" + LOGIN_FAILURE_MESSAGE + "</div>";
         }
         ctx.html(LoginPageRenderer.render(alertMessage, lockStatus, SERVER_VERSION, nextSafe));
     }
@@ -279,9 +275,12 @@ public final class ServerApp {
         String password = ctx.formParam("password");
         if (authService.checkAdminPassword(password)) {
             authService.clearLoginAttempt(ip);
-            setAuthCookie(ctx, authService.createSessionToken());
+            String session = authService.createSessionToken();
+            setAuthCookie(ctx, session);
             if (json) {
-                ctx.status(HttpStatus.OK).json(Map.of("success", true));
+                ctx.status(HttpStatus.OK).json(Map.of(
+                        "success", true,
+                        "csrfToken", authService.csrfTokenForSession(session)));
                 return;
             }
             ctx.redirect(nextSafe != null ? nextSafe : "/");
@@ -304,24 +303,13 @@ public final class ServerApp {
     private static void respondLoginJsonFailure(Context ctx, AuthService.LoginLockStatus lockStatus) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("success", false);
-        body.put("locked", lockStatus.isLocked());
+        body.put("message", LOGIN_FAILURE_MESSAGE);
         if (lockStatus.isLocked()) {
-            body.put("remainingSec", lockStatus.remainingSec);
-            body.put("message", loginLockMessage(lockStatus.remainingSec));
+            body.put("locked", true);
             ctx.status(HttpStatus.FORBIDDEN).json(body);
             return;
         }
-        int remainingAttempts = Math.max(0, 5 - lockStatus.attempts);
-        body.put("remainingAttempts", remainingAttempts);
-        body.put("message", "[警告] 密碼錯誤！剩餘嘗試次數：" + remainingAttempts + " 次 (滿5次鎖定15分鐘)");
         ctx.status(HttpStatus.UNAUTHORIZED).json(body);
-    }
-
-    private static String loginLockMessage(int remainingSec) {
-        int mins = remainingSec / 60;
-        int secs = remainingSec % 60;
-        String timeDisplay = mins > 0 ? mins + " 分 " + secs + " 秒" : secs + " 秒";
-        return "[警告] 嘗試錯誤過多！帳號已鎖定，請等待 " + timeDisplay + "。";
     }
 
     private static String loginUrlWithNext(String nextSafe) {
@@ -336,10 +324,39 @@ public final class ServerApp {
         return url;
     }
 
-    private void logout(Context ctx) {
+    private void logoutGet(Context ctx) {
+        ctx.status(HttpStatus.OK);
+        ctx.html("<!DOCTYPE html><html lang=\"zh-TW\"><head><meta charset=\"UTF-8\">"
+                + "<title>登出</title></head><body><p>請從站內頁面登出，無法以連結直接登出。</p>"
+                + "<p><a href=\"/\">回辦公室</a></p></body></html>");
+    }
+
+    private void logoutPost(Context ctx) {
+        if (!httpSecurity.requireAdminWrite(ctx)) {
+            return;
+        }
         authService.revokeSession(ctx.cookie("auth"));
         clearAuthCookie(ctx);
+        if ("application/json".equalsIgnoreCase(ctx.contentType())
+                || wantsJsonLogin(ctx)) {
+            ctx.status(HttpStatus.OK).json(Map.of("success", true));
+            return;
+        }
         ctx.redirect("/");
+    }
+
+    private void ping(Context ctx) {
+        if (authService.isAuth(ctx)) {
+            ctx.json(Map.of(
+                    "message", "pong",
+                    "timestamp", Instant.now().toString(),
+                    "version", SERVER_VERSION,
+                    "buildTime", BUILD_INFO.buildTimeIso()));
+            return;
+        }
+        ctx.json(Map.of(
+                "message", "pong",
+                "timestamp", Instant.now().toString()));
     }
 
     private void heartbeat(Context ctx) {
@@ -490,8 +507,7 @@ public final class ServerApp {
     }
 
     private void cancelSchedule(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+        if (!httpSecurity.requireAdminWrite(ctx)) {
             return;
         }
         String clientId = ctx.pathParam("clientId");
@@ -501,8 +517,7 @@ public final class ServerApp {
     }
 
     private void cancelTask(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+        if (!httpSecurity.requireAdminWrite(ctx)) {
             return;
         }
         String clientId = ctx.pathParam("clientId");
@@ -513,8 +528,7 @@ public final class ServerApp {
     }
 
     private void deleteClient(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
+        if (!httpSecurity.requireAdminWrite(ctx)) {
             return;
         }
         String clientId = ctx.pathParam("clientId");
@@ -526,10 +540,17 @@ public final class ServerApp {
 
     private void officeHome(Context ctx) {
         boolean authenticated = authService.isAuth(ctx);
+        String csrf = "";
+        if (authenticated) {
+            String session = ctx.cookie("auth");
+            if (session != null) {
+                csrf = authService.csrfTokenForSession(session);
+            }
+        }
         ClientRelease release = clientReleaseService.get(Instant.now().toEpochMilli());
         String html = applyAuthPageTokens(applyServerBuildTokens(
                 PublicDownloadRoutes.applyHomeDownloadTokens(readResource("/public/index.html"), release)),
-                authenticated);
+                authenticated, csrf);
         ctx.header("Cache-Control", PAGE_CACHE);
         ctx.html(html);
     }
@@ -573,11 +594,13 @@ public final class ServerApp {
         return trimmed.replaceAll("[^0-9A-Za-z]+", "");
     }
 
-    private static String applyAuthPageTokens(String html, boolean authenticated) {
+    private static String applyAuthPageTokens(String html, boolean authenticated, String csrfToken) {
+        String safeCsrf = csrfToken == null ? "" : HtmlEscape.escape(csrfToken);
         return html
                 .replace("{{AUTH_BODY_CLASS}}", authenticated ? "is-authenticated" : "is-guest")
                 .replace("{{AUTH_JS_BOOL}}", authenticated ? "true" : "false")
-                .replace("{{AUTH_USERNAME}}", authenticated ? "root" : "");
+                .replace("{{AUTH_USERNAME}}", authenticated ? "root" : "")
+                .replace("{{CSRF_TOKEN}}", safeCsrf);
     }
 
     private static void applyStaticCache(StaticFileConfig sf, String cacheControl) {

@@ -229,7 +229,7 @@ function taskHudMarkup() {
     '<span class="pt-a-bar-count" data-pt-task-bar-count></span>' +
     '</span></span></button>' +
     '<div class="pt-hud-id-menu" data-pt-auth-menu hidden role="menu" aria-label="帳號選單">' +
-    '<a href="/logout" class="pt-hud-id-logout" role="menuitem">登出</a>' +
+    '<button type="button" class="pt-hud-id-logout" data-pt-logout role="menuitem">登出</button>' +
     '</div></div>'
   );
 }
