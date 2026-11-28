@@ -17,6 +17,7 @@ const STAGE_TO_SEGMENT = {
   '審查中': 1,
   '等 CI': 2,
   '修正中': 2,
+  '有衝突': 2,
   '合併中': 3
 };
 
@@ -393,7 +394,9 @@ export function progressSegmentsForActive(item) {
   const current = STAGE_TO_SEGMENT[stage] ?? 0;
   const ciFail = activeCiFailed(row);
   const reviewSkipped = reviewWasSkipped(row, stage);
-  return STAGE_LABELS.map((label, index) => {
+  return STAGE_LABELS.map((baseLabel, index) => {
+    // PR 與 main 有衝突時 CI 不會跑：第三格改標「有衝突」，不顯示等 CI。
+    const label = stage === '有衝突' && baseLabel === 'CI' ? '有衝突' : baseLabel;
     if (index < current) {
       if (label === '審核' && reviewSkipped) return { label, state: 'skipped' };
       return { label, state: 'done' };
@@ -422,6 +425,7 @@ export function statusLineForActive(item) {
   const minText = Number.isFinite(minutes) && minutes > 0 ? '・' + minutes + ' 分' : '';
   const round = Number(row.round);
   const roundText = Number.isFinite(round) && round > 0 ? '・第 ' + round + ' 輪' : '';
+  if (stage === '有衝突') return '有衝突，待解決';
   if (stage === '審查中') return '審核中' + roundText + minText;
   if (stage === '等 CI') return '等 CI' + minText;
   return stage + minText;

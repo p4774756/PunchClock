@@ -93,7 +93,7 @@ public final class GithubDevStatusClient implements DevStatusService.Fetcher {
         CompletableFuture<JsonArray> branches = getArrayAsync("/repos/" + repo + "/git/matching-refs/heads/ai/issue-");
         try {
             List<IssueRow> issues = parseIssues(join(issues1), join(issues2));
-            List<PullRow> pulls = parsePulls(join(pulls1), join(pulls2));
+            List<PullRow> pulls = markConflicts(repo, parsePulls(join(pulls1), join(pulls2)));
             Set<Integer> branchSet = parseBranches(join(branches));
             return new Snapshot(issues, pulls, branchSet);
         } catch (CompletionException ex) {
@@ -195,6 +195,85 @@ public final class GithubDevStatusClient implements DevStatusService.Fetcher {
             }
             out.add(new PullRow(number, title, open, draft, merged, created, updated, mergedAt, closed, closes));
         }
+    }
+
+    /** 單張 PR 補讀 mergeable 的上限，避免 open PR 很多時打爆 GitHub API。 */
+    static final int MAX_CONFLICT_LOOKUPS = 10;
+
+    /**
+     * 列表 API 不含 mergeable；對 open 且非 draft 的 PR 逐張補讀，標出與 base 衝突者。
+     * 任何失敗（逾時、HTTP 錯誤、mergeable 還在計算）都當作沒衝突，不影響面板。
+     */
+    private List<PullRow> markConflicts(String repo, List<PullRow> pulls) {
+        List<Integer> indexes = new ArrayList<>();
+        for (int i = 0; i < pulls.size() && indexes.size() < MAX_CONFLICT_LOOKUPS; i++) {
+            PullRow p = pulls.get(i);
+            if (p.open && !p.draft) {
+                indexes.add(i);
+            }
+        }
+        if (indexes.isEmpty()) {
+            return pulls;
+        }
+        List<CompletableFuture<Boolean>> futures = new ArrayList<>();
+        for (int idx : indexes) {
+            int number = pulls.get(idx).number;
+            futures.add(CompletableFuture.supplyAsync(() -> {
+                try {
+                    return isConflicting(getObject("/repos/" + repo + "/pulls/" + number));
+                } catch (IOException | RuntimeException ex) {
+                    return Boolean.FALSE;
+                }
+            }, executor));
+        }
+        List<PullRow> out = new ArrayList<>(pulls);
+        for (int k = 0; k < indexes.size(); k++) {
+            boolean conflicting;
+            try {
+                conflicting = Boolean.TRUE.equals(futures.get(k).join());
+            } catch (CompletionException ex) {
+                conflicting = false;
+            }
+            int idx = indexes.get(k);
+            out.set(idx, out.get(idx).withConflicting(conflicting));
+        }
+        return out;
+    }
+
+    /** mergeable=false 或 mergeable_state=dirty 視為有衝突；null（GitHub 還在計算）視為沒有。 */
+    static boolean isConflicting(JsonObject pr) {
+        if (pr == null) {
+            return false;
+        }
+        if ("dirty".equalsIgnoreCase(text(pr, "mergeable_state"))) {
+            return true;
+        }
+        return pr.has("mergeable") && !pr.get("mergeable").isJsonNull()
+                && !pr.get("mergeable").getAsBoolean();
+    }
+
+    private JsonObject getObject(String path) throws IOException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create("https://api.github.com" + path))
+                .timeout(Duration.ofSeconds(8))
+                .header("Accept", "application/vnd.github+json")
+                .header("User-Agent", "PunchClock")
+                .GET();
+        GithubTokenHeaders.apply(builder);
+        HttpResponse<String> response;
+        try {
+            response = http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException("dev-status interrupted", ex);
+        }
+        if (response.statusCode() != 200) {
+            throw new IOException("dev-status http " + response.statusCode());
+        }
+        JsonElement parsed = JsonParser.parseString(response.body());
+        if (!parsed.isJsonObject()) {
+            throw new IOException("dev-status object");
+        }
+        return parsed.getAsJsonObject();
     }
 
     private Set<Integer> parseBranches(JsonArray arr) {

@@ -27,6 +27,7 @@ const {
   progressSegmentsForActive,
   statusLineForActive,
   activeCiFailed,
+  activeStageForItem,
   titleForActiveDisplay,
   completedTodayKeys,
   hasNewCompletedToday,
@@ -625,4 +626,16 @@ test('fillStatusCard 休息中台詞不含猛虎', () => {
   const flat = JSON.stringify(body) + body.textContent;
   assert.ok(flat.includes('今天先休息，晚點再來看我。'));
   assert.doesNotMatch(flat, /猛虎/);
+});
+test('有衝突階段：CI 格標「有衝突」、不顯示等 CI 分鐘', () => {
+  const item = { stage: '有衝突', round: 0, minutes: 253 };
+  const segs = progressSegmentsForActive(item);
+  assert.deepEqual(segs.map((s) => s.label), ['開發', '審核', '有衝突', '合併']);
+  assert.equal(segs[2].state, 'current');
+  assert.equal(activeStageForItem(item), '有衝突');
+  assert.equal(activeCiFailed({ stage: '有衝突', verdict: 'FAIL' }), false);
+  assert.equal(statusLineForActive(item), '有衝突，待解決');
+  assert.ok(!statusLineForActive(item).includes('分'));
+  const normal = progressSegmentsForActive({ stage: '等 CI', round: 1 });
+  assert.equal(normal[2].label, 'CI');
 });
