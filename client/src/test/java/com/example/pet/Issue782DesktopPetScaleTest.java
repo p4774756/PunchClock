@@ -1,7 +1,6 @@
 package com.example.pet;
 
 import com.example.ui.UiFonts;
-import org.junit.Assume;
 import org.junit.Test;
 
 import javax.imageio.ImageIO;
@@ -215,15 +214,18 @@ public class Issue782DesktopPetScaleTest {
         DesktopPetAnimation worry = new DesktopPetAnimation();
         worry.flashWorry("嗯？");
         shots.add(shot("worry", frames, shell, worry));
-        DesktopPetAnimation hungry = new DesktopPetAnimation(new Random(17));
-        hungry.setCareIdle(true, 12, 80, 80);
-        for (int i = 0; i < 400; i++) {
+        DesktopPetAnimation hungry = new DesktopPetAnimation(new Random(99));
+        hungry.setCareIdle(true, 10, 80, 80);
+        boolean enteredHungry = false;
+        for (int i = 0; i <= DesktopPetAnimation.IDLE_TICKS * 4; i++) {
             hungry.tick();
             if (hungry.mode() == DesktopPetAnimation.Mode.HUNGRY) {
+                enteredHungry = true;
                 break;
             }
         }
-        Assume.assumeTrue(hungry.mode() == DesktopPetAnimation.Mode.HUNGRY);
+        assertTrue("expected care-idle hunger to enter HUNGRY", enteredHungry);
+        assertEquals(DesktopPetAnimation.Mode.HUNGRY, hungry.mode());
         shots.add(shot("hungry", frames, shell, hungry));
         DesktopPetAnimation carried = new DesktopPetAnimation();
         carried.setCarried(true);
@@ -299,19 +301,27 @@ public class Issue782DesktopPetScaleTest {
                 return 0;
             }
         });
-        for (int i = 0; i < DesktopPetAnimation.IDLE_TICKS * 3; i++) {
+        for (int i = 0; i < DesktopPetAnimation.IDLE_TICKS; i++) {
             animation.tick();
         }
-        Assume.assumeTrue(animation.mode() == DesktopPetAnimation.Mode.SIT);
+        assertEquals(DesktopPetAnimation.Mode.WALK, animation.mode());
+        for (int i = 0; i < DesktopPetAnimation.WALK_TICKS; i++) {
+            animation.tick();
+        }
+        assertEquals(DesktopPetAnimation.Mode.IDLE, animation.mode());
+        for (int i = 0; i < DesktopPetAnimation.IDLE_TICKS; i++) {
+            animation.tick();
+        }
+        assertEquals(DesktopPetAnimation.Mode.SIT, animation.mode());
         return animation;
     }
 
     private static DesktopPetAnimation sleepingAnim(DesktopPetAnimation sit) {
         DesktopPetAnimation animation = sit;
-        for (int i = 0; i < DesktopPetAnimation.SIT_TICKS + 4; i++) {
+        for (int i = 0; i < DesktopPetAnimation.SIT_TICKS; i++) {
             animation.tick();
         }
-        Assume.assumeTrue(animation.mode() == DesktopPetAnimation.Mode.SLEEP);
+        assertEquals(DesktopPetAnimation.Mode.SLEEP, animation.mode());
         return animation;
     }
 
