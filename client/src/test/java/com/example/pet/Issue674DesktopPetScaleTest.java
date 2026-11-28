@@ -115,6 +115,7 @@ public class Issue674DesktopPetScaleTest {
         BufferedImage viewport = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = viewport.createGraphics();
         try {
+            g.scale(pixelScale, pixelScale);
             DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, false);
         } finally {
             g.dispose();

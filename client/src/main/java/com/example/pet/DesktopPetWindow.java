@@ -155,7 +155,8 @@ public final class DesktopPetWindow extends JFrame {
             }
         }
         stage.setOpaque(false);
-        stage.setDoubleBuffered(perPixel);
+        // per-pixel 透明時與 root／layered pane 一致關掉雙緩衝，避免先露出被清空的原生面再貼幀。
+        stage.setDoubleBuffered(!perPixel);
         stage.setFocusable(false);
         stage.setPreferredSize(new Dimension(WIDTH, HEIGHT));
         stage.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -695,6 +696,22 @@ public final class DesktopPetWindow extends JFrame {
             }
         }
         refreshFit();
+        flushStagePaint();
+    }
+
+    /**
+     * per-pixel 透明視窗在 macOS 上非同步 {@link #repaint()} 容易露出一幀清空的原生面；
+     * 計時器路徑改為同 tick 內同步畫滿 stage。
+     */
+    private void flushStagePaint() {
+        if (perPixel && isDisplayable() && isVisible()) {
+            int w = stage.getWidth();
+            int h = stage.getHeight();
+            if (w > 0 && h > 0) {
+                stage.paintImmediately(0, 0, w, h);
+                return;
+            }
+        }
         repaint();
     }
 
@@ -1618,11 +1635,18 @@ public final class DesktopPetWindow extends JFrame {
         }
 
         @Override
+        public void update(Graphics graphics) {
+            paint(graphics);
+        }
+
+        @Override
         protected void paintComponent(Graphics graphics) {
             Graphics2D g = (Graphics2D) graphics.create();
             try {
                 BufferedImage frame = renderLiveFrame();
                 boolean pixelFallback = milu == null && miluFailed;
+                DesktopPetMiluLayout.applyDeviceScaleIfNeeded(
+                        g, view.width, view.height, DesktopPetMiluLayout.deviceScale(getGraphicsConfiguration()));
                 if (perPixel) {
                     g.setComposite(AlphaComposite.Src);
                     DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, pixelFallback);
