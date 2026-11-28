@@ -140,7 +140,7 @@ public final class DesktopPetWindow extends JFrame {
         try {
             // macOS 的 UTILITY 視窗一被點到，系統就會把整個程式叫到前景。
             // POPUP 在原生層是不啟動 App 的面板，點一下和拖曳不會把主視窗拉上來。
-            setType(keepsAppInBackground() ? Type.POPUP : Type.UTILITY);
+            setType(backgroundWindowType());
         } catch (RuntimeException ex) {
             // 沒設成工具視窗時，仍是沒有 owner 的獨立視窗。
         }
@@ -373,9 +373,7 @@ public final class DesktopPetWindow extends JFrame {
         animation.setPlayerControl(true);
         controlGroundY = getY();
         controlWindowFocused = true;
-        setAutoRequestFocus(false);
-        setFocusableWindowState(true);
-        stage.setFocusable(true);
+        applyControlModeWindowChrome(true);
         scheduleControlFocusGrab();
         installControlKeyDispatcher();
         repaint();
@@ -395,8 +393,7 @@ public final class DesktopPetWindow extends JFrame {
             controlFocusTimer.stop();
             controlFocusTimer = null;
         }
-        setFocusableWindowState(false);
-        stage.setFocusable(false);
+        applyControlModeWindowChrome(false);
         Point grounded = DesktopPetWindow.clampToScreens(
                 getX(), controlGroundY, getWidth(), getHeight(), screenRects());
         setLocation(grounded);
@@ -476,8 +473,10 @@ public final class DesktopPetWindow extends JFrame {
         }
         requestAppForeground();
         toFront();
-        setFocusableWindowState(true);
-        stage.setFocusable(true);
+        applyControlModeWindowChrome(true);
+        if (keepsAppInBackground()) {
+            setAutoRequestFocus(true);
+        }
         requestFocus();
         stage.requestFocusInWindow();
         controlWindowFocused = isFocused();
@@ -1343,6 +1342,67 @@ public final class DesktopPetWindow extends JFrame {
     static boolean keepsAppInBackground() {
         String os = System.getProperty("os.name", "");
         return os.startsWith("Mac") || os.startsWith("Darwin");
+    }
+
+    static Type backgroundWindowType() {
+        return keepsAppInBackground() ? Type.POPUP : Type.UTILITY;
+    }
+
+    /** 操控模式要可成為 key window；macOS 上 POPUP 不行，暫改 NORMAL。 */
+    static Type controlModeWindowType() {
+        return keepsAppInBackground() ? Type.NORMAL : Type.UTILITY;
+    }
+
+    /** 進入／離開操控模式時應套用的視窗 type 與焦點旗標（headless 單測用）。 */
+    static ControlModeChrome controlModeChrome(boolean controlActive) {
+        return new ControlModeChrome(
+                controlActive ? controlModeWindowType() : backgroundWindowType(),
+                controlActive,
+                controlActive && keepsAppInBackground(),
+                controlActive);
+    }
+
+    static final class ControlModeChrome {
+        final Type windowType;
+        final boolean focusableWindowState;
+        final boolean autoRequestFocus;
+        final boolean stageFocusable;
+
+        ControlModeChrome(Type windowType, boolean focusableWindowState, boolean autoRequestFocus,
+                boolean stageFocusable) {
+            this.windowType = windowType;
+            this.focusableWindowState = focusableWindowState;
+            this.autoRequestFocus = autoRequestFocus;
+            this.stageFocusable = stageFocusable;
+        }
+    }
+
+    private void applyControlModeWindowChrome(boolean controlActive) {
+        ControlModeChrome chrome = controlModeChrome(controlActive);
+        setFocusableWindowState(chrome.focusableWindowState);
+        setAutoRequestFocus(chrome.autoRequestFocus);
+        stage.setFocusable(chrome.stageFocusable);
+        adoptWindowType(chrome.windowType);
+    }
+
+    private void adoptWindowType(Type target) {
+        if (getType() == target) {
+            return;
+        }
+        boolean visible = isVisible();
+        Point loc = new Point(getLocation());
+        if (visible) {
+            setVisible(false);
+        }
+        try {
+            setType(target);
+        } catch (RuntimeException ex) {
+            // 不支援改 type 時維持原狀。
+        }
+        setLocation(loc);
+        if (visible) {
+            setVisible(true);
+        }
     }
 
     private boolean tryPerPixelTransparency() {
