@@ -200,9 +200,21 @@ public final class GithubDevStatusClient implements DevStatusService.Fetcher {
     /** 單張 PR 補讀 mergeable 的上限，避免 open PR 很多時打爆 GitHub API。 */
     static final int MAX_CONFLICT_LOOKUPS = 10;
 
+    /** 單張 open PR 補讀的結果：是否與 base 衝突、最新 commit 的 CI 是否全數通過。 */
+    private static final class PullExtra {
+        final boolean conflicting;
+        final boolean ciPassed;
+
+        PullExtra(boolean conflicting, boolean ciPassed) {
+            this.conflicting = conflicting;
+            this.ciPassed = ciPassed;
+        }
+    }
+
     /**
-     * 列表 API 不含 mergeable；對 open 且非 draft 的 PR 逐張補讀，標出與 base 衝突者。
-     * 任何失敗（逾時、HTTP 錯誤、mergeable 還在計算）都當作沒衝突，不影響面板。
+     * 列表 API 不含 mergeable；對 open 且非 draft 的 PR 逐張補讀，標出與 base 衝突者，
+     * 並順帶讀最新 commit 的 check-runs 標出 CI 是否全數通過。
+     * 任何失敗（逾時、HTTP 錯誤、mergeable 還在計算）都當作沒衝突、CI 未通過，不影響面板。
      */
     private List<PullRow> markConflicts(String repo, List<PullRow> pulls) {
         List<Integer> indexes = new ArrayList<>();
@@ -215,29 +227,82 @@ public final class GithubDevStatusClient implements DevStatusService.Fetcher {
         if (indexes.isEmpty()) {
             return pulls;
         }
-        List<CompletableFuture<Boolean>> futures = new ArrayList<>();
+        List<CompletableFuture<PullExtra>> futures = new ArrayList<>();
         for (int idx : indexes) {
             int number = pulls.get(idx).number;
             futures.add(CompletableFuture.supplyAsync(() -> {
                 try {
-                    return isConflicting(getObject("/repos/" + repo + "/pulls/" + number));
+                    JsonObject pr = getObject("/repos/" + repo + "/pulls/" + number);
+                    boolean conflicting = isConflicting(pr);
+                    boolean ciPassed = false;
+                    if (!conflicting) {
+                        String sha = headSha(pr);
+                        if (sha != null) {
+                            try {
+                                ciPassed = allChecksPassed(getObject(
+                                        "/repos/" + repo + "/commits/" + sha + "/check-runs?per_page=100"));
+                            } catch (IOException | RuntimeException ex) {
+                                ciPassed = false;
+                            }
+                        }
+                    }
+                    return new PullExtra(conflicting, ciPassed);
                 } catch (IOException | RuntimeException ex) {
-                    return Boolean.FALSE;
+                    return new PullExtra(false, false);
                 }
             }, executor));
         }
         List<PullRow> out = new ArrayList<>(pulls);
         for (int k = 0; k < indexes.size(); k++) {
-            boolean conflicting;
+            PullExtra extra;
             try {
-                conflicting = Boolean.TRUE.equals(futures.get(k).join());
+                extra = futures.get(k).join();
             } catch (CompletionException ex) {
-                conflicting = false;
+                extra = new PullExtra(false, false);
             }
             int idx = indexes.get(k);
-            out.set(idx, out.get(idx).withConflicting(conflicting));
+            out.set(idx, out.get(idx).withConflicting(extra.conflicting).withCiPassed(extra.ciPassed));
         }
         return out;
+    }
+
+    /** PR 物件的 head.sha；沒有時回 null。 */
+    static String headSha(JsonObject pr) {
+        if (pr == null || !pr.has("head") || !pr.get("head").isJsonObject()) {
+            return null;
+        }
+        String sha = text(pr.getAsJsonObject("head"), "sha");
+        return sha == null || sha.isEmpty() ? null : sha;
+    }
+
+    /**
+     * check-runs 回應：至少一項 check，全部 completed 且 conclusion 為 success／neutral／skipped
+     * 才算通過；沒有任何 check、還在跑或有失敗都不算。
+     */
+    static boolean allChecksPassed(JsonObject checkRuns) {
+        if (checkRuns == null || !checkRuns.has("check_runs") || !checkRuns.get("check_runs").isJsonArray()) {
+            return false;
+        }
+        JsonArray runs = checkRuns.getAsJsonArray("check_runs");
+        if (runs.size() == 0) {
+            return false;
+        }
+        for (JsonElement el : runs) {
+            if (!el.isJsonObject()) {
+                return false;
+            }
+            JsonObject run = el.getAsJsonObject();
+            if (!"completed".equalsIgnoreCase(text(run, "status"))) {
+                return false;
+            }
+            String conclusion = text(run, "conclusion");
+            if (!"success".equalsIgnoreCase(conclusion)
+                    && !"neutral".equalsIgnoreCase(conclusion)
+                    && !"skipped".equalsIgnoreCase(conclusion)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** mergeable=false 或 mergeable_state=dirty 視為有衝突；null（GitHub 還在計算）視為沒有。 */

@@ -18,7 +18,9 @@ const STAGE_TO_SEGMENT = {
   '等 CI': 2,
   '修正中': 2,
   '有衝突': 2,
-  '合併中': 3
+  '合併中': 3,
+  // CI 全數通過、只等人合併：第 3 格完成、第 4 格 current。
+  '等合併': 3
 };
 
 /** 今日完成列穩定鍵（供輪詢差量比對新完成，不需另打 dev-status）。 */
@@ -292,7 +294,7 @@ export function capsulesForActive(row) {
     out.push('第 ' + round + ' 輪');
   }
   const minutes = Number(item.minutes);
-  if (Number.isFinite(minutes) && minutes > 0) {
+  if (Number.isFinite(minutes) && minutes > 0 && item.stage !== '等合併') {
     out.push('已跑 ' + minutes + ' 分');
   }
   if (item.model && isSafePublicText(item.model)) {
@@ -403,6 +405,7 @@ export function progressSegmentsForActive(item) {
     }
     if (index === current) {
       if (label === 'CI' && ciFail) return { label, state: 'fail' };
+      if (stage === '等合併') return { label, state: 'current', waiting: true };
       return { label, state: 'current' };
     }
     return { label, state: 'pending' };
@@ -419,6 +422,7 @@ function pipelineNodePrimaryLabel(seg, item) {
 }
 
 function pipelineNodeCaption(seg) {
+  if (seg.waiting) return '等合併';
   if (seg.state === 'fail') return '失敗';
   if (seg.state === 'skipped') return '已略過';
   return '';
@@ -432,7 +436,7 @@ function pipelineNodeIconChild(doc, seg, index) {
 }
 
 function pipelineNodeShowMinutes(seg) {
-  return seg.state === 'current';
+  return seg.state === 'current' && !seg.waiting;
 }
 
 export function progressAriaLabelForActive(item) {
@@ -460,6 +464,7 @@ export function statusLineForActive(item) {
   const round = Number(row.round);
   const roundText = Number.isFinite(round) && round > 0 ? '・第 ' + round + ' 輪' : '';
   if (stage === '有衝突') return '有衝突，待解決';
+  if (stage === '等合併') return '等合併';
   if (stage === '審查中') return '審核中' + roundText + minText;
   if (stage === '等 CI') return '等 CI' + minText;
   return stage + minText;
@@ -500,7 +505,7 @@ function renderStageProgress(doc, item) {
   track.setAttribute('aria-label', progressAriaLabelForActive(row));
   segments.forEach((seg, index) => {
     const step = el(doc, 'div', 'pt-status-progress-step');
-    const node = el(doc, 'div', 'pt-status-progress-node ' + seg.state);
+    const node = el(doc, 'div', 'pt-status-progress-node ' + seg.state + (seg.waiting ? ' is-waiting' : ''));
     const icon = el(doc, 'span', 'pt-status-progress-node-icon');
     icon.setAttribute('aria-hidden', 'true');
     icon.appendChild(pipelineNodeIconChild(doc, seg, index));

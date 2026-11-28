@@ -21,6 +21,11 @@ public class OfficeActiveStageTest {
                 new HashSet<>(Collections.singletonList(issue)), true);
     }
 
+    private static PullRow ciPassedPr(int n, int issue) {
+        return new PullRow(n, "pr", true, false, false, 0, 0, null, null,
+                new HashSet<>(Collections.singletonList(issue)), false, true);
+    }
+
     private static DevMachineStore.RunEntry run(int issue, int round, String role, String model, String verdict,
                                                 String stage) {
         return new DevMachineStore.RunEntry(issue, round, "ai/issue-" + issue, 1L, null, null,
@@ -114,5 +119,42 @@ public class OfficeActiveStageTest {
     public void nonConflictingOpenPrStillWaitCi() {
         assertEquals(OfficeActiveStage.WAIT_CI,
                 OfficeActiveStage.forRun(run(11, 0, "dev", null, null, null), false, null, null, openPr(18, 11)));
+    }
+
+    @Test
+    public void ciPassedOpenPrShowsWaitMergeNotWaitCi() {
+        DevMachineStore.RunEntry run = run(20, 1, "dev", null, null, null);
+        assertEquals(OfficeActiveStage.WAIT_MERGE,
+                OfficeActiveStage.forRun(run, false, null, null, ciPassedPr(30, 20)));
+        assertEquals(OfficeActiveStage.WAIT_MERGE,
+                OfficeActiveStage.forMachineFields(false, null, null, ciPassedPr(30, 20)));
+        assertEquals(OfficeActiveStage.WAIT_MERGE,
+                OfficeActiveStage.forGithubItem(null, ciPassedPr(30, 20)));
+    }
+
+    @Test
+    public void ciPassedOverridesLiteralWaitCiButNotReviewOrMergeOrDev() {
+        assertEquals(OfficeActiveStage.WAIT_MERGE,
+                OfficeActiveStage.forRun(run(21, 1, "dev", null, null, OfficeActiveStage.WAIT_CI),
+                        false, null, null, ciPassedPr(31, 21)));
+        assertEquals(OfficeActiveStage.REVIEW,
+                OfficeActiveStage.forRun(run(22, 1, "review", null, null, OfficeActiveStage.REVIEW),
+                        false, null, null, ciPassedPr(32, 22)));
+        assertEquals(OfficeActiveStage.MERGE,
+                OfficeActiveStage.forRun(run(23, 1, "dev", null, null, OfficeActiveStage.MERGE),
+                        false, null, null, ciPassedPr(33, 23)));
+        assertEquals(OfficeActiveStage.DEV,
+                OfficeActiveStage.forRun(run(24, 1, "dev", "m", null, null),
+                        true, null, "dev", ciPassedPr(34, 24)));
+    }
+
+    @Test
+    public void ciPassedButConflictingStillConflictAndNoPullStillWaitCi() {
+        PullRow both = new PullRow(35, "pr", true, false, false, 0, 0, null, null,
+                new HashSet<>(Collections.singletonList(25)), true, true);
+        assertEquals(OfficeActiveStage.CONFLICT,
+                OfficeActiveStage.forRun(run(25, 1, "dev", null, null, null), false, null, null, both));
+        assertEquals(OfficeActiveStage.WAIT_CI,
+                OfficeActiveStage.forRun(run(26, 1, "dev", null, null, null), false, null, null, openPr(36, 26)));
     }
 }
