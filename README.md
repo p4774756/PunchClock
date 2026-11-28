@@ -141,7 +141,7 @@ java -jar client/target/SKLbaby.jar
 生產環境請修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。Render 上 `ADMIN_PASSWORD` 不可為明文或開發預設值，須先在本機產生 bcrypt 雜湊後寫入 Render（`render.yaml` 維持 `sync: false`，雜湊勿 commit）：
 
 ```bash
-mvn -q -pl server -am -DskipTests test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
+mvn -q -pl server -DskipTests test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
   -Dexec.classpathScope=test -Dexec.mainClass=com.example.server.auth.AdminPasswordHashCli \
   -Dexec.args='你的密碼'
 ```
