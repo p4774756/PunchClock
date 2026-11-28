@@ -137,15 +137,41 @@ function drawScanlines(ctx) {
   }
 }
 
+/** 外圈 24 格：上 8、右 4、下 8、左 4，等大正方格、順時針自左上起。 */
+const RING_CELL = 14;
+const RING_COLS = 8;
+const RING_ROWS_SIDE = 4;
+const RING_OX = (POCKET_LCD_W - RING_COLS * RING_CELL) / 2;
+const RING_OY = 16;
+
+export function pocketMaryRingPos(i) {
+  const idx = ((Math.floor(Number(i)) % POCKET_MARY_RING_LEN) + POCKET_MARY_RING_LEN) % POCKET_MARY_RING_LEN;
+  let x;
+  let y;
+  if (idx < 8) {
+    x = RING_OX + idx * RING_CELL;
+    y = RING_OY;
+  } else if (idx < 12) {
+    x = RING_OX + (RING_COLS - 1) * RING_CELL;
+    y = RING_OY + RING_CELL + (idx - 8) * RING_CELL;
+  } else if (idx < 20) {
+    x = RING_OX + (19 - idx) * RING_CELL;
+    y = RING_OY + RING_CELL + RING_ROWS_SIDE * RING_CELL;
+  } else {
+    x = RING_OX;
+    y = RING_OY + RING_CELL + (23 - idx) * RING_CELL;
+  }
+  return { x: x + RING_CELL / 2, y: y + RING_CELL / 2 };
+}
+
 function ringPos(i) {
-  const cx = POCKET_LCD_W / 2;
-  const cy = POCKET_LCD_H / 2;
-  const rx = 56;
-  const ry = 38;
-  const ang = -Math.PI / 2 + (i / POCKET_MARY_RING_LEN) * Math.PI * 2;
+  return pocketMaryRingPos(i);
+}
+
+export function pocketMaryRingHoleCenter() {
   return {
-    x: cx + Math.cos(ang) * rx,
-    y: cy + Math.sin(ang) * ry
+    x: POCKET_LCD_W / 2,
+    y: RING_OY + RING_CELL + (RING_ROWS_SIDE * RING_CELL) / 2
   };
 }
 
@@ -181,8 +207,8 @@ function drawRingCell(ctx, i, lit, flashOn) {
   const p = ringPos(i);
   const cell = POCKET_MARY_RING[i];
   const on = lit === i;
-  const w = 16;
-  const h = 14;
+  const w = RING_CELL;
+  const h = RING_CELL;
   const x = p.x - w / 2;
   const y = p.y - h / 2;
   ctx.fillStyle = on && flashOn ? PAL.ink : on ? PAL.inkLo : PAL.dim;
@@ -256,8 +282,7 @@ export function drawPocketMaryLcd(ctx, state, frame) {
     drawRingCell(ctx, i, lit, flashOn);
   }
 
-  const cx = POCKET_LCD_W / 2;
-  const cy = POCKET_LCD_H / 2 - 2;
+  const { x: cx, y: cy } = pocketMaryRingHoleCenter();
   ctx.fillStyle = PAL.bgHi;
   ctx.fillRect(cx - 32, cy - 14, 64, 28);
   ctx.strokeStyle = PAL.ink;
