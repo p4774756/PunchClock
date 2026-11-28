@@ -50,6 +50,8 @@ test('左牆海報靜態資源與場景掛載', () => {
   assert.match(src, /clickables = \[windowSillHandheld\.group, bubble, leftPosterGroup\]/);
   assert.match(src, /target === 'leftPoster'/);
   assert.match(src, /ensurePosterTexture/);
-  assert.match(src, /LEFT_POSTER_W = 1\.31/);
+  assert.match(src, /LEFT_POSTER_MARGIN = 0\.07/);
+  assert.match(src, /LEFT_POSTER_W = FLOOR_SIZE \* \(1 - 2 \* LEFT_POSTER_MARGIN\)/);
+  assert.match(src, /leftPosterGroup\.position\.set\(leftX \+ WALL_THICK \+ 0\.01, wallY, 0\)/);
   assert.match(src, /brassPic/);
 });
