@@ -2691,6 +2691,9 @@ public class App extends JFrame {
                     ? ""
                     : serverRefs.privateAlbumDirectoryField.getText().trim();
         }
+        persistHomeAlbumUiToConfig();
+        config.homeAlbumRotateSeconds = slotController.getConfig().homeAlbumRotateSeconds;
+        config.homeAlbumRotateRandom = slotController.getConfig().homeAlbumRotateRandom;
         configPersistenceService.saveConfig(config, null);
     }
 

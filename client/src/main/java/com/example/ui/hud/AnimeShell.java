@@ -599,6 +599,27 @@ public final class AnimeShell extends JPanel {
         homeAlbum.settleDisplayForTests();
     }
 
+    java.awt.Rectangle homeCoverDrawRectInShellCoordsForTests() {
+        java.awt.Rectangle content = contentBounds();
+        java.awt.Rectangle draw;
+        if (homeAlbum.active()) {
+            draw = HomeBubbleAnchor.imageDrawRect(
+                    content.width, content.height,
+                    homeAlbum.currentWidth(), homeAlbum.currentHeight());
+        } else {
+            BufferedImage background = homeIllustrations.get(homeIllustration);
+            if (background == null) {
+                return new java.awt.Rectangle(content);
+            }
+            int imgW = background.getWidth();
+            int imgH = background.getHeight();
+            int sourceTop = HomeBubbleAnchor.sourceTopCropPx(homeIllustration, imgH);
+            int contentH = imgH - sourceTop;
+            draw = HomeBubbleAnchor.imageDrawRect(content.width, content.height, imgW, contentH);
+        }
+        return new java.awt.Rectangle(content.x + draw.x, content.y + draw.y, draw.width, draw.height);
+    }
+
     BufferedImage paintHomeFrameForTests() {
         int w = Math.max(1, getWidth());
         int h = Math.max(1, getHeight());

@@ -42,6 +42,7 @@ final class HomeAlbumSlideshow {
     private boolean crossfading;
 
     private Timer rotateTimer;
+    private long rotateTimerStartedAtMs;
 
     HomeAlbumSlideshow(Runnable repaint, BooleanSupplier mayAutoRotate, IntSupplier tickMs, boolean reducedMotion) {
         this.repaint = repaint == null ? () -> { } : repaint;
@@ -129,6 +130,9 @@ final class HomeAlbumSlideshow {
         if (!active()) {
             return false;
         }
+        if (manual) {
+            restartRotateTimerIfRunning();
+        }
         if (images.size() == 1) {
             syncRotateTimer();
             return true;
@@ -159,7 +163,23 @@ final class HomeAlbumSlideshow {
         }
         if (!rotateTimer.isRunning()) {
             rotateTimer.start();
+            rotateTimerStartedAtMs = System.currentTimeMillis();
         }
+    }
+
+    private void restartRotateTimerIfRunning() {
+        if (!SwingUtilities.isEventDispatchThread()) {
+            SwingUtilities.invokeLater(this::restartRotateTimerIfRunning);
+            return;
+        }
+        if (rotateTimer != null && rotateTimer.isRunning()) {
+            rotateTimer.restart();
+            rotateTimerStartedAtMs = System.currentTimeMillis();
+        }
+    }
+
+    long rotateTimerStartedAtMsForTests() {
+        return rotateTimerStartedAtMs;
     }
 
     void stopRotateTimer() {

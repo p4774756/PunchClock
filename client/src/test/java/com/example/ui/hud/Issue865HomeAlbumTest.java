@@ -11,7 +11,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import java.awt.Rectangle;
+import java.io.InputStream;
+
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class Issue865HomeAlbumTest {
@@ -66,6 +70,63 @@ public class Issue865HomeAlbumTest {
     }
 
     @Test
+    public void manualCycleRestartsAutoRotateTimer() throws Exception {
+        Path dir = Files.createTempDirectory("pc865-manual-reset");
+        try {
+            writeSolidPng(dir.resolve("one.png"), Color.ORANGE);
+            writeSolidPng(dir.resolve("two.png"), Color.CYAN);
+            SwingUtilities.invokeAndWait(() -> {
+                HomeAlbumSlideshow slideshow = new HomeAlbumSlideshow(
+                        () -> { }, () -> true, () -> 40, true);
+                slideshow.configure(true, dir, 15, false);
+                slideshow.reload();
+                slideshow.syncRotateTimer();
+                assertTrue(slideshow.isRotateTimerRunning());
+                long beforeManual = slideshow.rotateTimerStartedAtMsForTests();
+                try {
+                    Thread.sleep(40);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                slideshow.cycleNext(true);
+                long afterManual = slideshow.rotateTimerStartedAtMsForTests();
+                assertTrue("手動換圖應重置計時起點", afterManual >= beforeManual + 30);
+            });
+        } finally {
+            deleteTree(dir);
+        }
+    }
+
+    @Test
+    public void albumCoverDrawRectMatchesBuiltinIllustration() throws Exception {
+        try (InputStream in = Issue865HomeAlbumTest.class.getResourceAsStream(
+                HomeIllustration.ROOM_B.resourcePath())) {
+            assertNotNull(in);
+            var roomB = ImageIO.read(in);
+            int imgW = roomB.getWidth();
+            int imgH = roomB.getHeight();
+            int crop = HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.ROOM_B, imgH);
+            int sliceH = imgH - crop;
+            Path dir = Files.createTempDirectory("pc865-cover-rect");
+            try {
+                writeSolidPng(dir.resolve("a.png"), imgW, sliceH, Color.MAGENTA);
+                writeSolidPng(dir.resolve("b.png"), imgW, sliceH, Color.PINK);
+                SwingUtilities.invokeAndWait(() -> {
+                    AnimeShell shell = shellHome(380, 520);
+                    shell.showHome();
+                    Rectangle builtin = shell.homeCoverDrawRectInShellCoordsForTests();
+                    shell.configureHomeAlbum(true, dir, 0, false);
+                    assertTrue(shell.homeAlbumActiveForTests());
+                    Rectangle album = shell.homeCoverDrawRectInShellCoordsForTests();
+                    assertRectsClose(builtin, album, 3);
+                });
+            } finally {
+                deleteTree(dir);
+            }
+        }
+    }
+
+    @Test
     public void rotateTimerStopsWhenNotOnHomeOrManualInterval() throws Exception {
         Path dir = Files.createTempDirectory("pc865-timer");
         try {
@@ -104,12 +165,23 @@ public class Issue865HomeAlbumTest {
     }
 
     private static void writeSolidPng(Path file, Color color) throws IOException {
-        BufferedImage img = new BufferedImage(400, 300, BufferedImage.TYPE_INT_RGB);
+        writeSolidPng(file, 400, 300, color);
+    }
+
+    private static void writeSolidPng(Path file, int w, int h, Color color) throws IOException {
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
         var g = img.createGraphics();
         g.setColor(color);
-        g.fillRect(0, 0, 400, 300);
+        g.fillRect(0, 0, w, h);
         g.dispose();
         ImageIO.write(img, "png", file.toFile());
+    }
+
+    private static void assertRectsClose(Rectangle expected, Rectangle actual, int tolerancePx) {
+        assertTrue("x", Math.abs(expected.x - actual.x) <= tolerancePx);
+        assertTrue("y", Math.abs(expected.y - actual.y) <= tolerancePx);
+        assertTrue("width", Math.abs(expected.width - actual.width) <= tolerancePx);
+        assertTrue("height", Math.abs(expected.height - actual.height) <= tolerancePx);
     }
 
     private static boolean isMostlyRed(BufferedImage frame) {
