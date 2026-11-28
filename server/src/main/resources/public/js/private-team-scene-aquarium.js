@@ -275,38 +275,136 @@ export function tickFloorAquarium(state, elapsed, reducedMotion) {
   }
 }
 
-/** 泡澡時 3D 泳裝腿部（從水面下方向可見輪廓）。 */
+/** 腿底停在水族箱沙面上方（沙在 tankBottom≈-0.86）。 */
+export const PRIVATE_TEAM_BATH_LEG_BOTTOM_Y = -0.62;
+/** 精靈圖有內容的底緣（腰臀／大腿裁切處）離圖片底邊的比例高度（占 SECRETARY_SPRITE_HEIGHT）。 */
+export const PRIVATE_TEAM_BATH_HIP_FROM_SPRITE_BOTTOM = 0.1;
+/** 兩條腿中心相對精靈中線的水平間距（精靈本地 x）。 */
+export const PRIVATE_TEAM_BATH_LEG_SPREAD = 0.2;
+const SKIN = 0xf0c8b4;
+
+/** 腿從髖部往下的總長（世界 y 往下，下限避免鏡頭貼近時縮成一點）。 */
+export function secretaryBathLegLength(hipY) {
+  const y = Number(hipY);
+  if (!Number.isFinite(y)) return 0.7;
+  return Math.max(0.35, y - PRIVATE_TEAM_BATH_LEG_BOTTOM_Y);
+}
+
+/**
+ * 泡澡時的 3D 腿：髖部釘在精靈圖底緣（隨 lookAt 轉動），腿垂直往下伸進浴缸水與地板下水族箱。
+ * 每幀用 syncSecretaryBathLegs 對齊，任何鏡頭角度（含俯視）都不會與精靈圖脫節。
+ */
 export function addSecretaryBathLegs(parent) {
   if (parent.getObjectByName('secretaryBathLegs')) return;
   const group = new THREE.Group();
   group.name = 'secretaryBathLegs';
+  const skinMat = new THREE.MeshLambertMaterial({
+    color: SKIN,
+    emissive: 0x8a5a48,
+    emissiveIntensity: 0.55
+  });
   const suitMat = new THREE.MeshLambertMaterial({
     color: SWIMSUIT,
     emissive: 0x5a1830,
     emissiveIntensity: 0.62
   });
+  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.09, 0.16), skinMat);
+  pelvis.name = 'bathLegPelvis';
+  group.add(pelvis);
+  const hem = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.05, 0.17), suitMat);
+  hem.name = 'bathLegHem';
+  group.add(hem);
   function leg(side) {
-    const sign = side === 'L' ? -1 : 1;
-    const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.24, 0.14), suitMat);
-    thigh.position.set(sign * 0.1, 0.18, 0.12);
-    thigh.rotation.x = -0.42;
-    thigh.rotation.z = sign * 0.08;
+    const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.075, 1, 10), skinMat);
     thigh.name = 'bathLegThigh' + side;
-    const shin = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.24, 0.1), suitMat);
-    shin.position.set(sign * 0.12, -0.02, 0.28);
-    shin.rotation.x = 0.65;
+    const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 1, 10), skinMat);
     shin.name = 'bathLegShin' + side;
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.14), suitMat);
-    foot.position.set(sign * 0.1, -0.12, 0.42);
-    foot.rotation.x = 0.25;
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.17), skinMat);
     foot.name = 'bathLegFoot' + side;
     return [thigh, shin, foot];
   }
   group.add(...leg('L'), ...leg('R'));
-  group.position.set(0, 0.1, -0.02);
-  group.renderOrder = 4;
-  parent.add(group);
   for (let ci = 0; ci < group.children.length; ci++) {
-    group.children[ci].renderOrder = 4;
+    group.children[ci].renderOrder = 0;
+    group.children[ci].frustumCulled = false;
+  }
+  parent.add(group);
+}
+
+const _hipLocal = new THREE.Vector3();
+const _off = new THREE.Vector3();
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+
+/** 膝蓋往浴缸前方（+z）彎出的距離，讓俯視時小腿不被正上方的鍵盤托盤擋住。 */
+export const PRIVATE_TEAM_BATH_KNEE_FORWARD = 0.36;
+const TUB_WORLD_Z_MAX = 0.98;
+const TUB_WORLD_Z_MIN = 0.3;
+const TUB_WORLD_X_MAX = 0.68;
+
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
+}
+
+/** 把單位高度圓柱（粗端在 +y）拉到 a→b，粗端落在 a。 */
+function placeLimb(mesh, a, b) {
+  if (!mesh) return;
+  _dir.subVectors(a, b);
+  const len = Math.max(0.001, _dir.length());
+  mesh.position.addVectors(a, b).multiplyScalar(0.5);
+  mesh.scale.set(1, len, 1);
+  mesh.quaternion.setFromUnitVectors(_up, _dir.multiplyScalar(1 / len));
+}
+
+/**
+ * 把腿的髖部對到精靈圖底緣中心：大腿由髖部往前彎到膝蓋，小腿再垂直插進水族箱。
+ * 全部以秘書根節點（泡澡姿勢下未旋轉、未縮放）的本地座標擺放，group 本身固定在原點。
+ * @param parent 秘書根節點
+ * @param sprite 已 lookAt 鏡頭的精靈 Mesh
+ * @param spriteHeight 精靈圖平面高度
+ */
+export function syncSecretaryBathLegs(parent, sprite, spriteHeight) {
+  if (!parent || !sprite) return;
+  const group = parent.getObjectByName('secretaryBathLegs');
+  if (!group || !group.visible) return;
+  parent.updateMatrixWorld(true);
+  const hipLocalY = -spriteHeight / 2 + spriteHeight * PRIVATE_TEAM_BATH_HIP_FROM_SPRITE_BOTTOM;
+  _hipLocal.set(-0.04, hipLocalY, 0);
+  sprite.localToWorld(_hipLocal);
+  parent.worldToLocal(_hipLocal);
+  group.position.set(0, 0, 0);
+  const px = parent.position.x;
+  const pz = parent.position.z;
+  const py = parent.position.y;
+
+  const pelvis = group.getObjectByName('bathLegPelvis');
+  const hem = group.getObjectByName('bathLegHem');
+  if (pelvis) {
+    pelvis.quaternion.copy(sprite.quaternion);
+    pelvis.position.set(0, -0.04, 0).applyQuaternion(sprite.quaternion).add(_hipLocal);
+  }
+  if (hem) {
+    hem.quaternion.copy(sprite.quaternion);
+    hem.position.set(0, -0.085, 0.01).applyQuaternion(sprite.quaternion).add(_hipLocal);
+  }
+  const sides = ['L', 'R'];
+  for (let si = 0; si < sides.length; si++) {
+    const side = sides[si];
+    const sign = side === 'L' ? -1 : 1;
+    // 沿精靈本地 x（隨鏡頭轉向）攤開，腿身仍在世界垂直方向。
+    _off.set(sign * PRIVATE_TEAM_BATH_LEG_SPREAD, -0.04, 0).applyQuaternion(sprite.quaternion);
+    _a.copy(_hipLocal).add(_off);
+    const kneeWx = clamp(_a.x + px, -TUB_WORLD_X_MAX, TUB_WORLD_X_MAX);
+    const kneeWz = clamp(_a.z + pz + PRIVATE_TEAM_BATH_KNEE_FORWARD, TUB_WORLD_Z_MIN, TUB_WORLD_Z_MAX);
+    _b.set(kneeWx - px, _a.y - 0.08, kneeWz - pz);
+    placeLimb(group.getObjectByName('bathLegThigh' + side), _a, _b);
+    _a.copy(_b);
+    _b.set(_a.x, PRIVATE_TEAM_BATH_LEG_BOTTOM_Y - py, _a.z);
+    if (_a.y - _b.y < 0.25) _b.y = _a.y - 0.25;
+    placeLimb(group.getObjectByName('bathLegShin' + side), _a, _b);
+    const foot = group.getObjectByName('bathLegFoot' + side);
+    if (foot) foot.position.set(_b.x, _b.y - 0.02, _b.z + 0.04);
   }
 }

@@ -177,6 +177,7 @@ import {
   buildFloorAquarium,
   tickFloorAquarium,
   addSecretaryBathLegs,
+  syncSecretaryBathLegs,
   applyTubFloorAquariumPeek,
   privateTeamBathWaterSurfaceOpacity
 } from './private-team-scene-aquarium.js';
@@ -2177,6 +2178,9 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretarySprite.position.y = spriteBaseY + extraY;
       secretarySprite.rotation.z = leanZ;
       secretarySprite.lookAt(camera.position);
+      if (bathLegsGroup && !secretaryInLoungePose) {
+        syncSecretaryBathLegs(secretaryRoot, secretarySprite, SECRETARY_SPRITE_HEIGHT);
+      }
     }
 
     const bubbleFloatBase = (() => {
