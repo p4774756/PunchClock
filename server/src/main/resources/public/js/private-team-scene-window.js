@@ -6,6 +6,18 @@ export const PRIVATE_TEAM_WINDOW_TEXTURE_URLS = {
   night: '/assets/private-team/window/taipei-window-night.webp'
 };
 
+/** 窗景貼圖懶載：僅在需要時期向 TextureLoader 發請求（供場景與單測）。 */
+export function ensureWindowVistaTexture(texLoader, cache, period) {
+  if (!texLoader || !cache || !period) return null;
+  if (cache[period]) return cache[period];
+  const vurl = PRIVATE_TEAM_WINDOW_TEXTURE_URLS[period];
+  if (!vurl) return null;
+  const vtx = texLoader.load(vurl);
+  vtx.colorSpace = THREE.SRGBColorSpace;
+  cache[period] = vtx;
+  return vtx;
+}
+
 const WINDOW_PREVIEW_MODES = ['auto', 'day', 'sunset', 'night'];
 
 /** 依 Asia/Taipei 牆鐘判定窗景時段（供單測；date 可注入）。 */

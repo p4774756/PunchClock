@@ -78,6 +78,7 @@ import {
   privateTeamSceneLighting,
   privateTeamCandleFlickerMultiplier,
   PRIVATE_TEAM_WINDOW_TEXTURE_URLS,
+  ensureWindowVistaTexture,
   privateTeamWindowPeriodFromTaipeiDate,
   privateTeamWindowCyclePreviewMode,
   privateTeamWindowPreviewToastLabel,
@@ -571,14 +572,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   const vistaTex = {};
-  const vistaPeriodKeys = ['day', 'sunset', 'night'];
-  for (let vi = 0; vi < vistaPeriodKeys.length; vi++) {
-    const vk = vistaPeriodKeys[vi];
-    const vurl = PRIVATE_TEAM_WINDOW_TEXTURE_URLS[vk];
-    const vtx = texLoader.load(vurl);
-    vtx.colorSpace = THREE.SRGBColorSpace;
-    vistaTex[vk] = vtx;
-  }
+  ensureWindowVistaTexture(texLoader, vistaTex, windowVistaPeriod);
 
   const windowVistaMat = new THREE.MeshBasicMaterial({ map: vistaTex[windowVistaPeriod] });
   const windowSky = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.02, winH + 0.02), windowVistaMat);
@@ -1065,8 +1059,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (scene.background && scene.background.isColor) {
       scene.background.setHex(lt.background);
     }
-    if (vistaTex[period]) {
-      windowVistaMat.map = vistaTex[period];
+    const periodTex = ensureWindowVistaTexture(texLoader, vistaTex, period);
+    if (periodTex) {
+      windowVistaMat.map = periodTex;
       windowVistaMat.needsUpdate = true;
     }
     moonFloorMat.opacity = lt.floorWash;

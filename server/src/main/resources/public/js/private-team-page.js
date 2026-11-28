@@ -1,6 +1,5 @@
 import { wireHomeLoginModal } from './home-login-modal.js';
 import { wireGameBoyModal } from './private-team-pocket.js';
-import { mountPrivateTeamScene } from './private-team-scene.js';
 import {
   bubbleTextForStatus,
   completedTodayKeys,
@@ -83,6 +82,20 @@ export const GUEST_MONITOR_HINT_TEXT = '請先從左上角登入';
 const GUEST_MONITOR_HINT_MS = 4000;
 
 let guestMonitorHintDismiss = null;
+
+function createScenePlaceholder() {
+  const noop = () => {};
+  return {
+    setSceneInputEnabled: noop,
+    setBubbleText: noop,
+    setSceneAnimationPaused: noop,
+    playSecretaryWave: noop,
+    playSecretaryDance: noop,
+    noteTigerStatus: noop,
+    setSecretarySprite: noop,
+    destroy: noop
+  };
+}
 
 function removeDomNode(node) {
   if (!node) return;
@@ -499,6 +512,9 @@ export function mountPrivateTeamPage(opts) {
   let downloadOpen = false;
   let pocketOpen = false;
 
+  let scene = createScenePlaceholder();
+  let sceneMounted = false;
+
   function syncSceneOverlay() {
     const sceneBlocked = tasksOpen || downloadOpen || pocketOpen;
     stage.classList.toggle('pt-roadmap-open', sceneBlocked);
@@ -528,14 +544,50 @@ export function mountPrivateTeamPage(opts) {
     }
   }
 
-  const scene = mountPrivateTeamScene(canvas, {
-    win,
-    doc,
-    onActivate: onSceneActivate
-  });
-  canvas.__privateTeamScene = scene;
+  function paintSceneFromTiger() {
+    const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+    scene.noteTigerStatus(tigerView.status, now);
+    scene.setSecretarySprite(secretarySpriteUrlForStatus(tigerView.status));
+    scene.setBubbleText(bubbleLabel());
+  }
 
-  scene.setBubbleText(bubbleLabel());
+  function mountSceneWhenReady() {
+    if (sceneMounted) return;
+    sceneMounted = true;
+    import('./private-team-scene.js')
+      .then(({ mountPrivateTeamScene }) => {
+        if (!canvas.parentElement) return;
+        scene.destroy();
+        scene = mountPrivateTeamScene(canvas, {
+          win,
+          doc,
+          onActivate: onSceneActivate
+        });
+        canvas.__privateTeamScene = scene;
+        paintSceneFromTiger();
+        refreshCanvasA11y();
+        syncSceneOverlay();
+      })
+      .catch(() => {
+        sceneMounted = false;
+      });
+  }
+
+  function scheduleMountScene() {
+    const run = () => mountSceneWhenReady();
+    if (typeof win.requestAnimationFrame === 'function') {
+      win.requestAnimationFrame(() => {
+        if (typeof win.requestIdleCallback === 'function') {
+          win.requestIdleCallback(run, { timeout: 2500 });
+        } else {
+          win.setTimeout(run, 0);
+        }
+      });
+    } else {
+      win.setTimeout(run, 0);
+    }
+  }
+
   refreshCanvasA11y();
 
   const pocketModal = wireGameBoyModal({
@@ -605,6 +657,7 @@ export function mountPrivateTeamPage(opts) {
   });
 
   paintAuthHud();
+  scheduleMountScene();
 
   if (closeBtn) {
     closeBtn.addEventListener('click', () => closeStatusCard());
@@ -693,9 +746,7 @@ export function mountPrivateTeamPage(opts) {
     }
     seenCompletedKeys = completedTodayKeys(tiger.completedToday);
     tigerView = tiger;
-    scene.noteTigerStatus(tiger.status, now);
-    scene.setSecretarySprite(secretarySpriteUrlForStatus(tigerView.status));
-    scene.setBubbleText(bubbleLabel());
+    paintSceneFromTiger();
     refreshCanvasA11y();
     applyTaskBar(tiger);
     if (cardOpen) paintStatusCard();
