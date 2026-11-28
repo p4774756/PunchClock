@@ -13,6 +13,9 @@ test('休憩區家具名稱與秘書沙發錨點', async () => {
     SECRETARY_SHADOW_SOFA,
     SECRETARY_BUBBLE_SOFA,
     SECRETARY_STAGE_SOFA_SCALE,
+    SECRETARY_DEFAULT_SOFA_SCALE,
+    SECRETARY_DEFAULT_SOFA_OFFSET,
+    secretarySofaShadowLocal,
     SECRETARY_STAGE_SOFA_OFFSET,
     secretarySofaPlacementForOutfit,
     SOFA_HALF_WIDTH_X,
@@ -25,7 +28,16 @@ test('休憩區家具名稱與秘書沙發錨點', async () => {
   const sofaLeftX = SECRETARY_SOFA_POSITION.x - SOFA_HALF_WIDTH_X - SOFA_ARM_RADIUS;
   assert.ok(sofaLeftX > TUB_RIGHT_EDGE_X + 0.04, '沙發左緣應與浴缸右緣留有 X 向空隙');
   const defSofa = secretarySofaPlacementForOutfit('default');
-  assert.deepEqual(defSofa.position, SECRETARY_SOFA_POSITION);
+  const stagePlaceForShadow = secretarySofaPlacementForOutfit('stage');
+  assert.equal(defSofa.scale, SECRETARY_DEFAULT_SOFA_SCALE);
+  assert.ok(defSofa.scale > 0 && defSofa.scale < 1, '預設服立繪已去背，需縮小坐上座墊');
+  assert.equal(defSofa.position.x, SECRETARY_SOFA_POSITION.x + SECRETARY_DEFAULT_SOFA_OFFSET.x);
+  assert.equal(defSofa.position.y, SECRETARY_SOFA_POSITION.y + SECRETARY_DEFAULT_SOFA_OFFSET.y);
+  assert.equal(defSofa.position.z, SECRETARY_SOFA_POSITION.z + SECRETARY_DEFAULT_SOFA_OFFSET.z);
+  const shadowLocal = secretarySofaShadowLocal(stagePlaceForShadow);
+  assert.ok(Number.isFinite(shadowLocal.x) && Number.isFinite(shadowLocal.z));
+  // 陰影的世界高度要貼著地毯，不能因立繪下移而沉進地板
+  assert.ok(stagePlaceForShadow.position.y + shadowLocal.y * stagePlaceForShadow.scale > 0.04);
   assert.equal(defSofa.bubble.x, SECRETARY_BUBBLE_SOFA.x);
   const stageSofa = secretarySofaPlacementForOutfit('stage');
   assert.equal(stageSofa.scale, SECRETARY_STAGE_SOFA_SCALE);
@@ -34,7 +46,7 @@ test('休憩區家具名稱與秘書沙發錨點', async () => {
   assert.equal(stageSofa.position.y, SECRETARY_SOFA_POSITION.y + SECRETARY_STAGE_SOFA_OFFSET.y);
   assert.equal(stageSofa.position.z, SECRETARY_SOFA_POSITION.z + SECRETARY_STAGE_SOFA_OFFSET.z);
   assert.notDeepEqual(stageSofa.position, SECRETARY_SOFA_POSITION);
-  assert.deepEqual(secretarySofaPlacementForOutfit('nope').position, SECRETARY_SOFA_POSITION);
+  assert.deepEqual(secretarySofaPlacementForOutfit('nope').position, defSofa.position);
   assert.equal(vinylShouldSpin('待命中', false), true);
   assert.equal(vinylShouldSpin('工作中', false), false);
   assert.equal(vinylShouldSpin('休息中', true), false);
@@ -49,6 +61,9 @@ test('休憩區家具名稱與秘書沙發錨點', async () => {
   assert.match(src, /makeWalnutWoodTexture/);
   assert.match(src, /vinylRecordSleeve/);
   assert.match(src, /sofaRollArm/);
+  assert.match(src, /sofaBackCushion/);
+  assert.match(src, /sofaSeatCushion/);
+  assert.match(src, /makeRugColorTexture/);
 });
 
 test('場景在沙發姿勢依服裝套用相對偏移，且不寫死沙發錨點', () => {

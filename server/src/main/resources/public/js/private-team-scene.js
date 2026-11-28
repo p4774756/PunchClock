@@ -154,7 +154,8 @@ import {
   SECRETARY_TUB_POSITION,
   SECRETARY_SOFA_POSITION,
   SECRETARY_SHADOW_TUB,
-  SECRETARY_SHADOW_SOFA,
+  SECRETARY_SOFA_ROTATION_Y,
+  secretarySofaShadowLocal,
   SECRETARY_BUBBLE_TUB,
   SECRETARY_BUBBLE_SOFA,
   secretaryAtLoungePose,
@@ -1609,12 +1610,9 @@ export function mountPrivateTeamScene(canvas, opts) {
       const sc = finite ? scale : 1;
       secretaryRoot.position.set(pos.x, pos.y, pos.z);
       secretaryRoot.scale.set(sc, sc, sc);
-      secretaryRoot.rotation.y = -0.42;
-      shadow.position.set(
-        SECRETARY_SHADOW_SOFA.x,
-        SECRETARY_SHADOW_SOFA.y,
-        SECRETARY_SHADOW_SOFA.z
-      );
+      secretaryRoot.rotation.y = SECRETARY_SOFA_ROTATION_Y;
+      const shadowLocal = secretarySofaShadowLocal({ position: pos, scale: sc });
+      shadow.position.set(shadowLocal.x, shadowLocal.y, shadowLocal.z);
       const bubbleY = sofaPlace.bubble.y == null ? bubble.position.y : sofaPlace.bubble.y;
       const bx = Number(sofaPlace.bubble.x);
       const bz = Number(sofaPlace.bubble.z);

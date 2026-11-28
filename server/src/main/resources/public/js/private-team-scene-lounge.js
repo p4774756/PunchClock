@@ -13,13 +13,15 @@ import { isLoungeTigerStatus, isWorkingTigerStatus, parseSecretaryOutfitId } fro
 export const SECRETARY_TUB_POSITION = { x: 0.02, y: 0, z: 0.56 };
 export const SECRETARY_SOFA_POSITION = { x: 1.34, y: 0, z: -0.24 };
 export const SECRETARY_SHADOW_TUB = { x: 0.06, y: 0.072, z: -0.42 };
+/** 沙發姿勢的腳下陰影：相對沙發錨點的「世界」偏移（不隨立繪縮放／偏移移動）。 */
 export const SECRETARY_SHADOW_SOFA = { x: -0.03, y: 0.072, z: 0.16 };
+export const SECRETARY_SOFA_ROTATION_Y = -0.42;
 export const SECRETARY_BUBBLE_TUB = { x: 0.56, z: 0.72 };
 export const SECRETARY_BUBBLE_SOFA = { x: 1.46, z: 0.26 };
 
 /** 供單測推算沙發左緣與浴缸空隙（浴缸右緣約 x = 0.84） */
 export const SOFA_HALF_WIDTH_X = 0.36;
-export const SOFA_ARM_RADIUS = 0.076;
+export const SOFA_ARM_RADIUS = 0.06;
 
 /**
  * 舞台服沙發立繪是去背坐姿（沒有畫上沙發），需縮小並相對
@@ -27,53 +29,86 @@ export const SOFA_ARM_RADIUS = 0.076;
  * 只用相對偏移，之後沙發錨點若移動，舞台服會跟著走。
  */
 export const SECRETARY_STAGE_SOFA_SCALE = 0.82;
-export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0.02, y: -0.18, z: -0.03 };
+export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0.02, y: -0.18, z: 0.08 };
 export const SECRETARY_STAGE_SOFA_BUBBLE_OFFSET = { x: 0.12, z: 0.22 };
 export const SECRETARY_STAGE_SOFA_BUBBLE_Y = 1.16;
+
+/**
+ * 預設服沙發立繪也已去背（只留人物、不含畫上去的沙發），與舞台服一樣縮小後
+ * 相對沙發錨點偏移，讓臀部坐在 3D 座墊上。
+ */
+export const SECRETARY_DEFAULT_SOFA_SCALE = 0.76;
+export const SECRETARY_DEFAULT_SOFA_OFFSET = { x: 0.05, y: -0.12, z: 0.1 };
 
 function finiteNumber(value, fallback) {
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
 
-function defaultSecretarySofaPlacement() {
+/** 最保守的回退：錨點本身、不縮放。 */
+function anchorOnlySofaPlacement() {
   const base = SECRETARY_SOFA_POSITION;
   return {
     position: {
-      x: finiteNumber(base.x, 1.05),
+      x: finiteNumber(base.x, 1.34),
       y: finiteNumber(base.y, 0),
-      z: finiteNumber(base.z, -0.1)
+      z: finiteNumber(base.z, -0.24)
     },
     scale: 1,
     bubble: {
-      x: finiteNumber(SECRETARY_BUBBLE_SOFA.x, 1.18),
-      z: finiteNumber(SECRETARY_BUBBLE_SOFA.z, 0.35),
+      x: finiteNumber(SECRETARY_BUBBLE_SOFA.x, 1.46),
+      z: finiteNumber(SECRETARY_BUBBLE_SOFA.z, 0.26),
       y: null
     }
   };
 }
 
-/** 沙發擺位；無效服裝或非有限數字一律回退預設，避免立繪被移出畫面。 */
-export function secretarySofaPlacementForOutfit(outfitId) {
-  const fallback = defaultSecretarySofaPlacement();
-  if (parseSecretaryOutfitId(outfitId) !== 'stage') {
-    return fallback;
-  }
-  const scale = finiteNumber(SECRETARY_STAGE_SOFA_SCALE, 0);
-  if (!(scale > 0)) return fallback;
+/** 依偏移與縮放算出擺位；任何數值非有限就回傳 null。 */
+function sofaPlacementFromOffset(offset, rawScale) {
+  const anchor = anchorOnlySofaPlacement().position;
+  const scale = finiteNumber(rawScale, 0);
+  if (!(scale > 0)) return null;
   const pos = {
-    x: finiteNumber(fallback.position.x + Number(SECRETARY_STAGE_SOFA_OFFSET.x), NaN),
-    y: finiteNumber(fallback.position.y + Number(SECRETARY_STAGE_SOFA_OFFSET.y), NaN),
-    z: finiteNumber(fallback.position.z + Number(SECRETARY_STAGE_SOFA_OFFSET.z), NaN)
+    x: finiteNumber(anchor.x + Number(offset.x), NaN),
+    y: finiteNumber(anchor.y + Number(offset.y), NaN),
+    z: finiteNumber(anchor.z + Number(offset.z), NaN)
   };
-  if (![pos.x, pos.y, pos.z].every(Number.isFinite)) return fallback;
+  if (![pos.x, pos.y, pos.z].every(Number.isFinite)) return null;
   const bubble = {
-    x: finiteNumber(fallback.position.x + Number(SECRETARY_STAGE_SOFA_BUBBLE_OFFSET.x), NaN),
-    z: finiteNumber(fallback.position.z + Number(SECRETARY_STAGE_SOFA_BUBBLE_OFFSET.z), NaN),
+    x: finiteNumber(anchor.x + Number(SECRETARY_STAGE_SOFA_BUBBLE_OFFSET.x), NaN),
+    z: finiteNumber(anchor.z + Number(SECRETARY_STAGE_SOFA_BUBBLE_OFFSET.z), NaN),
     y: finiteNumber(SECRETARY_STAGE_SOFA_BUBBLE_Y, NaN)
   };
-  if (![bubble.x, bubble.z, bubble.y].every(Number.isFinite)) return fallback;
+  if (![bubble.x, bubble.z, bubble.y].every(Number.isFinite)) return null;
   return { position: pos, scale, bubble };
+}
+
+/** 沙發擺位；無效服裝或非有限數字一律回退，避免立繪被移出畫面。 */
+export function secretarySofaPlacementForOutfit(outfitId) {
+  const isStage = parseSecretaryOutfitId(outfitId) === 'stage';
+  const placed = isStage
+    ? sofaPlacementFromOffset(SECRETARY_STAGE_SOFA_OFFSET, SECRETARY_STAGE_SOFA_SCALE)
+    : sofaPlacementFromOffset(SECRETARY_DEFAULT_SOFA_OFFSET, SECRETARY_DEFAULT_SOFA_SCALE);
+  return placed || anchorOnlySofaPlacement();
+}
+
+/** 把世界座標的陰影位置換成 secretaryRoot 的局部座標（含縮放與 Y 旋轉）。 */
+export function secretarySofaShadowLocal(placement) {
+  const base = anchorOnlySofaPlacement().position;
+  const px = finiteNumber(placement && placement.position && placement.position.x, base.x);
+  const py = finiteNumber(placement && placement.position && placement.position.y, base.y);
+  const pz = finiteNumber(placement && placement.position && placement.position.z, base.z);
+  const k = finiteNumber(placement && placement.scale, 1) > 0 ? Number(placement.scale) : 1;
+  const dx = base.x + SECRETARY_SHADOW_SOFA.x - px;
+  const dz = base.z + SECRETARY_SHADOW_SOFA.z - pz;
+  const dy = base.y + SECRETARY_SHADOW_SOFA.y - py;
+  const c = Math.cos(SECRETARY_SOFA_ROTATION_Y);
+  const sn = Math.sin(SECRETARY_SOFA_ROTATION_Y);
+  return {
+    x: (dx * c - dz * sn) / k,
+    y: dy / k,
+    z: (dx * sn + dz * c) / k
+  };
 }
 
 export function secretaryAtLoungePose(status, sofaSpriteOk) {
@@ -137,11 +172,11 @@ function makeLeatherGrainTexture() {
   canvas.width = 128;
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#3d2a1a';
+  ctx.fillStyle = '#d9c4b0';
   ctx.fillRect(0, 0, 128, 128);
   const rand = privateTeamSeededRand(8841);
   for (let i = 0; i < 42; i++) {
-    ctx.strokeStyle = 'rgba(42, 28, 16, ' + (0.08 + rand() * 0.12) + ')';
+    ctx.strokeStyle = 'rgba(90, 58, 34, ' + (0.12 + rand() * 0.18) + ')';
     ctx.lineWidth = 0.4 + rand() * 0.8;
     ctx.beginPath();
     let x = rand() * 128;
@@ -212,12 +247,70 @@ function makeVinylGrooveTexture() {
   return tex;
 }
 
+function makeRugColorTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#7c2b24';
+  ctx.fillRect(0, 0, size, size);
+  const rand = privateTeamSeededRand(6203);
+  // 經緯織紋
+  for (let y = 0; y < size; y += 3) {
+    ctx.fillStyle = y % 6 === 0 ? 'rgba(40, 8, 6, 0.22)' : 'rgba(210, 120, 70, 0.08)';
+    ctx.fillRect(0, y, size, 1);
+  }
+  for (let x = 0; x < size; x += 3) {
+    ctx.fillStyle = x % 6 === 0 ? 'rgba(40, 8, 6, 0.16)' : 'rgba(210, 120, 70, 0.06)';
+    ctx.fillRect(x, 0, 1, size);
+  }
+  // 外框條紋：鏽橘＋奶油
+  ctx.strokeStyle = '#c4682f';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(16, 16, size - 32, size - 32);
+  ctx.strokeStyle = '#e2c79a';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(30, 30, size - 60, size - 60);
+  // 中央菱形花紋
+  const c = size / 2;
+  ctx.fillStyle = '#b5532b';
+  ctx.beginPath();
+  ctx.moveTo(c, c - 70);
+  ctx.lineTo(c + 70, c);
+  ctx.lineTo(c, c + 70);
+  ctx.lineTo(c - 70, c);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#e2c79a';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.fillStyle = '#4a1612';
+  ctx.beginPath();
+  ctx.moveTo(c, c - 34);
+  ctx.lineTo(c + 34, c);
+  ctx.lineTo(c, c + 34);
+  ctx.lineTo(c - 34, c);
+  ctx.closePath();
+  ctx.fill();
+  for (let i = 0; i < 90; i++) {
+    ctx.fillStyle = 'rgba(30, 6, 4, ' + (0.05 + rand() * 0.08) + ')';
+    ctx.fillRect(rand() * size, rand() * size, 2 + rand() * 4, 1);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
 function leatherMaterial(baseColor, grainTex) {
   return new THREE.MeshStandardMaterial({
     color: baseColor,
     map: grainTex,
-    metalness: 0.03,
-    roughness: 0.5
+    metalness: 0.04,
+    roughness: 0.38,
+    emissive: 0x2a1408,
+    emissiveIntensity: 0.55
   });
 }
 
@@ -276,62 +369,109 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   const winBottom = layout.winBottom;
 
   const rugTex = loadRepeatTex(texLoader, 'rug-weave.webp', 1.1, 1.35);
-  const rugMat = new THREE.MeshLambertMaterial({ map: rugTex, color: 0xf2e0c8 });
+  const rugMat = new THREE.MeshLambertMaterial({
+    map: makeRugColorTexture(),
+    bumpMap: rugTex,
+    bumpScale: 1.2,
+    color: 0xc9b3a0
+  });
   const rug = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 0.88), rugMat);
   rug.rotation.x = -Math.PI / 2;
-  rug.position.set(1.28, 0.038, -0.22);
+  rug.position.set(1.28, 0.062, -0.22);
   rug.name = '編織地毯';
   rug.renderOrder = 1;
   root.add(rug);
 
   const leatherTex = makeLeatherGrainTexture();
-  const leatherLight = leatherMaterial(0x4a3220, leatherTex);
-  const leatherDark = leatherMaterial(0x3a2418, leatherTex);
-  const seamMat = new THREE.MeshStandardMaterial({
-    color: 0x2a1a10,
+  const leatherLight = leatherMaterial(0xb87a48, leatherTex);
+  const leatherDark = leatherMaterial(0x93603a, leatherTex);
+  const pipingMat = new THREE.MeshStandardMaterial({
+    color: 0x3a2212,
     metalness: 0.02,
-    roughness: 0.72
+    roughness: 0.6
   });
+  const woodLegMat = new THREE.MeshStandardMaterial({ color: 0x2c1b10, metalness: 0.1, roughness: 0.5 });
 
   const sofaSx = SECRETARY_SOFA_POSITION.x;
   const sofaSz = SECRETARY_SOFA_POSITION.z;
   const sofaGrp = new THREE.Group();
   sofaGrp.name = '焦糖棕皮沙發';
   sofaGrp.position.set(sofaSx, 0, sofaSz);
-  const sofaBase = extrudedRoundedPlate(0.36, 0.22, 0.26, 0.055, leatherLight);
-  sofaBase.position.set(0, 0.15, 0);
+
+  // 座框（含底部暗縫，讓三塊坐墊之間看得出分隔）
+  const sofaBase = extrudedRoundedPlate(0.3, 0.2, 0.14, 0.04, leatherDark);
+  sofaBase.position.set(0, 0.09, 0.02);
   sofaGrp.add(sofaBase);
-  const cushionXs = [-0.24, 0, 0.24];
-  for (let ci = 0; ci < cushionXs.length; ci++) {
-    const cushion = extrudedRoundedPlate(0.108, 0.2, 0.052, 0.036, leatherLight);
-    cushion.position.set(cushionXs[ci], 0.295, 0.025);
-    sofaGrp.add(cushion);
-    if (ci < cushionXs.length - 1) {
-      const gapX = (cushionXs[ci] + cushionXs[ci + 1]) / 2;
-      const seam = box(0.024, 0.26, 0.46, 0x2a1a10);
-      seam.material = seamMat;
-      seam.position.set(gapX, 0.268, 0.01);
-      sofaGrp.add(seam);
+  const legXs = [-0.3, 0.3];
+  const legZs = [-0.17, 0.19];
+  for (let lx = 0; lx < legXs.length; lx++) {
+    for (let lz = 0; lz < legZs.length; lz++) {
+      const leg = cyl(0.022, 0.016, 0.09, 8, 0x2c1b10);
+      leg.material = woodLegMat;
+      leg.position.set(legXs[lx], 0.045, legZs[lz]);
+      sofaGrp.add(leg);
     }
   }
-  const sofaBack = extrudedPanel(0.36, 0.21, 0.1, 0.04, leatherDark);
-  sofaBack.rotation.x = -Math.PI / 2;
-  sofaBack.rotation.z = Math.PI;
-  sofaBack.position.set(0, 0.36, -0.22);
-  sofaGrp.add(sofaBack);
-  const armLen = 0.4;
+
+  // 椅背框（比座面高、比扶手高）
+  const backFrame = extrudedPanel(0.3, 0.2, 0.1, 0.04, leatherDark);
+  backFrame.position.set(0, 0.4, -0.17);
+  backFrame.name = 'sofaBackFrame';
+  sofaGrp.add(backFrame);
+
+  const cushionXs = [-0.188, 0, 0.188];
+  for (let ci = 0; ci < cushionXs.length; ci++) {
+    const cx = cushionXs[ci];
+    // 座墊
+    const cushion = extrudedRoundedPlate(0.088, 0.17, 0.075, 0.034, leatherLight);
+    cushion.position.set(cx, 0.235, 0.05);
+    cushion.name = 'sofaSeatCushion';
+    sofaGrp.add(cushion);
+    const seatPipeF = box(0.19, 0.012, 0.012, 0x3a2212);
+    seatPipeF.material = pipingMat;
+    seatPipeF.position.set(cx, 0.31, 0.226);
+    sofaGrp.add(seatPipeF);
+    // 靠墊（直立，微向後傾）
+    const backCushion = extrudedPanel(0.088, 0.145, 0.085, 0.04, leatherLight);
+    backCushion.position.set(cx, 0.465, -0.095);
+    backCushion.rotation.x = -0.14;
+    backCushion.name = 'sofaBackCushion';
+    sofaGrp.add(backCushion);
+    const backPipe = box(0.19, 0.012, 0.012, 0x3a2212);
+    backPipe.material = pipingMat;
+    backPipe.position.set(cx, 0.608, -0.108);
+    backPipe.rotation.x = -0.14;
+    sofaGrp.add(backPipe);
+    // 釦飾（兩顆）
+    for (let bi = 0; bi < 2; bi++) {
+      const btn = new THREE.Mesh(new THREE.SphereGeometry(0.011, 8, 6), pipingMat);
+      btn.position.set(cx + (bi === 0 ? -0.035 : 0.035), 0.5 - bi * 0.0, -0.045);
+      sofaGrp.add(btn);
+    }
+  }
+
+  // 兩側圓弧扶手
   const armRad = SOFA_ARM_RADIUS;
-  const sofaArmL = sofaRollArm(armRad, armLen, leatherDark);
-  sofaArmL.position.set(-0.33, 0.24, 0);
-  sofaGrp.add(sofaArmL);
-  const sofaArmR = sofaRollArm(armRad, armLen, leatherDark);
-  sofaArmR.position.set(0.33, 0.24, 0);
-  sofaGrp.add(sofaArmR);
+  const armLen = 0.42;
+  const armXs = [-(SOFA_HALF_WIDTH_X - armRad), SOFA_HALF_WIDTH_X - armRad];
+  for (let ai = 0; ai < armXs.length; ai++) {
+    const armBody = box(armRad * 1.7, 0.22, armLen, 0x93603a);
+    armBody.material = leatherDark;
+    armBody.position.set(armXs[ai] + (ai === 0 ? -0.006 : 0.006), 0.22, 0.01);
+    armBody.name = 'sofaArmBody';
+    sofaGrp.add(armBody);
+    const roll = sofaRollArm(armRad, armLen, leatherLight);
+    roll.position.set(armXs[ai], 0.35 + armRad * 0.2, 0.01);
+    sofaGrp.add(roll);
+    const cap = new THREE.Mesh(new THREE.CircleGeometry(armRad * 0.9, 18), leatherDark);
+    cap.position.set(armXs[ai], 0.35 + armRad * 0.2, 0.01 + armLen / 2 + 0.002);
+    sofaGrp.add(cap);
+  }
   root.add(sofaGrp);
 
   const sofaLamp = new THREE.Group();
   sofaLamp.name = 'sofaFloorLamp';
-  sofaLamp.position.set(sofaSx + 0.24, 0, sofaSz - 0.28);
+  sofaLamp.position.set(sofaSx - 0.5, 0, sofaSz - 0.4);
   const sfBase = cyl(0.055, 0.062, 0.025, 10, COL.lampBase);
   sfBase.position.set(0, 0.012, 0);
   sofaLamp.add(sfBase);
@@ -347,7 +487,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   sofaLamp.add(sfBulb);
   root.add(sofaLamp);
 
-  addMonstera(root, sofaSx - 0.52, sofaSz - 0.2);
+  addMonstera(root, sofaSx - 0.5, sofaSz + 0.24);
 
   const walnutTex = makeWalnutWoodTexture();
   const walnutBodyMat = walnutMaterial(walnutTex, 0xdddddd);
