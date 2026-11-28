@@ -70,7 +70,10 @@ export function tigerFromPublic(body) {
  */
 export async function fetchOfficePublicWithRetry(fetchFn, opts) {
   const delays = (opts && opts.delays) || [1500, 4000, 9000];
-  const sleep = (opts && opts.sleep) || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const sleep = (opts && opts.sleep) || ((ms) => new Promise((r) => {
+    const t = setTimeout(r, ms);
+    if (t && typeof t === 'object' && typeof t.unref === 'function') t.unref();
+  }));
   if (typeof fetchFn !== 'function') return null;
   for (let i = 0; i <= delays.length; i++) {
     let body = null;

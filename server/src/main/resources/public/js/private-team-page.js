@@ -901,6 +901,11 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
+  /** Node 單測環境的計時器不要拖住行程結束（瀏覽器回傳數字，這裡不動作）。 */
+  function unrefTimer(t) {
+    if (t && typeof t === 'object' && typeof t.unref === 'function') t.unref();
+    return t;
+  }
   let officeLoadedOnce = false;
   let officeRecheckTimer = null;
   let officeRecheckCount = 0;
@@ -908,17 +913,17 @@ export function mountPrivateTeamPage(opts) {
     // 失敗或今日資料還是空的（剛冷啟動／重新部署）：不要等 60 秒輪詢，短時間內再補抓，最多 4 次。
     if (officeRecheckTimer != null || officeRecheckCount >= 4) return;
     officeRecheckCount++;
-    officeRecheckTimer = (win.setTimeout || setTimeout)(() => {
+    officeRecheckTimer = unrefTimer((win.setTimeout || setTimeout)(() => {
       officeRecheckTimer = null;
       refreshOfficePublic();
-    }, 12_000);
+    }, 12_000));
   }
 
   function refreshOfficePublic() {
     if (!fetchFn) return;
     fetchOfficePublicWithRetry(fetchFn, {
       url: '/api/office/public',
-      sleep: (ms) => new Promise((resolve) => (win.setTimeout || setTimeout)(resolve, ms))
+      sleep: (ms) => new Promise((resolve) => unrefTimer((win.setTimeout || setTimeout)(resolve, ms)))
     }).then((body) => {
       const tiger = tigerFromPublic(body);
       if (tiger) {
