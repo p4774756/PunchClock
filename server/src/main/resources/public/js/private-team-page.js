@@ -1,3 +1,4 @@
+import { notifyAuthChanged } from './admin-session.js';
 import { wireHomeLoginModal } from './home-login-modal.js';
 import { wireGameBoyModal } from './private-team-pocket.js';
 import {
@@ -469,6 +470,7 @@ export function mountPrivateTeamPage(opts) {
       doc.body.classList.remove('is-guest');
       doc.body.classList.add('is-authenticated');
     }
+    notifyAuthChanged(win);
     closeAuthMenu();
     paintAuthHud();
     if (pendingOpenTasksAfterLogin) {

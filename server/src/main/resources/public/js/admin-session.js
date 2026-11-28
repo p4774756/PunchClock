@@ -1,6 +1,16 @@
 /** 站長 CSRF 與登出 POST。 */
 
 export const CSRF_STORAGE_KEY = 'punchclock.csrf';
+export const AUTH_CHANGED_EVENT = 'punchclock:auth-changed';
+
+export function notifyAuthChanged(win) {
+  const w = win || globalThis;
+  if (!w || typeof w.dispatchEvent !== 'function') return;
+  try {
+    const Ev = w.Event || globalThis.Event;
+    w.dispatchEvent(typeof Ev === 'function' ? new Ev(AUTH_CHANGED_EVENT) : AUTH_CHANGED_EVENT);
+  } catch (_e) { /* jsdom / 測試替身可能沒有 Event */ }
+}
 
 function storage(win) {
   try {
@@ -101,6 +111,7 @@ export function fetchCsrfFromSession(win) {
           if (typeof data.username === 'string' && data.username && !w.PUNCHCLOCK_USERNAME) {
             w.PUNCHCLOCK_USERNAME = data.username;
           }
+          notifyAuthChanged(w);
         }
         return token;
       }
@@ -118,6 +129,7 @@ export function clearClientAuth(win, doc) {
     d.body.classList.remove('is-authenticated');
     d.body.classList.add('is-guest');
   }
+  notifyAuthChanged(w);
 }
 
 export function goLoggedOut(win) {
