@@ -24,7 +24,7 @@ final class TabNavIcon {
     private static final int W = 0xFFFFFFFF;
 
     private static final String[] NAV_ICON_IDS = {
-            "home", "calendar-clock", "folder-up", "notebook-text", "settings"
+            "home", "calendar-clock", "folder-up", "image", "notebook-text", "settings"
     };
 
     private static final Map<String, TabNavIcon> CACHE = new ConcurrentHashMap<>();
@@ -161,6 +161,8 @@ final class TabNavIcon {
         map.put("calendar-clock-active", calendar(true));
         map.put("folder-up", folderUp(false));
         map.put("folder-up-active", folderUp(true));
+        map.put("image", image(false));
+        map.put("image-active", image(true));
         map.put("notebook-text", notebook(false));
         map.put("notebook-text-active", notebook(true));
         map.put("settings", settings(false));
@@ -285,6 +287,46 @@ final class TabNavIcon {
                 ".....k....k.....",
                 ".....k....k.....",
                 "......kkkk......",
+                "................");
+    }
+
+    /** 相片 */
+    private static String[] image(boolean active) {
+        if (active) {
+            return rows(
+                    "................",
+                    "...kkkkkkkkkk...",
+                    "...kwwwwwwwwk...",
+                    "...kwkwwwwkwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwwkkkkwwk...",
+                    "...kwwwwwwwwk...",
+                    "...kwwwwwwwwk...",
+                    "...kkkkkkkkkk...",
+                    "................",
+                    "................",
+                    "................",
+                    "................",
+                    "................",
+                    "................",
+                    "................");
+        }
+        return rows(
+                "................",
+                "...kkkkkkkkkk...",
+                "...kllllllllk...",
+                "...klkllllklk...",
+                "...kllllllllk...",
+                "...kllkkkkllk...",
+                "...kllllllllk...",
+                "...kllllllllk...",
+                "...kkkkkkkkkk...",
+                "................",
+                "................",
+                "................",
+                "................",
+                "................",
+                "................",
                 "................");
     }
 

@@ -13,6 +13,7 @@ import com.example.service.PeerAvatar;
 import com.example.service.PeerChatStore;
 import com.example.service.RelayProxyService;
 import com.example.service.SchedulerService;
+import com.example.service.PrivateAlbumPaths;
 import com.example.service.TaskPersistenceService;
 import com.example.service.TransferCancel;
 import com.example.service.TransferIo;
@@ -45,6 +46,7 @@ import com.example.ui.hud.HomeMoodPool;
 import com.example.ui.hud.HomeBrief;
 import com.example.ui.hud.HomePortrait;
 import com.example.ui.hud.ShellDimensions;
+import com.example.ui.PrivateAlbumPanel;
 import com.example.ui.WindowChrome;
 import com.example.ui.WindowOpacity;
 import com.example.ui.WindowShake;
@@ -60,6 +62,7 @@ import java.awt.event.ItemEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -81,6 +84,7 @@ import java.util.function.Consumer;
 public class App extends JFrame {
 
     private static final String SELF_PEER_SUFFIX = "（本機）";
+    static final int MAIN_TAB_ALBUM = 4;
 
     final ServerConfigRefs serverRefs = new ServerConfigRefs();
     final PeerInteractionRefs peerRefs = new PeerInteractionRefs();
@@ -102,6 +106,9 @@ public class App extends JFrame {
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
     private JTabbedPane mainTabs;
+    private PrivateAlbumPanel privateAlbumPanel;
+    private JComponent privateAlbumTab;
+    private boolean privateAlbumTabPresent;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
     private java.util.List<Image> baseAppIconImages = java.util.Collections.emptyList();
@@ -314,6 +321,13 @@ public class App extends JFrame {
         bindHomeIllustrationCombo();
         bindCheckInUiSwitch();
         bindDockIconSwimsuitSwitch();
+        bindPrivateAlbumControls();
+        privateAlbumPanel = new PrivateAlbumPanel(mainFont, boldFont);
+        JPanel albumBody = new JPanel(new BorderLayout());
+        albumBody.setOpaque(false);
+        albumBody.setBorder(new EmptyBorder(8, 8, 8, 8));
+        albumBody.add(privateAlbumPanel, BorderLayout.CENTER);
+        privateAlbumTab = CompactShellPanels.wrapFill(albumBody, true);
         JPanel settingsTab = new JPanel(new BorderLayout());
         settingsTab.setOpaque(false);
         settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
@@ -477,6 +491,165 @@ public class App extends JFrame {
             }
             applyCheckInUiVisibility(serverRefs.checkInUiVisibleSwitch.isSelected(), true);
         });
+    }
+
+    private void bindPrivateAlbumControls() {
+        if (serverRefs.privateAlbumVisibleSwitch != null) {
+            serverRefs.privateAlbumVisibleSwitch.addActionListener(e -> {
+                if (suppressConfigSave) {
+                    return;
+                }
+                applyPrivateAlbumVisible(serverRefs.privateAlbumVisibleSwitch.isSelected(), true);
+            });
+        }
+        if (serverRefs.privateAlbumDirectoryField != null) {
+            serverRefs.privateAlbumDirectoryField.getDocument().addDocumentListener(new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent e) {
+                    onPrivateAlbumPathEdited();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent e) {
+                    onPrivateAlbumPathEdited();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent e) {
+                    onPrivateAlbumPathEdited();
+                }
+            });
+        }
+        if (serverRefs.privateAlbumOpenFolderButton != null) {
+            serverRefs.privateAlbumOpenFolderButton.addActionListener(e -> openPrivateAlbumFolder());
+        }
+    }
+
+    private void onPrivateAlbumPathEdited() {
+        if (suppressConfigSave) {
+            return;
+        }
+        refreshPrivateAlbumFromSettings();
+        saveCloudConfig();
+    }
+
+    private void openPrivateAlbumFolder() {
+        Path dir = resolvePrivateAlbumDirectory();
+        try {
+            PrivateAlbumPaths.ensureDirectory(dir);
+            if (Desktop.isDesktopSupported()) {
+                Desktop desktop = Desktop.getDesktop();
+                if (desktop.isSupported(Desktop.Action.OPEN)) {
+                    desktop.open(dir.toFile());
+                }
+            }
+        } catch (IOException | IllegalArgumentException ex) {
+            appendLog("[私房相簿] 無法開啟資料夾：" + ex.getMessage());
+        }
+    }
+
+    private Path resolvePrivateAlbumDirectory() {
+        String custom = serverRefs.privateAlbumDirectoryField == null
+                ? ""
+                : serverRefs.privateAlbumDirectoryField.getText();
+        if (custom == null || custom.isBlank()) {
+            if (slotController != null && slotController.getConfig() != null) {
+                custom = slotController.getConfig().privateAlbumDirectory;
+            }
+        }
+        return PrivateAlbumPaths.resolveDirectory(custom);
+    }
+
+    private void refreshPrivateAlbumFromSettings() {
+        if (privateAlbumPanel == null) {
+            return;
+        }
+        privateAlbumPanel.setAlbumDirectory(resolvePrivateAlbumDirectory());
+        privateAlbumPanel.reload();
+    }
+
+    private void applyPrivateAlbumVisible(boolean visible, boolean persist) {
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().privateAlbumVisible = visible;
+        }
+        setPrivateAlbumTabPresent(visible);
+        if (shell != null) {
+            shell.setPrivateAlbumNavVisible(visible);
+        }
+        if (visible) {
+            refreshPrivateAlbumFromSettings();
+        }
+        if (persist) {
+            saveCloudConfig();
+        }
+    }
+
+    private void setPrivateAlbumTabPresent(boolean present) {
+        if (mainTabs == null || privateAlbumTab == null) {
+            return;
+        }
+        if (present == privateAlbumTabPresent) {
+            return;
+        }
+        if (present) {
+            if (mainTabs.getTabCount() <= MAIN_TAB_ALBUM) {
+                mainTabs.addTab("私房相簿", privateAlbumTab);
+            }
+            privateAlbumTabPresent = true;
+        } else {
+            int selected = mainTabs.getSelectedIndex();
+            if (mainTabs.getTabCount() > MAIN_TAB_ALBUM) {
+                mainTabs.removeTabAt(MAIN_TAB_ALBUM);
+            }
+            privateAlbumTabPresent = false;
+            if (selected == MAIN_TAB_ALBUM) {
+                if (shell != null) {
+                    shell.showHome();
+                }
+            } else if (selected > MAIN_TAB_ALBUM) {
+                mainTabs.setSelectedIndex(selected - 1);
+            }
+        }
+    }
+
+    private boolean isPrivateAlbumVisible() {
+        if (serverRefs.privateAlbumVisibleSwitch != null) {
+            return serverRefs.privateAlbumVisibleSwitch.isSelected();
+        }
+        if (slotController != null && slotController.getConfig() != null) {
+            return slotController.getConfig().privateAlbumVisible;
+        }
+        return false;
+    }
+
+    private void applyPrivateAlbumSelection(ConfigPersistenceService.CloudConfig config) {
+        boolean visible = config != null && config.privateAlbumVisible;
+        String directory = config == null || config.privateAlbumDirectory == null
+                ? ""
+                : config.privateAlbumDirectory;
+        if (serverRefs.privateAlbumVisibleSwitch != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.privateAlbumVisibleSwitch.setSelected(visible);
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        if (serverRefs.privateAlbumDirectoryField != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.privateAlbumDirectoryField.setText(directory);
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().privateAlbumDirectory = directory;
+        }
+        applyPrivateAlbumVisible(visible, false);
+        refreshPrivateAlbumFromSettings();
     }
 
     private void bindDockIconSwimsuitSwitch() {
@@ -2106,6 +2279,7 @@ public class App extends JFrame {
             applyWindowLayout(config);
             applyCheckInUiSelection(config);
             applyDockIconSwimsuitSelection(config);
+            applyPrivateAlbumSelection(config);
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
             applyPeerStatusFromConfig(config);
@@ -2401,6 +2575,16 @@ public class App extends JFrame {
             config.dockIconSwimsuit = serverRefs.dockIconSwimsuitSwitch.isSelected();
         } else {
             config.dockIconSwimsuit = dockIconSwimsuit;
+        }
+        if (serverRefs.privateAlbumVisibleSwitch != null) {
+            config.privateAlbumVisible = serverRefs.privateAlbumVisibleSwitch.isSelected();
+        } else {
+            config.privateAlbumVisible = isPrivateAlbumVisible();
+        }
+        if (serverRefs.privateAlbumDirectoryField != null) {
+            config.privateAlbumDirectory = serverRefs.privateAlbumDirectoryField.getText() == null
+                    ? ""
+                    : serverRefs.privateAlbumDirectoryField.getText().trim();
         }
         configPersistenceService.saveConfig(config, null);
     }

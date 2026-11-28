@@ -172,7 +172,8 @@ public class PanelFactory {
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.addTab("外觀", settingsPage(
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont)),
-                settingsSection("Dock 圖示", boldFont, dockIconSwimsuitRow(refs, mainFont, boldFont))));
+                settingsSection("Dock 圖示", boldFont, dockIconSwimsuitRow(refs, mainFont, boldFont)),
+                settingsSection("私房相簿", boldFont, privateAlbumRow(refs, mainFont, boldFont, fieldFont))));
         tabs.addTab("關於", settingsPage(
                 settingsSection("版本", boldFont, versionInfo),
                 settingsSection("程式更新", boldFont, updates)));
@@ -316,6 +317,77 @@ public class PanelFactory {
         column.add(line);
         column.add(Box.createVerticalStrut(4));
         column.add(hint);
+        return column;
+    }
+
+    private static JPanel privateAlbumRow(ServerConfigRefs refs, Font mainFont, Font boldFont, Font fieldFont) {
+        refs.privateAlbumVisibleSwitch = new CandySwitch();
+        refs.privateAlbumVisibleSwitch.setSelected(false);
+        refs.privateAlbumVisibleSwitch.setFont(boldFont);
+        refs.privateAlbumVisibleSwitch.getAccessibleContext().setAccessibleName("顯示私房相簿");
+        String tip = "開啟後主畫面底部分頁會出現私房相簿，從本機資料夾讀取圖片。";
+        refs.privateAlbumVisibleSwitch.setToolTipText(tip);
+
+        JLabel title = new JLabel("顯示私房相簿");
+        title.setFont(boldFont);
+        title.setLabelFor(refs.privateAlbumVisibleSwitch);
+        title.setToolTipText(tip);
+        title.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        title.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (refs.privateAlbumVisibleSwitch.isEnabled()) {
+                    refs.privateAlbumVisibleSwitch.doClick();
+                }
+            }
+        });
+
+        JLabel hint = new CompactShellPanels.WrappingLabel(
+                "預設讀取 ~/.sklbaby/album/ 內的 jpg、png、webp；路徑可改成其他資料夾。");
+        hint.setFont(mainFont);
+        hint.setForeground(NightTheme.MUTED);
+
+        JPanel toggleRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        toggleRow.setOpaque(false);
+        toggleRow.add(refs.privateAlbumVisibleSwitch);
+        toggleRow.add(title);
+
+        refs.privateAlbumDirectoryField = new JTextField();
+        refs.privateAlbumDirectoryField.setFont(fieldFont);
+        refs.privateAlbumDirectoryField.setColumns(28);
+        refs.privateAlbumDirectoryField.setToolTipText("留空則使用 ~/.sklbaby/album/");
+        CandyTextField.install(refs.privateAlbumDirectoryField, true);
+        lockFieldHeight(refs.privateAlbumDirectoryField);
+
+        JLabel pathLabel = new JLabel("相簿資料夾：");
+        pathLabel.setFont(mainFont);
+        pathLabel.setLabelFor(refs.privateAlbumDirectoryField);
+
+        refs.privateAlbumOpenFolderButton = new CandyButton(
+                "開啟資料夾", CandyButton.Variant.SECONDARY, CandyButton.Size.SMALL);
+        refs.privateAlbumOpenFolderButton.setFont(mainFont);
+        refs.privateAlbumOpenFolderButton.setToolTipText("若資料夾不存在會先建立，再用系統檔案管理員開啟。");
+
+        JPanel pathRow = formRowStretch(pathLabel, refs.privateAlbumDirectoryField);
+        JPanel openRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        openRow.setOpaque(false);
+        openRow.add(refs.privateAlbumOpenFolderButton);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        toggleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        pathRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        openRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(toggleRow);
+        column.add(Box.createVerticalStrut(4));
+        column.add(hint);
+        column.add(Box.createVerticalStrut(8));
+        column.add(pathRow);
+        column.add(Box.createVerticalStrut(6));
+        column.add(openRow);
         return column;
     }
 
@@ -634,6 +706,9 @@ public class PanelFactory {
         public JLabel windowTransparencyValueLabel;
         public JToggleButton desktopPetCursorReact;
         public JToggleButton desktopPetCare;
+        public JToggleButton privateAlbumVisibleSwitch;
+        public JTextField privateAlbumDirectoryField;
+        public JButton privateAlbumOpenFolderButton;
         // 中繼 Proxy
         public JCheckBox relayEnabledCheckBox;
         public JSpinner relayPortSpinner;

@@ -32,9 +32,10 @@ public class Issue776SettingsAppearanceTest {
             tabs.setSelectedIndex(PanelFactory.SETTINGS_APPEARANCE_TAB);
 
             List<CandyPanel> sections = appearanceSections(tabs);
-            assertEquals(2, sections.size());
+            assertEquals(3, sections.size());
             assertTrue(containsDescendant(sections.get(0), refs.desktopPetSwitch));
             assertTrue(containsDescendant(sections.get(1), refs.dockIconSwimsuitSwitch));
+            assertTrue(containsDescendant(sections.get(2), refs.privateAlbumVisibleSwitch));
 
             assertNull(refs.windowTransparencySlider);
             assertNull(refs.homeIllustrationCombo);

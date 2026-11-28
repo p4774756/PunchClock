@@ -59,16 +59,19 @@ public final class AnimeShell extends JPanel {
     private static final Color MUTED = new Color(196, 186, 220);
     private static final Color NAV_INK = new Color(32, 32, 32);
     private static final Color NAV_INK_MUTED = new Color(64, 64, 64);
-    private static final String[] NAV = {"首頁", "排程", "好友傳檔", "日誌", "設定"};
+    private static final String[] NAV = {"首頁", "排程", "好友傳檔", "相簿", "日誌", "設定"};
     private static final String[] NAV_TIPS = {
             "首頁：小寶貝與狀態泡泡",
             "排程任務與打卡紀錄",
             "好友、聊天與傳檔",
+            "本機私房相簿",
             "系統日誌",
             "連線、外觀與關於"
     };
-    /** 分頁：首頁、排程0、好友2、日誌3、設定1 */
-    private static final int[] NAV_TO_TAB = {-1, 0, 2, 3, 1};
+    /** 分頁：首頁、排程0、好友2、相簿4、日誌3、設定1 */
+    private static final int[] NAV_TO_TAB = {-1, 0, 2, 4, 3, 1};
+    private static final int SCHEDULE_NAV_ID = 1;
+    private static final int ALBUM_NAV_ID = 3;
     public static final int CHARACTER_HIT = 20;
 
     private final JTabbedPane tabs;
@@ -95,6 +98,7 @@ public final class AnimeShell extends JPanel {
     private boolean miniDragging;
     private int friendNavUnread;
     private boolean checkInUiVisible = true;
+    private boolean privateAlbumNavVisible = false;
     private final JButton swapIllustrationButton;
     private Runnable swapIllustrationHandler;
 
@@ -222,8 +226,11 @@ public final class AnimeShell extends JPanel {
     }
 
     private java.awt.Rectangle hotArea(int id) {
-        if (id >= 0 && id < NAV.length) {
-            return tabHitBox(id);
+        if (id >= 0 && id < NAV.length && navIdVisible(id)) {
+            int slot = navSlotForId(id);
+            if (slot >= 0) {
+                return tabHitBox(slot);
+            }
         }
         if (id == CHARACTER_HIT || id == HomeBoard.BUBBLE) {
             java.awt.Rectangle box = board.hotArea(id);
@@ -367,8 +374,25 @@ public final class AnimeShell extends JPanel {
         refreshChrome();
     }
 
+    public void setPrivateAlbumNavVisible(boolean visible) {
+        if (privateAlbumNavVisible == visible) {
+            return;
+        }
+        privateAlbumNavVisible = visible;
+        if (!visible && !holdingHome && tabs.getSelectedIndex() == NAV_TO_TAB[ALBUM_NAV_ID]) {
+            showHome();
+        }
+        revalidate();
+        repaint();
+        refreshChrome();
+    }
+
     boolean checkInUiVisibleForTests() {
         return checkInUiVisible;
+    }
+
+    boolean privateAlbumNavVisibleForTests() {
+        return privateAlbumNavVisible;
     }
 
     int visibleNavSlotCountForTests() {
@@ -379,25 +403,54 @@ public final class AnimeShell extends JPanel {
         return navIdForSlot(slot);
     }
 
+    private boolean navIdVisible(int id) {
+        if (id < 0 || id >= NAV.length) {
+            return false;
+        }
+        if (id == SCHEDULE_NAV_ID && !checkInUiVisible) {
+            return false;
+        }
+        if (id == ALBUM_NAV_ID && !privateAlbumNavVisible) {
+            return false;
+        }
+        return true;
+    }
+
     private int navSlotCount() {
-        return checkInUiVisible ? NAV.length : NAV.length - 1;
+        int count = 0;
+        for (int id = 0; id < NAV.length; id++) {
+            if (navIdVisible(id)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private int navIdForSlot(int slot) {
-        if (checkInUiVisible || slot < 1) {
-            return slot;
+        int seen = 0;
+        for (int id = 0; id < NAV.length; id++) {
+            if (!navIdVisible(id)) {
+                continue;
+            }
+            if (seen == slot) {
+                return id;
+            }
+            seen++;
         }
-        return slot + 1;
+        return 0;
     }
 
     private int navSlotForId(int id) {
-        if (checkInUiVisible || id <= 0) {
-            return id;
-        }
-        if (id == 1) {
+        if (!navIdVisible(id)) {
             return -1;
         }
-        return id - 1;
+        int slot = 0;
+        for (int i = 0; i < id; i++) {
+            if (navIdVisible(i)) {
+                slot++;
+            }
+        }
+        return slot;
     }
 
     public void followTab() {
@@ -539,7 +592,7 @@ public final class AnimeShell extends JPanel {
             return "點一下展開";
         }
         int id = hit(event.getX(), event.getY());
-        if (id >= 0 && id < NAV.length) {
+        if (id >= 0 && id < NAV.length && navIdVisible(id)) {
             return navTooltip(id);
         }
         return null;
@@ -560,7 +613,7 @@ public final class AnimeShell extends JPanel {
             }
             return;
         }
-        if (id >= 0 && id < NAV.length) {
+        if (id >= 0 && id < NAV.length && navIdVisible(id)) {
             int tab = NAV_TO_TAB[id];
             if (tab < 0) {
                 showHome();
@@ -890,7 +943,7 @@ public final class AnimeShell extends JPanel {
     /** headless 預覽；{@code navIndex} 為底欄高亮分頁（0=首頁）。 */
     public static BufferedImage renderShellPreview(int width, int height, boolean mini, int navIndex) {
         JTabbedPane pane = new JTabbedPane();
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             pane.addTab("", new JPanel());
         }
         AnimeShell shell = new AnimeShell(null, pane);
