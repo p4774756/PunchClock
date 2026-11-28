@@ -55,6 +55,7 @@ public final class ServerApp {
     private static final BuildInfo BUILD_INFO = BuildInfo.load(ServerApp.class, "/server-build.properties");
     private static final String SERVER_VERSION = BUILD_INFO.version();
     private static final String STATIC_JS_CSS_CACHE = "public, max-age=86400";
+    private static final String STATIC_JS_CSS_REVALIDATE = "no-cache, must-revalidate";
     private static final String PAGE_CACHE = "no-cache, must-revalidate";
     private static final long MAX_HTTP_REQUEST_BYTES = 64L * 1024L * 1024L;
     private static final String LOGIN_FAILURE_MESSAGE = "[警告] 密碼錯誤";
@@ -149,10 +150,17 @@ public final class ServerApp {
                 sf.hostedPath = "/css";
                 sf.directory = "/public/css";
                 sf.location = Location.CLASSPATH;
-                applyStaticCache(sf, STATIC_JS_CSS_CACHE);
+                applyStaticCache(sf, STATIC_JS_CSS_REVALIDATE);
             });
             config.staticFiles.add(sf -> {
                 sf.hostedPath = "/js";
+                sf.directory = "/public/js";
+                sf.location = Location.CLASSPATH;
+                applyStaticCache(sf, STATIC_JS_CSS_REVALIDATE);
+            });
+            /* 帶建置戳記的 JS 根路徑：相對／動態 import 會跟著換 URL，避開 max-age 舊快取。 */
+            config.staticFiles.add(sf -> {
+                sf.hostedPath = versionedJsHostedPath();
                 sf.directory = "/public/js";
                 sf.location = Location.CLASSPATH;
                 applyStaticCache(sf, STATIC_JS_CSS_CACHE);
@@ -579,7 +587,20 @@ public final class ServerApp {
         return html
                 .replace("{{SERVER_VERSION}}", SERVER_VERSION)
                 .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel())
-                .replace("{{SERVER_ASSET_QUERY}}", serverAssetQuery());
+                .replace("{{SERVER_ASSET_QUERY}}", serverAssetQuery())
+                .replace("{{SERVER_JS_BASE}}", versionedJsHostedPath());
+    }
+
+    /**
+     * 首頁 ES module 的版本化根路徑（例如 {@code /js/v-4.0.0.202611281607}）。
+     * 進入口與相對／動態 import 都走這裡，才能避開未帶查詢字串、已快取 24 小時的舊模組。
+     */
+    static String versionedJsHostedPath() {
+        String q = serverAssetQuery();
+        if (q == null || q.isBlank()) {
+            return "/js/v-dev";
+        }
+        return "/js/v-" + q;
     }
 
     /**

@@ -104,11 +104,14 @@ public class ServerAppBuildInfoTest {
         assertFalse(homeBody.contains("{{SERVER_VERSION}}"));
         assertFalse(homeBody.contains("{{SERVER_BUILD_TIME}}"));
         assertFalse(homeBody.contains("{{SERVER_ASSET_QUERY}}"));
+        assertFalse(homeBody.contains("{{SERVER_JS_BASE}}"));
 
         assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_VERSION = \""));
         assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_BUILD_TIME = \""));
         assertTrue(homeBody.contains("/css/private-team.css?v="));
-        assertTrue(homeBody.contains("/js/office-page.js?v="));
+        assertTrue(homeBody.contains(ServerApp.versionedJsHostedPath() + "/office-page.js"));
+        assertFalse(homeBody.contains("/js/office-page.js?v="));
+        assertTrue(homeBody.contains("/js/v-"));
         assertEquals("202611281231", ServerApp.compactAssetBuildStamp("2026-11-28 12:31"));
         assertEquals("4.0.0.202611281231", "4.0.0" + "." + ServerApp.compactAssetBuildStamp("2026-11-28 12:31"));
         assertEquals("", ServerApp.compactAssetBuildStamp("開發版"));

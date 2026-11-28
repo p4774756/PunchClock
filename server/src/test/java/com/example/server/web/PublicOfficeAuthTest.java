@@ -125,13 +125,37 @@ public class PublicOfficeAuthTest {
     }
 
     @Test
-    public void staticJsAndCssAllowDayCache() throws Exception {
+    public void unversionedJsAndCssMustRevalidate() throws Exception {
         HttpResponse<String> js = send("GET", "/js/office-page.js", null);
         assertEquals(200, js.statusCode());
-        assertTrue(js.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        String jsCache = js.headers().firstValue("cache-control").orElse("");
+        assertTrue(jsCache.contains("no-cache") || jsCache.contains("must-revalidate"));
+        assertFalse(jsCache.contains("max-age=86400"));
         HttpResponse<String> css = send("GET", "/css/lab-office.css", null);
         assertEquals(200, css.statusCode());
-        assertTrue(css.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        String cssCache = css.headers().firstValue("cache-control").orElse("");
+        assertTrue(cssCache.contains("no-cache") || cssCache.contains("must-revalidate"));
+        assertFalse(cssCache.contains("max-age=86400"));
+    }
+
+    @Test
+    public void versionedJsModuleGraphAllowsDayCache() throws Exception {
+        HttpResponse<String> home = send("GET", "/", null);
+        assertEquals(200, home.statusCode());
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("src=\"(/js/v-[^/]+/office-page\\.js)\"")
+                .matcher(home.body());
+        assertTrue(home.body(), m.find());
+        String versioned = m.group(1);
+        HttpResponse<String> entry = send("GET", versioned, null);
+        assertEquals(200, entry.statusCode());
+        assertTrue(entry.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        assertTrue(entry.body().contains("mountPrivateTeamPage"));
+        String scenePath = versioned.replace("/office-page.js", "/private-team-scene.js");
+        HttpResponse<String> scene = send("GET", scenePath, null);
+        assertEquals(200, scene.statusCode());
+        assertTrue(scene.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        assertTrue(scene.body().contains("mountPrivateTeamScene"));
     }
 
     @Test

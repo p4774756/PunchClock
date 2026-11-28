@@ -67,7 +67,14 @@ test('服裝 id 解析與 localStorage 回退', () => {
   assert.equal(readSecretaryOutfitFromStorage(storage), 'stage');
   writeSecretaryOutfitToStorage(storage, 'oops');
   assert.equal(readSecretaryOutfitFromStorage(storage), 'default');
+  assert.equal(store.get(SECRETARY_OUTFIT_STORAGE_KEY), 'default');
+  store.set(SECRETARY_OUTFIT_STORAGE_KEY, 'STAGE');
+  assert.equal(readSecretaryOutfitFromStorage(storage), 'default');
+  assert.equal(store.get(SECRETARY_OUTFIT_STORAGE_KEY), 'default');
+  store.set(SECRETARY_OUTFIT_STORAGE_KEY, 'unknown-outfit');
+  assert.equal(readSecretaryOutfitFromStorage(storage), 'default');
   assert.equal(readSecretaryOutfitFromStorage({ getItem() { throw new Error('x'); } }), 'default');
+  assert.equal(readSecretaryOutfitFromStorage(null), 'default');
 });
 
 test('default 與 stage 的 URL 對應（狀態、打字 B、待命輪替、慶祝）', () => {
@@ -131,4 +138,14 @@ test('首頁服裝控制與儲存鍵接線', () => {
   assert.match(js, /readSecretaryOutfitFromStorage/);
   assert.match(js, /data-pt-secretary-avatar/);
   assert.match(js, /setSecretaryOutfit/);
+});
+
+test('首頁進入口走版本化 JS 根路徑，相對模組才能一起換 URL', () => {
+  const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
+  assert.match(html, /src="\{\{SERVER_JS_BASE\}\}\/office-page\.js"/);
+  assert.match(html, /src="\{\{SERVER_JS_BASE\}\}\/device-fold\.js"/);
+  assert.doesNotMatch(html, /src="\/js\/office-page\.js\?v=/);
+  const scene = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
+  assert.match(scene, /secretaryEquivalentSpriteUrl\(next, 'default'\)/);
+  assert.match(scene, /\[px, py, pz, scale\]\.every\(Number\.isFinite\)/);
 });

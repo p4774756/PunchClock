@@ -47,7 +47,33 @@ test('休憩區家具名稱與秘書沙發錨點不變', async () => {
 test('場景在沙發姿勢依服裝套用相對偏移，且不寫死沙發錨點', () => {
   const src = sceneSrc;
   assert.match(src, /secretarySofaPlacementForOutfit\(secretaryOutfitId\)/);
-  assert.match(src, /secretaryRoot\.scale\.set\(sofaPlace\.scale, sofaPlace\.scale, sofaPlace\.scale\)/);
+  assert.match(src, /secretaryRoot\.scale\.set\(sc, sc, sc\)/);
+  assert.match(src, /\[px, py, pz, scale\]\.every\(Number\.isFinite\)/);
   assert.match(src, /secretaryRoot\.scale\.set\(1, 1, 1\)/);
   assert.doesNotMatch(src, /SECRETARY_STAGE_SOFA_POSITION/);
+});
+
+test('訪客／無效服裝的沙發擺位永遠是有限數字', async () => {
+  const { secretarySofaPlacementForOutfit, SECRETARY_SOFA_POSITION } = await loadPublicModule(
+    'private-team-scene-lounge.js'
+  );
+  const samples = [undefined, null, '', 'default', 'stage', 'STAGE', 'foo', 0, {}, '  stage  '];
+  for (const id of samples) {
+    const place = secretarySofaPlacementForOutfit(id);
+    assert.equal(typeof place.scale, 'number');
+    assert.ok(Number.isFinite(place.scale) && place.scale > 0, String(id) + ' scale');
+    for (const axis of ['x', 'y', 'z']) {
+      assert.ok(Number.isFinite(place.position[axis]), String(id) + ' pos.' + axis);
+    }
+    assert.ok(Number.isFinite(place.bubble.x), String(id) + ' bubble.x');
+    assert.ok(Number.isFinite(place.bubble.z), String(id) + ' bubble.z');
+    if (place.bubble.y != null) {
+      assert.ok(Number.isFinite(place.bubble.y), String(id) + ' bubble.y');
+    }
+  }
+  const visitor = secretarySofaPlacementForOutfit(undefined);
+  assert.deepEqual(visitor.position, SECRETARY_SOFA_POSITION);
+  assert.equal(visitor.scale, 1);
+  const noOutfit = secretarySofaPlacementForOutfit('');
+  assert.deepEqual(noOutfit.position, SECRETARY_SOFA_POSITION);
 });
