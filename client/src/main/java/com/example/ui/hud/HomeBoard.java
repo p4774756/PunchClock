@@ -52,6 +52,7 @@ final class HomeBoard {
     private boolean bubbleOpensLog;
 
     private HomeIllustration illustration = HomeIllustration.ROOM_B;
+    private HomeBubbleAnchor.Spec anchorOverride;
     private int imageWidth;
     private int imageHeight;
     private Rectangle avoidTopRight = new Rectangle();
@@ -91,10 +92,24 @@ final class HomeBoard {
 
     void setIllustrationContext(
             HomeIllustration ill, int imgW, int imgH, Rectangle swapButtonBounds) {
+        setIllustrationContext(ill, imgW, imgH, swapButtonBounds, null);
+    }
+
+    void setIllustrationContext(
+            HomeIllustration ill,
+            int imgW,
+            int imgH,
+            Rectangle swapButtonBounds,
+            HomeBubbleAnchor.Spec override) {
         illustration = ill == null ? HomeIllustration.ROOM_B : ill;
         imageWidth = Math.max(1, imgW);
         imageHeight = Math.max(1, imgH);
         avoidTopRight = swapButtonBounds == null ? new Rectangle() : new Rectangle(swapButtonBounds);
+        anchorOverride = override;
+    }
+
+    Rectangle bubbleBoxForTests() {
+        return new Rectangle(bubbleBox);
     }
 
     void setMoodPicker(IntFunction<String> picker, Supplier<HomeMoodPool.Band> band) {
@@ -207,8 +222,14 @@ final class HomeBoard {
             boxW = Math.max(boxW, metrics.stringWidth(row) + 24);
         }
         boxW = Math.min(maxW, boxW);
-        HomeBubbleAnchor.Placement placement = HomeBubbleAnchor.placeBubble(
-                stage, illustration, imageWidth, imageHeight, boxW, boxH, avoidTopRight);
+        HomeBubbleAnchor.Placement placement;
+        if (anchorOverride != null) {
+            placement = HomeBubbleAnchor.placeBubble(
+                    stage, anchorOverride, imageWidth, imageHeight, 0, boxW, boxH, avoidTopRight);
+        } else {
+            placement = HomeBubbleAnchor.placeBubble(
+                    stage, illustration, imageWidth, imageHeight, boxW, boxH, avoidTopRight);
+        }
         int x = placement.box.x;
         int y = placement.box.y;
         tailTarget = placement.mouth;

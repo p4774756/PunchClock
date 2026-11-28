@@ -36,6 +36,7 @@ final class HomeAlbumSlideshow {
     private boolean randomOrder;
 
     private final List<BufferedImage> images = new ArrayList<>();
+    private final List<HomeBubbleAnchor.Spec> anchors = new ArrayList<>();
     private int index;
     private BufferedImage outgoing;
     private long fadeStart;
@@ -60,6 +61,7 @@ final class HomeAlbumSlideshow {
 
     void reload() {
         images.clear();
+        anchors.clear();
         index = 0;
         outgoing = null;
         crossfading = false;
@@ -74,6 +76,7 @@ final class HomeAlbumSlideshow {
                 BufferedImage img = loadImage(path);
                 if (img != null) {
                     images.add(img);
+                    anchors.add(HomeAlbumAnchor.resolve(path, img));
                 }
             }
         } catch (IOException ignored) {
@@ -101,6 +104,18 @@ final class HomeAlbumSlideshow {
     int currentHeight() {
         BufferedImage img = currentImage();
         return img == null ? 1 : img.getHeight();
+    }
+
+    HomeBubbleAnchor.Spec currentAnchor() {
+        if (!active() || anchors.isEmpty()) {
+            return HomeBubbleAnchor.safeTopFallback();
+        }
+        int i = clampIndex(index);
+        if (i >= anchors.size()) {
+            return HomeBubbleAnchor.safeTopFallback();
+        }
+        HomeBubbleAnchor.Spec spec = anchors.get(i);
+        return spec == null ? HomeBubbleAnchor.safeTopFallback() : spec;
     }
 
     void paint(Graphics2D g, Rectangle content) {

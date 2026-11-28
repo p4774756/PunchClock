@@ -599,6 +599,19 @@ public final class AnimeShell extends JPanel {
         homeAlbum.settleDisplayForTests();
     }
 
+    HomeBubbleAnchor.Spec homeAlbumAnchorForTests() {
+        return homeAlbum.currentAnchor();
+    }
+
+    java.awt.Rectangle homeBubbleBoxForTests() {
+        return board.bubbleBoxForTests();
+    }
+
+    void showHomeBubbleImmediatelyForTests(String text) {
+        board.setReducedMotion(true);
+        board.setBubble(new HomeBubbleFormat.BubbleLine(text == null ? "" : text, false));
+    }
+
     java.awt.Rectangle homeCoverDrawRectInShellCoordsForTests() {
         java.awt.Rectangle content = contentBounds();
         java.awt.Rectangle draw;
@@ -831,7 +844,8 @@ public final class AnimeShell extends JPanel {
                     HomeIllustration.ROOM_B,
                     homeAlbum.currentWidth(),
                     homeAlbum.currentHeight(),
-                    swapIllustrationButton.getBounds());
+                    swapIllustrationButton.getBounds(),
+                    homeAlbum.currentAnchor());
         } else {
             BufferedImage background = homeIllustrations.get(homeIllustration);
             int imgW = background == null ? 1 : background.getWidth();
