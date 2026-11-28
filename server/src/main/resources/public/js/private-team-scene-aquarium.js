@@ -284,6 +284,12 @@ export function tickFloorAquarium(state, elapsed, reducedMotion) {
   }
 }
 
+/**
+ * 3D 泡澡腿會穿過桌板，並在下方玻璃水族箱露出鬼影腿（#907），預設關閉；
+ * 精靈圖腰以下交給水下淡出處理。
+ */
+export const PRIVATE_TEAM_BATH_LEGS_VISIBLE = false;
+
 /** 腿底停在水族箱沙面上方（沙在 tankBottom≈-3.08，腿在水中段懸空）。 */
 export const PRIVATE_TEAM_BATH_LEG_BOTTOM_Y = -1.05;
 /** 精靈圖有內容的底緣（腰臀／大腿裁切處）離圖片底邊的比例高度（占 SECRETARY_SPRITE_HEIGHT）。 */

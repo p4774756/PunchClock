@@ -185,6 +185,7 @@ import {
   tickFloorAquarium,
   addSecretaryBathLegs,
   syncSecretaryBathLegs,
+  PRIVATE_TEAM_BATH_LEGS_VISIBLE,
   applyTubFloorAquariumPeek,
   privateTeamBathWaterSurfaceOpacity
 } from './private-team-scene-aquarium.js';
@@ -1798,7 +1799,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (poseChanged && secretarySprite && secretarySprite.material && !divePlayback) {
         applyUnderwaterTint(secretarySprite.material, waterYUniform);
       }
-      if (bathLegsGroup) bathLegsGroup.visible = true;
+      if (bathLegsGroup) bathLegsGroup.visible = PRIVATE_TEAM_BATH_LEGS_VISIBLE;
     }
   };
   syncSecretaryPlacement();
