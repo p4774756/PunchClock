@@ -655,7 +655,7 @@ export function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
     panel,
     edge,
     animBase: { x, y: baseY, z },
-    floatSeed: privateTeamSeededRand(x, z) * Math.PI * 2
+    floatSeed: privateTeamSeededRand(Math.round(x * 1000) * 31 + Math.round(z * 1000))() * Math.PI * 2
   };
 }
 
