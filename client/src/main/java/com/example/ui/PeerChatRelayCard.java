@@ -68,8 +68,8 @@ public final class PeerChatRelayCard extends JPanel {
         north.add(detailLabel, BorderLayout.SOUTH);
 
         bar = TransferProgressDialog.createRelayProgressBar();
-        bar.setPreferredSize(new Dimension(280, 18));
-        bar.setMinimumSize(new Dimension(180, 18));
+        bar.setPreferredSize(new Dimension(280, 36));
+        bar.setMinimumSize(new Dimension(180, 36));
 
         statusLabel = label(" ", small, CandyTheme.MUTED);
 

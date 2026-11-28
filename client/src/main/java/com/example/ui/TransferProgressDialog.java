@@ -9,16 +9,11 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JProgressBar;
 import javax.swing.SwingUtilities;
-import javax.swing.plaf.basic.BasicProgressBarUI;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dialog;
 import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Insets;
-import java.awt.RenderingHints;
 import java.awt.Window;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -29,8 +24,8 @@ import java.awt.event.WindowEvent;
  */
 public final class TransferProgressDialog {
 
-    private static final Color TRACK = new Color(0x2C, 0x20, 0x4C);
-    private static final Color FILL = new Color(0xFF, 0x78, 0xB5);
+    private static final Color TRACK = PetWalkerProgressBarUI.TRACK;
+    private static final Color FILL = PetWalkerProgressBarUI.FILL;
     private static final Color BORDER = new Color(0x92, 0x75, 0xBD);
 
     /** 目前開著的傳檔／更新進度視窗；自動重啟更新前用來確認沒有傳檔進行中。 */
@@ -87,7 +82,7 @@ public final class TransferProgressDialog {
 
     private static JProgressBar createProgressBar() {
         JProgressBar progress = new JProgressBar(0, 1000);
-        progress.setUI(new VisibleProgressBarUI());
+        progress.setUI(new PetWalkerProgressBarUI());
         progress.setIndeterminate(true);
         progress.setStringPainted(false);
         progress.setBorderPainted(true);
@@ -95,8 +90,8 @@ public final class TransferProgressDialog {
         progress.setBackground(TRACK);
         progress.setForeground(FILL);
         progress.setBorder(BorderFactory.createLineBorder(BORDER));
-        progress.setPreferredSize(new Dimension(380, 22));
-        progress.setMinimumSize(new Dimension(280, 22));
+        progress.setPreferredSize(new Dimension(380, 40));
+        progress.setMinimumSize(new Dimension(280, 36));
         return progress;
     }
 
@@ -192,69 +187,4 @@ public final class TransferProgressDialog {
         });
     }
 
-    /** 跨平台可見的進度條（避開 macOS Aqua 幾乎透明的預設樣式）。 */
-    private static final class VisibleProgressBarUI extends BasicProgressBarUI {
-        @Override
-        protected void paintDeterminate(Graphics g, javax.swing.JComponent c) {
-            Insets b = progressBar.getInsets();
-            int width = progressBar.getWidth() - (b.right + b.left);
-            int height = progressBar.getHeight() - (b.top + b.bottom);
-            if (width <= 0 || height <= 0) {
-                return;
-            }
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int x = b.left;
-                int y = b.top;
-                g2.setColor(TRACK);
-                g2.fillRoundRect(x, y, width, height, 6, 6);
-                int amount = getAmountFull(b, width, height);
-                if (amount > 0) {
-                    g2.setColor(FILL);
-                    g2.fillRoundRect(x, y, Math.max(amount, Math.min(6, width)), height, 6, 6);
-                }
-                if (progressBar.isStringPainted()) {
-                    paintString(g2, x, y, width, height, amount, b);
-                }
-            } finally {
-                g2.dispose();
-            }
-        }
-
-        @Override
-        protected void paintIndeterminate(Graphics g, javax.swing.JComponent c) {
-            Insets b = progressBar.getInsets();
-            int width = progressBar.getWidth() - (b.right + b.left);
-            int height = progressBar.getHeight() - (b.top + b.bottom);
-            if (width <= 0 || height <= 0) {
-                return;
-            }
-            Graphics2D g2 = (Graphics2D) g.create();
-            try {
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                int x = b.left;
-                int y = b.top;
-                g2.setColor(TRACK);
-                g2.fillRoundRect(x, y, width, height, 6, 6);
-                boxRect = getBox(boxRect);
-                if (boxRect != null) {
-                    g2.setColor(FILL);
-                    g2.fillRoundRect(boxRect.x, boxRect.y, boxRect.width, boxRect.height, 6, 6);
-                }
-            } finally {
-                g2.dispose();
-            }
-        }
-
-        @Override
-        protected Color getSelectionForeground() {
-            return Color.WHITE;
-        }
-
-        @Override
-        protected Color getSelectionBackground() {
-            return new Color(30, 41, 59);
-        }
-    }
 }
