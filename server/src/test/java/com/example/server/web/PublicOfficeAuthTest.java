@@ -91,7 +91,8 @@ public class PublicOfficeAuthTest {
         assertFalse(response.body().toLowerCase().contains("island"));
         assertFalse(response.body().contains("神之島"));
         assertTrue(response.body().contains("tasksBoard"));
-        assertTrue(response.body().contains("dashboard.js"));
+        assertFalse(response.body().contains("dashboard.js"));
+        assertFalse(response.body().contains("dashboard.css"));
     }
 
     @Test
@@ -119,6 +120,16 @@ public class PublicOfficeAuthTest {
         assertEquals(200, home.statusCode());
         String cache = home.headers().firstValue("cache-control").orElse("");
         assertTrue(cache.contains("no-cache") || cache.contains("must-revalidate"));
+    }
+
+    @Test
+    public void staticJsAndCssAllowDayCache() throws Exception {
+        HttpResponse<String> js = send("GET", "/js/office-page.js", null);
+        assertEquals(200, js.statusCode());
+        assertTrue(js.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        HttpResponse<String> css = send("GET", "/css/lab-office.css", null);
+        assertEquals(200, css.statusCode());
+        assertTrue(css.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
     }
 
     @Test
@@ -161,8 +172,8 @@ public class PublicOfficeAuthTest {
         assertEquals("/?open=tasks", page.headers().firstValue("location").orElse(""));
         HttpResponse<String> home = send("GET", "/", adminCookie);
         assertEquals(200, home.statusCode());
-        assertTrue(home.body().contains("dashboard.js"));
-        assertTrue(home.body().contains("dash-tab.js"));
+        assertFalse(home.body().contains("dashboard.js"));
+        assertTrue(home.body().contains("office-page.js"));
         assertTrue(home.body().contains("clientContainer"));
         assertTrue(home.body().contains("panel-devices"));
         assertTrue(home.body().contains("tasksBoard"));

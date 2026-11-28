@@ -1,5 +1,7 @@
 /** 首頁「裝置」浮動視窗（外觀對齊 #roadmapBoard）。 */
 
+import { ensureHomeDashboardAssets } from './home-dashboard-loader.js';
+
 function prepareDevicesPanel(win) {
   const api = win && win.PunchclockHomeDevicesPanel;
   if (api && typeof api.prepare === 'function') api.prepare();
@@ -25,7 +27,11 @@ export function createHomeTasksController(opts) {
       root.hidden = !want;
       root.setAttribute('aria-hidden', want ? 'false' : 'true');
     }
-    if (want) prepareDevicesPanel(win);
+    if (want) {
+      ensureHomeDashboardAssets(win, doc)
+        .then(() => prepareDevicesPanel(win))
+        .catch(() => {});
+    }
     if (officeModal) {
       if (want) officeModal.notifyOpened('tasks', meta && meta.trigger);
       else if (!meta || !meta.silent) officeModal.notifyClosed('tasks');

@@ -52,7 +52,7 @@ public final class ServerApp {
 
     private static final BuildInfo BUILD_INFO = BuildInfo.load(ServerApp.class, "/server-build.properties");
     private static final String SERVER_VERSION = BUILD_INFO.version();
-    private static final String STATIC_JS_CSS_CACHE = "no-cache";
+    private static final String STATIC_JS_CSS_CACHE = "public, max-age=86400";
     private static final String PAGE_CACHE = "no-cache, must-revalidate";
     private static final long MAX_HTTP_REQUEST_BYTES = 64L * 1024L * 1024L;
 

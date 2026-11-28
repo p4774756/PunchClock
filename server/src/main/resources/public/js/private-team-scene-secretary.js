@@ -1,4 +1,4 @@
-import * as THREE from './vendor/three.module.js';
+import * as THREE from './vendor/three.module.min.js';
 
 export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
 export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typing-b.webp';

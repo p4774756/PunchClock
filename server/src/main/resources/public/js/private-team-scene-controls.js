@@ -1,4 +1,4 @@
-import * as THREE from './vendor/three.module.js';
+import * as THREE from './vendor/three.module.min.js';
 
 export const PRIVATE_TEAM_ZOOM_MIN = 0.72;
 export const PRIVATE_TEAM_ZOOM_MAX = 2.05;
