@@ -163,66 +163,6 @@ export {
   secretaryOutfitPreloadUrls,
   parseSecretaryOutfitId
 } from './private-team-secretary-outfit.js';
-function applyUnderwaterTint(mat, waterYUniform) {
-  mat.alphaTest = 0.02;
-  mat.onBeforeCompile = (shader) => {
-    shader.uniforms.uWaterY = waterYUniform;
-    shader.vertexShader = 'varying vec3 vWorldPos;\n' + shader.vertexShader.replace(
-      '#include <project_vertex>',
-      'vec4 worldPos = modelMatrix * vec4(transformed, 1.0);\n  vWorldPos = worldPos.xyz;\n  #include <project_vertex>'
-    );
-    shader.fragmentShader = 'uniform float uWaterY;\nvarying vec3 vWorldPos;\n' + shader.fragmentShader.replace(
-      '#include <dithering_fragment>',
-      [
-        '#include <dithering_fragment>',
-        'float sub = uWaterY - vWorldPos.y;',
-        'if (sub > 0.0) {',
-        '  float fade = smoothstep(0.0, 0.08, sub);',
-        '  gl_FragColor.rgb = mix(gl_FragColor.rgb, gl_FragColor.rgb * vec3(0.22, 0.48, 0.58), fade);',
-        '  gl_FragColor.a *= 1.0 - 0.97 * smoothstep(0.015, 0.12, sub);',
-        '  if (gl_FragColor.a < 0.03) discard;',
-        '}'
-      ].join('\n')
-    );
-  };
-  mat.customProgramCacheKey = () => 'secretary-underwater-tint-v2';
-}
-
-function addBathPillow(parent) {
-  if (parent.getObjectByName('bathPillow')) return;
-  const group = new THREE.Group();
-  group.name = 'bathPillow';
-  group.position.set(0.02, 0.44, -0.52);
-  function towelMat(color) {
-    return new THREE.MeshLambertMaterial({ color });
-  }
-  const cushion = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12), towelMat(COL.towel));
-  cushion.name = 'bathPillowCushion';
-  cushion.scale.set(1.12, 0.38, 0.86);
-  cushion.position.set(0, 0.06, 0.02);
-  cushion.rotation.x = 0.32;
-  const cushionDrape = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.2), towelMat(COL.towel));
-  cushionDrape.name = 'bathPillowCushionDrape';
-  cushionDrape.position.set(0.02, -0.02, 0.12);
-  cushionDrape.rotation.x = -0.55;
-  const roll = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.048, 0.062, 0.24, 14),
-    towelMat(COL.towelDk)
-  );
-  roll.name = 'bathPillowRoll';
-  roll.rotation.z = Math.PI / 2;
-  roll.position.set(0.08, 0.16, 0.06);
-  const foldA = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.06, 0.11), towelMat(COL.towelDk));
-  foldA.name = 'bathPillowFold';
-  foldA.position.set(-0.16, 0.05, 0.1);
-  foldA.rotation.set(0.42, -0.22, -0.28);
-  const foldB = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.14), towelMat(COL.towel));
-  foldB.name = 'bathPillowFoldB';
-  foldB.position.set(0.18, 0.03, 0.08);
-  foldB.rotation.set(0.18, 0.35, 0.22);
-  group.add(cushion, cushionDrape, roll, foldA, foldB);
-  parent.add(group);
-}
 
 function makeScreenPainter() {
   const canvas = document.createElement('canvas');

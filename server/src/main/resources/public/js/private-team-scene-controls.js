@@ -180,8 +180,9 @@ export function privateTeamYawMomentumTick(yaw, velRadPerMs, dtMs, canvasWidth, 
 }
 
 /** 上下俯仰上限（度，相對基準鏡頭 camBase→camLook）：上拉平視、下拉俯瞰 */
-export const PRIVATE_TEAM_PITCH_MAX_UP_DEG = 20;
-export const PRIVATE_TEAM_PITCH_MAX_DOWN_DEG = 14;
+export const PRIVATE_TEAM_PITCH_MAX_UP_DEG = 24;
+/** 加大下拉角度，讓鏡頭可探到地板下看水族箱 */
+export const PRIVATE_TEAM_PITCH_MAX_DOWN_DEG = 78;
 const PRIVATE_TEAM_PITCH_MAX_UP_RAD = (PRIVATE_TEAM_PITCH_MAX_UP_DEG * Math.PI) / 180;
 const PRIVATE_TEAM_PITCH_MAX_DOWN_RAD = (PRIVATE_TEAM_PITCH_MAX_DOWN_DEG * Math.PI) / 180;
 

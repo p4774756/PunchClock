@@ -292,6 +292,7 @@ export function stripUnderwaterTint(mat) {
   if (!mat) return;
   delete mat.onBeforeCompile;
   mat.customProgramCacheKey = () => 'meshbasic-vanilla';
+  mat.alphaTest = 0;
   mat.needsUpdate = true;
 }
 

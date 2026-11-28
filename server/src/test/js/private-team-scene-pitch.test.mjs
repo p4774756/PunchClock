@@ -15,8 +15,8 @@ const PITCH_UP_RAD = (PRIVATE_TEAM_PITCH_MAX_UP_DEG * Math.PI) / 180;
 const PITCH_DOWN_RAD = (PRIVATE_TEAM_PITCH_MAX_DOWN_DEG * Math.PI) / 180;
 
 test('俯仰角夾在上／下限內', () => {
-  assert.equal(PRIVATE_TEAM_PITCH_MAX_UP_DEG, 20);
-  assert.equal(PRIVATE_TEAM_PITCH_MAX_DOWN_DEG, 14);
+  assert.equal(PRIVATE_TEAM_PITCH_MAX_UP_DEG, 24);
+  assert.equal(PRIVATE_TEAM_PITCH_MAX_DOWN_DEG, 78);
   assert.equal(clampPrivateTeamPitch(0), 0);
   assert.ok(Math.abs(clampPrivateTeamPitch(PITCH_UP_RAD) - PITCH_UP_RAD) < 1e-9);
   assert.ok(Math.abs(clampPrivateTeamPitch(-PITCH_DOWN_RAD) + PITCH_DOWN_RAD) < 1e-9);
