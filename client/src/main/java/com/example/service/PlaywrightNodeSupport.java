@@ -216,7 +216,9 @@ public final class PlaywrightNodeSupport {
     }
 
     private static int parseChromiumRevision(String json) throws IOException {
-        Matcher matcher = Pattern.compile("\"chromium\"\\s*:\\s*\\{[^}]*\"revision\"\\s*:\\s*\"(\\d+)\"")
+        // browsers.json 是 { "browsers": [ { "name": "chromium", "revision": "1148", ... }, ... ] }
+        Matcher matcher = Pattern.compile(
+                        "\"name\"\\s*:\\s*\"chromium\"\\s*,[\\s\\S]{0,200}?\"revision\"\\s*:\\s*\"(\\d+)\"")
                 .matcher(json);
         if (!matcher.find()) {
             throw new IOException("找不到 Chromium revision");

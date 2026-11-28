@@ -126,4 +126,18 @@ public class PlaywrightNodeSupportTest {
         assertTrue(Files.isRegularFile(outDir.resolve("node")));
         assertTrue(Files.isRegularFile(outDir.resolve("package").resolve("cli.js")));
     }
+
+    @Test
+    public void readsChromiumRevisionFromBrowsersJsonArray() throws Exception {
+        Path dir = Files.createTempDirectory("pw-browsers-json").resolve("package");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("browsers.json"),
+                "{\n  \"browsers\": [\n"
+                        + "    {\n      \"name\": \"chromium\",\n      \"revision\": \"1148\",\n"
+                        + "      \"installByDefault\": true\n    },\n"
+                        + "    {\n      \"name\": \"chromium-headless-shell\",\n"
+                        + "      \"revision\": \"9999\"\n    }\n  ]\n}\n",
+                StandardCharsets.UTF_8);
+        assertEquals(1148, PlaywrightNodeSupport.readInstalledChromiumRevision(dir.getParent()));
+    }
 }
