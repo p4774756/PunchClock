@@ -135,10 +135,18 @@ java -jar client/target/SKLbaby.jar
 | ------ | ------ | -------- |
 | `PORT` | 監聽埠 | `3000` |
 | `HEARTBEAT_SECRET` | 心跳 Bearer | `punchclock-dev-secret` |
-| `ADMIN_PASSWORD` | 主控台密碼 | `secret` |
+| `ADMIN_PASSWORD` | 主控台密碼（本機可明文；Render 須為 bcrypt 雜湊） | `secret` |
 | `PUNCHCLOCK_GITHUB_TOKEN` | 選填；Release 查詢與施工進度 API | （空） |
 
-生產環境請修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。
+生產環境請修改 `HEARTBEAT_SECRET` 與 `ADMIN_PASSWORD`。Render 上 `ADMIN_PASSWORD` 不可為明文或開發預設值，須先在本機產生 bcrypt 雜湊後寫入 Render（`render.yaml` 維持 `sync: false`，雜湊勿 commit）：
+
+```bash
+mvn -q -pl server -am -DskipTests test-compile org.codehaus.mojo:exec-maven-plugin:3.5.0:java \
+  -Dexec.classpathScope=test -Dexec.mainClass=com.example.server.auth.AdminPasswordHashCli \
+  -Dexec.args='你的密碼'
+```
+
+`HEARTBEAT_SECRET` 仍為裝置用 Bearer token（明文），格式本次不變。部署後站長須重新登入（舊固定 cookie 會失效）。
 
 ## 開發
 

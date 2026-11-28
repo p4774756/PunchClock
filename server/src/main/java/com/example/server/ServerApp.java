@@ -188,7 +188,8 @@ public final class ServerApp {
         } else {
             System.out.println("- Client release: none (GitHub)");
         }
-        System.out.println("- Admin password: " + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env" : "default (secret)"));
+        System.out.println("- Admin password: "
+                + (System.getenv("ADMIN_PASSWORD") != null ? "from ADMIN_PASSWORD env (bcrypt)" : "default dev (secret)"));
         System.out.println("- JVM heap max: " + (Runtime.getRuntime().maxMemory() / (1024L * 1024L)) + " MB");
         return app;
     }
@@ -278,7 +279,7 @@ public final class ServerApp {
         String password = ctx.formParam("password");
         if (authService.checkAdminPassword(password)) {
             authService.clearLoginAttempt(ip);
-            setAuthCookie(ctx, authService.authCookieValue());
+            setAuthCookie(ctx, authService.createSessionToken());
             if (json) {
                 ctx.status(HttpStatus.OK).json(Map.of("success", true));
                 return;
@@ -336,6 +337,7 @@ public final class ServerApp {
     }
 
     private void logout(Context ctx) {
+        authService.revokeSession(ctx.cookie("auth"));
         clearAuthCookie(ctx);
         ctx.redirect("/");
     }

@@ -35,6 +35,10 @@ Worker 走 HTTP 心跳。主控台以 REST 下指令，WebSocket `/ws/dashboard`
 
 下載頁與首頁下載浮窗僅提供 `SKLbaby.jar` 下載連結；使用者需自行安裝 Java 11 或以上後執行 jar。
 
+## 環境變數（Render）
+
+`ADMIN_PASSWORD` 在正式環境必須是 bcrypt 雜湊；產生方式見根目錄 `README.md` 的 `AdminPasswordHashCli` 說明。登入鎖定依可信 IP（`CF-Connecting-IP` 或 `punchclock.trustProxy`）與全站上限；鎖定狀態目前僅記憶體，重啟後歸零。
+
 ## 測試
 
 ```bash
