@@ -212,7 +212,7 @@ const SPRITE_IDLE_TEA = '/assets/private-team/secretary-idle-tea.webp';
 const SPRITE_SLEEP = '/assets/private-team/secretary-sleep.webp';
 const SPRITE_SOFA = '/assets/private-team/secretary-sofa.webp';
 
-/** 秘書狀態對應立繪（工作中浴缸打字；待命／休息出浴沙發，素材缺失時場景回退浴缸立繪）。 */
+/** 秘書狀態對應立繪（工作中浴缸打字；待命／休息坐休憩區沙發，素材缺失時場景改用站姿立繪仍留沙發位）。 */
 export function secretarySpriteUrlForStatus(status) {
   const s = status == null ? '' : String(status).trim();
   if (s.startsWith('工作中')) return SPRITE_TYPING;

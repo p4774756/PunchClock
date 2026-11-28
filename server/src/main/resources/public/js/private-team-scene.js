@@ -236,7 +236,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.02;
+  renderer.toneMappingExposure = 1.2;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   function scenePixelRatio() {
@@ -346,9 +346,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   const lighting = privateTeamSceneLighting(windowVistaPeriod);
   scene.background = new THREE.Color(lighting.background);
   const amb = new THREE.AmbientLight(lighting.ambColor, lighting.amb);
-  const dir = new THREE.DirectionalLight(lighting.dirColor, lighting.dir + 0.06);
+  const hemi = new THREE.HemisphereLight(0xe4eeff, 0x6a7078, lighting.hemi);
+  const dir = new THREE.DirectionalLight(lighting.dirColor, lighting.dir + 0.08);
   dir.position.set(1.4, 6.2, -7.5);
-  scene.add(amb, dir);
+  scene.add(amb, hemi, dir);
 
   const texLoader = new THREE.TextureLoader();
   const wallTex = loadRepeatTex(texLoader, 'wall.webp', 2.2, 1.4);
@@ -360,9 +361,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   const marbleTex = makeMarbleFloorTexture(2.2, 2.2);
   const floorMat = new THREE.MeshStandardMaterial({
     map: marbleTex,
-    color: 0xb8babf,
-    roughness: 0.74,
-    metalness: 0.035
+    color: 0xd6dae2,
+    roughness: 0.46,
+    metalness: 0.06
   });
   const floor = extrudedRoundedPlate(FLOOR_HALF, FLOOR_HALF, 0.035, 0.08, floorMat);
   floor.position.y = 0;
@@ -1075,8 +1076,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     windowVistaPeriod = period;
     amb.color.setHex(lt.ambColor);
     amb.intensity = lt.amb;
+    hemi.intensity = lt.hemi;
     dir.color.setHex(lt.dirColor);
-    dir.intensity = lt.dir + 0.06;
+    dir.intensity = lt.dir + 0.08;
     if (scene.background && scene.background.isColor) {
       scene.background.setHex(lt.background);
     }
@@ -1407,10 +1409,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(bubble);
 
   syncSecretaryPlacement = function syncSecretaryPlacementImpl() {
-    const wantLounge =
-      !dancePlayback &&
-      secretaryAtLoungePose(tigerStatus, secretarySofaSpriteOk) &&
-      isSecretarySofaSpriteUrl(statusBaseUrl);
+    const wantLounge = !dancePlayback && secretaryAtLoungePose(tigerStatus, true);
     secretaryInLoungePose = wantLounge;
     if (wantLounge) {
       secretaryRoot.position.set(

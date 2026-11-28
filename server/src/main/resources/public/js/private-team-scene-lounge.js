@@ -11,7 +11,8 @@ export const SECRETARY_BUBBLE_TUB = { x: 0.56, z: 0.72 };
 export const SECRETARY_BUBBLE_SOFA = { x: 1.18, z: 0.35 };
 
 export function secretaryAtLoungePose(status, sofaSpriteOk) {
-  return !!sofaSpriteOk && isLoungeTigerStatus(status);
+  void sofaSpriteOk;
+  return isLoungeTigerStatus(status);
 }
 
 export function vinylShouldSpin(status, reducedMotion) {
@@ -26,12 +27,12 @@ export function makeMarbleFloorTexture(repeatX, repeatY) {
   canvas.width = 256;
   canvas.height = 256;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#1c1e22';
+  ctx.fillStyle = '#3a3f48';
   ctx.fillRect(0, 0, 256, 256);
   const rand = privateTeamSeededRand(7541);
   for (let i = 0; i < 18; i++) {
     const gold = i % 4 === 0;
-    ctx.strokeStyle = gold ? 'rgba(168, 148, 98, 0.22)' : 'rgba(175, 188, 205, 0.16)';
+    ctx.strokeStyle = gold ? 'rgba(198, 178, 128, 0.32)' : 'rgba(205, 218, 235, 0.24)';
     ctx.lineWidth = 0.8 + rand() * 2.4;
     ctx.beginPath();
     let x = rand() * 256;
@@ -111,6 +112,24 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   const sofaArmR = box(0.12, 0.32, 0.44, 0x7a4a28);
   sofaArmR.position.set(1.38, 0.22, -0.1);
   root.add(sofaArmR);
+
+  const sofaLamp = new THREE.Group();
+  sofaLamp.name = 'sofaFloorLamp';
+  sofaLamp.position.set(1.36, 0, -0.36);
+  const sfBase = cyl(0.055, 0.062, 0.025, 10, COL.lampBase);
+  sfBase.position.set(0, 0.012, 0);
+  sofaLamp.add(sfBase);
+  const sfPole = cyl(0.014, 0.014, 0.62, 8, COL.lampMetal);
+  sfPole.position.set(0, 0.34, 0);
+  sofaLamp.add(sfPole);
+  const sfShade = cyl(0.14, 0.17, 0.11, 14, COL.lampShade);
+  sfShade.position.set(0, 0.66, 0);
+  sofaLamp.add(sfShade);
+  const sfBulb = new THREE.PointLight(0xffc888, 0.62, 2.4, 2);
+  sfBulb.position.set(0, 0.58, 0);
+  sfBulb.name = 'sofaFloorLampBulb';
+  sofaLamp.add(sfBulb);
+  root.add(sofaLamp);
 
   addMonstera(root, 0.78, -0.42);
 

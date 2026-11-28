@@ -176,7 +176,7 @@ test('休憩區狀態與黑膠旋轉、地板大理石', async () => {
   assert.equal(vinylShouldSpin('工作中', false), false);
   assert.equal(vinylShouldSpin('休息中', true), false);
   assert.equal(secretaryAtLoungePose('待命中', true), true);
-  assert.equal(secretaryAtLoungePose('待命中', false), false);
+  assert.equal(secretaryAtLoungePose('待命中', false), true);
   assert.equal(
     secretaryTubFallbackUrlForStatus('休息中'),
     '/assets/private-team/secretary-sleep.webp'
