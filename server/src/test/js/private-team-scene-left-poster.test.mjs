@@ -52,7 +52,7 @@ test('左牆海報靜態資源與場景掛載', () => {
   assert.match(src, /ensurePosterTexture/);
   assert.match(src, /LEFT_POSTER_MARGIN = 0\.07/);
   assert.match(src, /LEFT_POSTER_W = FLOOR_SIZE \* \(1 - 2 \* LEFT_POSTER_MARGIN\)/);
-  assert.match(src, /leftPosterGroup\.position\.set\(leftX \+ WALL_THICK \+ 0\.01, wallY, 0\)/);
+  assert.match(src, /leftPosterGroup\.position\.set\(leftX \+ WALL_THICK \+ 0\.02, wallY, 0\)/);
   assert.match(src, /brassPic/);
 });
 
@@ -82,4 +82,19 @@ test('左牆畫燈：兩盞向下 SpotLight、燈罩 emissive、可見光錐', (
   assert.match(block, /posterPicLampCone/);
   assert.match(block, /AdditiveBlending/);
   assert.match(block, /LEFT_POSTER_H \* 0\.26/);
+});
+
+test('左牆壁畫：分離月光洗牆與畫布深度，避免手機 z-fighting 整片閃爍', () => {
+  const src = sceneSrc;
+  assert.match(src, /windowMoonlightLeftWall\.position\.set\(leftX \+ WALL_THICK \+ 0\.006/);
+  assert.match(src, /windowMoonlightLeftWall\.renderOrder = 1/);
+  assert.match(src, /posterPlane\.position\.set\(0, 0, 0\.036\)/);
+  assert.match(src, /posterPlane\.renderOrder = 3/);
+  assert.match(src, /polygonOffset:\s*true/);
+  assert.match(src, /picLampCone\.renderOrder = 5/);
+  const start = src.indexOf("leftPosterGroup.name = 'leftWallPoster'");
+  const end = src.indexOf('root.add(leftPosterGroup)');
+  const block = src.slice(start, end);
+  assert.doesNotMatch(block, /,\s*0\.018\s*\)/);
+  assert.match(block, /,\s*0\.01\s*\)/);
 });
