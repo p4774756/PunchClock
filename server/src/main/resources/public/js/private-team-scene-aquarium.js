@@ -59,6 +59,161 @@ export function applyTubFloorAquariumPeek(tubFloorMesh) {
   tubFloorMesh.material.depthWrite = false;
 }
 
+/* ---------- 魚群（InstancedMesh：身體／尾鰭／背鰭各 1 個 draw call） ---------- */
+export const PRIVATE_TEAM_FISH_SCHOOLS = [
+  { count: 6, color: 0xff8a2a, size: 1, y: -0.95, cx: -0.3, cz: 0.1, ax: 1.0, az: 0.7, w: 0.42, spread: 0.2, phase: 0.4 },
+  { count: 5, color: 0x3aa8ff, size: 0.9, y: -1.75, cx: 0.3, cz: 0.0, ax: 1.1, az: 0.8, w: 0.36, spread: 0.22, phase: 2.2 },
+  { count: 4, color: 0xffd814, size: 0.75, y: -2.4, cx: 0.0, cz: 0.2, ax: 1.2, az: 0.6, w: 0.5, spread: 0.18, phase: 4.1 },
+  { count: 1, color: 0xff4a3a, size: 1.7, y: -1.3, cx: 0.1, cz: -0.1, ax: 0.8, az: 0.9, w: 0.26, spread: 0, phase: 1.3 },
+  { count: 1, color: 0xf2f2f8, size: 1.5, y: -2.05, cx: -0.2, cz: 0.1, ax: 0.9, az: 0.8, w: 0.3, spread: 0, phase: 5.4 }
+];
+const FISH_L = 0.12;
+const FISH_H = 0.056;
+const FISH_W = 0.034;
+const _fm = new THREE.Matrix4();
+const _fb = new THREE.Matrix4();
+const _fq = new THREE.Quaternion();
+const _fe = new THREE.Euler();
+const _fp = new THREE.Vector3();
+const _fs = new THREE.Vector3();
+const _fc = new THREE.Color();
+
+export function buildFish(group) {
+  const fishGroup = new THREE.Group();
+  fishGroup.name = 'aquariumFish';
+  const total = PRIVATE_TEAM_FISH_SCHOOLS.reduce((n, s) => n + s.count, 0);
+  const bodyGeo = new THREE.SphereGeometry(1, 10, 7);
+  const tailGeo = new THREE.ConeGeometry(1, 1, 3, 1);
+  tailGeo.rotateZ(-Math.PI / 2);
+  tailGeo.translate(-0.5, 0, 0);
+  const finGeo = new THREE.ConeGeometry(1, 1, 3, 1);
+  finGeo.translate(0, 0.5, 0);
+  const mat = () => new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, toneMapped: false });
+  const body = new THREE.InstancedMesh(bodyGeo, mat(), total);
+  const tail = new THREE.InstancedMesh(tailGeo, mat(), total);
+  const fin = new THREE.InstancedMesh(finGeo, mat(), total);
+  body.name = 'aquariumFishBody';
+  tail.name = 'aquariumFishTail';
+  fin.name = 'aquariumFishFin';
+  const members = [];
+  let idx = 0;
+  for (let si = 0; si < PRIVATE_TEAM_FISH_SCHOOLS.length; si++) {
+    const s = PRIVATE_TEAM_FISH_SCHOOLS[si];
+    for (let k = 0; k < s.count; k++) {
+      const r1 = ((si * 31 + k * 17) % 13) / 13 - 0.5;
+      const r2 = ((si * 19 + k * 23) % 11) / 11 - 0.5;
+      const r3 = ((si * 7 + k * 29) % 17) / 17 - 0.5;
+      members.push({ si, off: [r1 * 2 * s.spread, r2 * s.spread, r3 * 2 * s.spread], phase: (k * 1.7 + si) % 6.28 });
+      _fc.set(s.color);
+      body.setColorAt(idx, _fc);
+      _fc.multiplyScalar(0.9);
+      tail.setColorAt(idx, _fc);
+      fin.setColorAt(idx, _fc);
+      idx++;
+    }
+  }
+  [body, tail, fin].forEach((m) => {
+    m.frustumCulled = false;
+    m.instanceColor.needsUpdate = true;
+    fishGroup.add(m);
+  });
+  group.add(fishGroup);
+  return { group: fishGroup, body, tail, fin, members };
+}
+
+export function updateFish(fish, t) {
+  if (!fish) return;
+  for (let i = 0; i < fish.members.length; i++) {
+    const m = fish.members[i];
+    const s = PRIVATE_TEAM_FISH_SCHOOLS[m.si];
+    const a = t * s.w + s.phase;
+    const b = t * s.w * 0.77 + s.phase * 1.3;
+    const lx = s.cx + s.ax * Math.sin(a);
+    const lz = 0.04 + s.cz + s.az * Math.sin(b);
+    const vx = s.ax * s.w * Math.cos(a);
+    const vz = s.az * s.w * 0.77 * Math.cos(b);
+    const yaw = Math.atan2(-vz, vx) + Math.sin(t * 0.9 + m.phase) * 0.12;
+    const breathe = 1 + 0.18 * Math.sin(t * 0.6 + m.phase);
+    _fp.set(
+      lx + m.off[0] * breathe,
+      s.y + m.off[1] + Math.sin(t * 0.8 + m.phase) * 0.05,
+      lz + m.off[2] * breathe
+    );
+    _fe.set(0, yaw, Math.sin(t * 1.3 + m.phase) * 0.05);
+    _fq.setFromEuler(_fe);
+    _fm.compose(_fp, _fq, _fs.set(1, 1, 1));
+    const z = s.size;
+    _fb.makeScale(FISH_L * z, FISH_H * z, FISH_W * z);
+    fish.body.setMatrixAt(i, _fb.premultiply(_fm));
+    const wag = Math.sin(t * 8 + m.phase * 3) * 0.5;
+    _fe.set(0, wag, 0);
+    _fq.setFromEuler(_fe);
+    _fb.compose(_fp.set(-FISH_L * z * 0.85, 0, 0), _fq, _fs.set(FISH_L * z * 0.9, FISH_H * z * 1.3, FISH_W * z * 0.5));
+    fish.tail.setMatrixAt(i, _fb.premultiply(_fm));
+    _fb.makeScale(FISH_L * z * 0.55, FISH_H * z * 0.75, FISH_W * z * 0.35).setPosition(-FISH_L * z * 0.1, FISH_H * z * 0.8, 0);
+    fish.fin.setMatrixAt(i, _fb.premultiply(_fm));
+  }
+  fish.body.instanceMatrix.needsUpdate = true;
+  fish.tail.instanceMatrix.needsUpdate = true;
+  fish.fin.instanceMatrix.needsUpdate = true;
+}
+
+/* ---------- 水草（錐形葉片，頂點隨時間輕輕擺動） ---------- */
+export const PRIVATE_TEAM_SEAWEED_CLUMPS = [
+  [-1.45, 0.9], [-1.2, -0.8], [-0.6, 1.15], [0.5, 1.2], [1.3, 0.9],
+  [1.45, -0.3], [1.0, -1.1], [-0.1, -1.15], [-1.5, 0.1]
+];
+
+export function buildSeaweed(group, tankBottom) {
+  const mats = [
+    new THREE.MeshLambertMaterial({ color: 0x2e8a52, emissive: 0x145a34, emissiveIntensity: 0.4, side: THREE.DoubleSide }),
+    new THREE.MeshLambertMaterial({ color: 0x4aa84a, emissive: 0x1c5a22, emissiveIntensity: 0.4, side: THREE.DoubleSide })
+  ];
+  const blades = [];
+  for (let ci = 0; ci < PRIVATE_TEAM_SEAWEED_CLUMPS.length; ci++) {
+    const [gx, gz] = PRIVATE_TEAM_SEAWEED_CLUMPS[ci];
+    for (let bi = 0; bi < 3; bi++) {
+      const h = 0.7 + (((ci * 37 + bi * 17) % 10) / 10) * 1.2;
+      const w = 0.07 + (bi % 2) * 0.02;
+      const geo = new THREE.PlaneGeometry(w, h, 1, 7);
+      geo.translate(0, h / 2, 0);
+      const pos = geo.attributes.position;
+      for (let vi = 0; vi < pos.count; vi++) {
+        pos.setX(vi, pos.getX(vi) * (1 - 0.6 * (pos.getY(vi) / h)));
+      }
+      const mesh = new THREE.Mesh(geo, mats[(ci + bi) % 2]);
+      mesh.position.set(gx + (bi - 1) * 0.07, tankBottom + 0.02, 0.04 + gz + ((bi * 5) % 3 - 1) * 0.04);
+      mesh.rotation.y = ci * 0.9 + bi * 1.7;
+      mesh.name = 'aquariumSeagrass' + blades.length;
+      mesh.userData.sway = {
+        base: Float32Array.from(pos.array),
+        h,
+        phase: ci * 0.8 + bi * 1.9,
+        amp: 0.1 + (bi % 3) * 0.03
+      };
+      group.add(mesh);
+      blades.push(mesh);
+    }
+  }
+  return blades;
+}
+
+export function swaySeaweed(blades, t) {
+  if (!blades) return;
+  for (let bi = 0; bi < blades.length; bi++) {
+    const mesh = blades[bi];
+    const { base, h, phase, amp } = mesh.userData.sway;
+    const pos = mesh.geometry.attributes.position;
+    for (let vi = 0; vi < pos.count; vi++) {
+      const y = base[vi * 3 + 1];
+      const k = (y / h) * (y / h);
+      pos.setX(vi, base[vi * 3] + Math.sin(t * 1.3 + phase + y * 1.9) * amp * k);
+      pos.setZ(vi, Math.cos(t * 0.9 + phase + y * 1.5) * amp * 0.5 * k);
+    }
+    pos.needsUpdate = true;
+  }
+}
+
 export function buildFloorAquarium(root, waterY) {
   const group = new THREE.Group();
   group.name = 'floorAquarium';
@@ -160,26 +315,7 @@ export function buildFloorAquarium(root, waterY) {
     group.add(cone);
     coralGeos.push(cone);
   }
-  const grassMat = new THREE.MeshLambertMaterial({
-    color: 0x2e7a48,
-    emissive: 0x144830,
-    emissiveIntensity: 0.32
-  });
-  const grassBases = [
-    [-0.55, 0.55],
-    [0.42, 0.62],
-    [-0.2, -0.35]
-  ];
-  const seagrass = [];
-  for (let gi = 0; gi < grassBases.length; gi++) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.028, 0.2, 0.012), grassMat);
-    const [gx, gz] = grassBases[gi];
-    blade.position.set(gx, tankBottom + 0.1, 0.04 + gz);
-    blade.rotation.z = (gi - 1) * 0.18;
-    blade.name = 'aquariumSeagrass' + gi;
-    group.add(blade);
-    seagrass.push(blade);
-  }
+  const seagrass = buildSeaweed(group, tankBottom);
 
   const causticsTex = makeBathtubCausticsTexture();
   const causticsMat = new THREE.MeshBasicMaterial({
@@ -223,37 +359,15 @@ export function buildFloorAquarium(root, waterY) {
   waterVol.renderOrder = 2;
   sand.renderOrder = 1;
 
-  const fishGroup = new THREE.Group();
-  fishGroup.name = 'aquariumFish';
-  const fishMat = new THREE.MeshBasicMaterial({ color: 0xf4c878 });
-  const fishBodies = [];
-  const fishSeeds = [
-    { x: -0.45, z: 0.2, phase: 0.1, y: -0.7 },
-    { x: 0.35, z: -0.15, phase: 1.7, y: -1.3 },
-    { x: -0.15, z: 0.55, phase: 2.9, y: -1.9 },
-    { x: 0.7, z: 0.4, phase: 4.2, y: -2.4 },
-    { x: -0.8, z: -0.5, phase: 5.1, y: -2.8 },
-    { x: 0.9, z: -0.45, phase: 3.3, y: -1.6 }
-  ];
-  for (let fi = 0; fi < fishSeeds.length; fi++) {
-    const f = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.028, 0.1), fishMat);
-  const tail = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.018, 0.04), fishMat);
-    tail.position.set(-0.038, 0, 0);
-    const g = new THREE.Group();
-    g.add(f, tail);
-    g.position.set(fishSeeds[fi].x, fishSeeds[fi].y, 0.04 + fishSeeds[fi].z);
-    g.name = 'aquariumFish' + fi;
-    fishGroup.add(g);
-    fishBodies.push({ group: g, seed: fishSeeds[fi], baseX: fishSeeds[fi].x, baseZ: fishSeeds[fi].z });
-  }
-  group.add(fishGroup);
+  const fish = buildFish(group);
+  updateFish(fish, 0);
 
   root.add(group);
   return {
     group,
     causticsTex,
     causticsMat,
-    fishBodies,
+    fish,
     seagrass,
     aquaGlow,
     underGlow,
@@ -272,16 +386,8 @@ export function tickFloorAquarium(state, elapsed, reducedMotion) {
     }
   }
   if (reducedMotion) return;
-  for (let fi = 0; fi < state.fishBodies.length; fi++) {
-    const f = state.fishBodies[fi];
-    const t = elapsed * 0.45 + f.seed.phase;
-    f.group.position.x = f.baseX + Math.sin(t) * 0.28;
-    f.group.position.z = 0.04 + f.baseZ + Math.cos(t * 0.85) * 0.22;
-    f.group.rotation.y = Math.sin(t * 1.2) * 0.6;
-  }
-  for (let gi = 0; gi < state.seagrass.length; gi++) {
-    state.seagrass[gi].rotation.x = Math.sin(elapsed * 1.4 + gi) * 0.12;
-  }
+  updateFish(state.fish, elapsed);
+  swaySeaweed(state.seagrass, elapsed);
 }
 
 /**
