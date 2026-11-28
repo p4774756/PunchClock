@@ -29,7 +29,12 @@ import {
   pickNextStandbyIdleUrl,
   shouldIgnoreStandbyIdleSpriteUpdate,
   isSecretaryStandbyIdleUrl,
-  isStandbyTigerStatus
+  isStandbyTigerStatus,
+  isWorkingTigerStatus,
+  isLoungeTigerStatus,
+  SECRETARY_SPRITE_URL_SOFA,
+  secretaryTubFallbackUrlForStatus,
+  isSecretarySofaSpriteUrl
 } from './private-team-scene-secretary.js';
 
 import {
@@ -108,6 +113,7 @@ import {
   addWindowSillHandheld,
   addLowPolyPlant,
   applyUnderwaterTint,
+  stripUnderwaterTint,
   extrudedRoundedPlate,
   extrudedRoundedRing,
   FLOOR_SIZE,
@@ -121,6 +127,19 @@ import {
   PRIVATE_TEAM_LEFT_POSTER_IDX_KEY,
   parseLeftPosterIndex
 } from './private-team-scene-room.js';
+
+import {
+  makeMarbleFloorTexture,
+  addLoungeFurnishings,
+  tickVinylSpin,
+  SECRETARY_TUB_POSITION,
+  SECRETARY_SOFA_POSITION,
+  SECRETARY_SHADOW_TUB,
+  SECRETARY_SHADOW_SOFA,
+  SECRETARY_BUBBLE_TUB,
+  SECRETARY_BUBBLE_SOFA,
+  secretaryAtLoungePose
+} from './private-team-scene-lounge.js';
 
 export {
   SECRETARY_SPRITE_URL_TYPING,
@@ -143,6 +162,11 @@ export {
   secretaryCelebrateFrameUrlAt,
   secretaryCelebrateJumpOffsetAt,
   isStandbyTigerStatus,
+  isWorkingTigerStatus,
+  isLoungeTigerStatus,
+  SECRETARY_SPRITE_URL_SOFA,
+  secretaryTubFallbackUrlForStatus,
+  isSecretarySofaSpriteUrl,
   shouldTriggerIdleStandbyDance,
   secretaryTypingDisplayUrl,
   isSecretaryStandbyIdleUrl,
@@ -328,13 +352,18 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const texLoader = new THREE.TextureLoader();
   const wallTex = loadRepeatTex(texLoader, 'wall.webp', 2.2, 1.4);
-  const floorTex = loadRepeatTex(texLoader, 'floor-wood.webp', 2.4, 2.4);
   const deskTex = loadRepeatTex(texLoader, 'desk-wood.webp', 2.2, 1.2);
 
   const root = new THREE.Group();
   scene.add(root);
 
-  const floorMat = new THREE.MeshLambertMaterial({ map: floorTex, color: 0xffffff });
+  const marbleTex = makeMarbleFloorTexture(2.2, 2.2);
+  const floorMat = new THREE.MeshStandardMaterial({
+    map: marbleTex,
+    color: 0xb8babf,
+    roughness: 0.74,
+    metalness: 0.035
+  });
   const floor = extrudedRoundedPlate(FLOOR_HALF, FLOOR_HALF, 0.035, 0.08, floorMat);
   floor.position.y = 0;
   root.add(floor);
@@ -701,6 +730,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(windowSillMugSteam);
 
   const windowSillHandheld = addWindowSillHandheld(root, sillY, sillZ, sillMugX);
+
+  const loungeFurnishing = addLoungeFurnishings(root, texLoader, { backZ, winBottom });
+  const vinylDisc = loungeFurnishing.vinylDisc;
+  const vinylNotes = loungeFurnishing.vinylNotes;
 
   const moonTex = makeWindowMoonlightFloorTexture();
   moonTex.repeat.set(1.1, 1);
@@ -1073,8 +1106,13 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   addLowPolyPlant(root, -1.15, 0.82);
 
+  const bathPillowTubAnchor = new THREE.Group();
+  bathPillowTubAnchor.position.set(SECRETARY_TUB_POSITION.x, 0, SECRETARY_TUB_POSITION.z);
+  root.add(bathPillowTubAnchor);
+  addBathPillow(bathPillowTubAnchor);
+
   const secretaryRoot = new THREE.Group();
-  secretaryRoot.position.set(0.02, 0, 0.56);
+  secretaryRoot.position.set(SECRETARY_TUB_POSITION.x, SECRETARY_TUB_POSITION.y, SECRETARY_TUB_POSITION.z);
   root.add(secretaryRoot);
 
   const shadowMat = new THREE.MeshBasicMaterial({
@@ -1084,10 +1122,13 @@ export function mountPrivateTeamScene(canvas, opts) {
   });
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1.16, 0.6), shadowMat);
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.set(0.06, 0.072, -0.42);
+  shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
   shadow.renderOrder = 1;
   secretaryRoot.add(shadow);
-  addBathPillow(secretaryRoot);
+
+  let secretarySofaSpriteOk = false;
+  let secretaryInLoungePose = false;
+  let syncSecretaryPlacement = () => {};
 
   let secretarySprite = null;
   const spriteBaseY = SECRETARY_SPRITE_HEIGHT / 2 + 0.02;
@@ -1162,12 +1203,25 @@ export function mountPrivateTeamScene(canvas, opts) {
           disposeUnusedSpriteTexture(tex);
           return;
         }
+        if (isSecretarySofaSpriteUrl(next)) {
+          secretarySofaSpriteOk = true;
+        }
         if (secretarySprite) retextureSecretarySprite(tex, next);
         else mountSecretarySprite(tex, next);
+        syncSecretaryPlacement();
       },
       undefined,
       () => {
-        if (seq === spriteLoadSeq) desiredSpriteUrl = currentSpriteUrl;
+        if (seq !== spriteLoadSeq) return;
+        desiredSpriteUrl = currentSpriteUrl;
+        if (isSecretarySofaSpriteUrl(next)) {
+          secretarySofaSpriteOk = false;
+          const fallback = secretaryTubFallbackUrlForStatus(tigerStatus);
+          if (fallback && fallback !== next) {
+            applySecretarySpriteUrl(fallback);
+          }
+        }
+        syncSecretaryPlacement();
       }
     );
   }
@@ -1185,6 +1239,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     dancePlayback = null;
     danceDisplayFrame = -1;
     refreshSecretaryDisplay();
+    syncSecretaryPlacement();
   }
 
   function playSecretaryDance(now) {
@@ -1194,6 +1249,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     overlayActive = null;
     overlayPending = null;
     dancePlayback = { startMs: t };
+    syncSecretaryPlacement();
     danceDisplayFrame = -1;
     const url = secretaryCelebrateFrameUrlAt(0);
     if (url) applySecretarySpriteUrl(url);
@@ -1213,6 +1269,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       standbySinceMs = null;
       lastIdleRotateMs = null;
     }
+    syncSecretaryPlacement();
   }
 
   function endSecretaryOverlay(now) {
@@ -1320,6 +1377,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     lastTypingFlipMs = performance.now();
     refreshPoseAnimMode();
     refreshSecretaryDisplay();
+    syncSecretaryPlacement();
   }
 
   refreshPoseAnimMode();
@@ -1341,6 +1399,44 @@ export function mountPrivateTeamScene(canvas, opts) {
   bubble.name = 'secretaryBubble';
   bubble.userData.pickRole = 'secretary';
   root.add(bubble);
+
+  syncSecretaryPlacement = function syncSecretaryPlacementImpl() {
+    const wantLounge =
+      !dancePlayback &&
+      secretaryAtLoungePose(tigerStatus, secretarySofaSpriteOk) &&
+      isSecretarySofaSpriteUrl(statusBaseUrl);
+    secretaryInLoungePose = wantLounge;
+    if (wantLounge) {
+      secretaryRoot.position.set(
+        SECRETARY_SOFA_POSITION.x,
+        SECRETARY_SOFA_POSITION.y,
+        SECRETARY_SOFA_POSITION.z
+      );
+      secretaryRoot.rotation.y = -0.42;
+      shadow.position.set(
+        SECRETARY_SHADOW_SOFA.x,
+        SECRETARY_SHADOW_SOFA.y,
+        SECRETARY_SHADOW_SOFA.z
+      );
+      bubble.position.set(SECRETARY_BUBBLE_SOFA.x, bubble.position.y, SECRETARY_BUBBLE_SOFA.z);
+      if (secretarySprite && secretarySprite.material) {
+        stripUnderwaterTint(secretarySprite.material);
+      }
+    } else {
+      secretaryRoot.position.set(
+        SECRETARY_TUB_POSITION.x,
+        SECRETARY_TUB_POSITION.y,
+        SECRETARY_TUB_POSITION.z
+      );
+      secretaryRoot.rotation.y = 0;
+      shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
+      bubble.position.set(secretaryBubbleX, bubble.position.y, SECRETARY_BUBBLE_TUB.z);
+      if (secretarySprite && secretarySprite.material) {
+        applyUnderwaterTint(secretarySprite.material, waterYUniform);
+      }
+    }
+  };
+  syncSecretaryPlacement();
 
   const clickables = [windowSillHandheld.group, bubble, leftPosterGroup];
   for (let wi = 0; wi < windowVistaClickables.length; wi++) {
@@ -1787,6 +1883,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         }
       }
     } else if (
+      !secretaryInLoungePose &&
       shouldTriggerIdleStandbyDance({
         status: tigerStatus,
         standbySinceMs,
@@ -1815,6 +1912,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       !overlayActive &&
       !dancePlayback &&
       !reducedMotion &&
+      !secretaryInLoungePose &&
       isStandbyTigerStatus(tigerStatus) &&
       isSecretaryStandbyIdleUrl(statusBaseUrl) &&
       lastIdleRotateMs != null &&
@@ -1970,6 +2068,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     syncWindowVistaParallax();
+
+    tickVinylSpin(vinylDisc, vinylNotes, tigerStatus, reducedMotion, elapsed, frameDt * 0.001);
 
     bubble.lookAt(camera.position);
     lampHalo.lookAt(camera.position);

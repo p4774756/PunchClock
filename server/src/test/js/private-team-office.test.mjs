@@ -130,9 +130,9 @@ test('hasNewCompletedToday 僅在新鍵出現時', () => {
 test('secretarySpriteUrlForStatus 對應三張立繪', () => {
   assert.equal(secretarySpriteUrlForStatus('工作中'), '/assets/private-team/secretary-typing-a.webp');
   assert.equal(secretarySpriteUrlForStatus('工作中 ×3'), '/assets/private-team/secretary-typing-a.webp');
-  assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-idle-tea.webp');
-  assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-idle-tea.webp');
-  assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sleep.webp');
+  assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-sofa.webp');
+  assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-sofa.webp');
+  assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sofa.webp');
 });
 
 test('bubbleTextForStatus 僅三態與工作中倍數', () => {

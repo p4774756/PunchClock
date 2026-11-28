@@ -155,6 +155,45 @@ test('慶祝小跳高點時間軸與 jumpOffset、換貼圖保留 Y', () => {
   assert.doesNotMatch(danceBranch, /position\.y/);
 });
 
+test('休憩區狀態與黑膠旋轉、地板大理石', async () => {
+  const {
+    isWorkingTigerStatus,
+    isLoungeTigerStatus,
+    secretaryTubFallbackUrlForStatus,
+    SECRETARY_SPRITE_URL_SOFA
+  } = await loadPublicModule('private-team-scene-secretary.js');
+  const {
+    vinylShouldSpin,
+    secretaryAtLoungePose,
+    SECRETARY_SOFA_POSITION,
+    SECRETARY_TUB_POSITION
+  } = await loadPublicModule('private-team-scene-lounge.js');
+  assert.equal(isWorkingTigerStatus('工作中 ×2'), true);
+  assert.equal(isWorkingTigerStatus('待命中'), false);
+  assert.equal(isLoungeTigerStatus('休息中'), true);
+  assert.equal(isLoungeTigerStatus('工作中'), false);
+  assert.equal(vinylShouldSpin('待命中', false), true);
+  assert.equal(vinylShouldSpin('工作中', false), false);
+  assert.equal(vinylShouldSpin('休息中', true), false);
+  assert.equal(secretaryAtLoungePose('待命中', true), true);
+  assert.equal(secretaryAtLoungePose('待命中', false), false);
+  assert.equal(
+    secretaryTubFallbackUrlForStatus('休息中'),
+    '/assets/private-team/secretary-sleep.webp'
+  );
+  assert.equal(
+    secretaryTubFallbackUrlForStatus('待命中'),
+    '/assets/private-team/secretary-idle-tea.webp'
+  );
+  assert.notDeepEqual(SECRETARY_SOFA_POSITION, SECRETARY_TUB_POSITION);
+  const src = sceneSrc;
+  assert.doesNotMatch(src, /floor-wood\.webp/);
+  assert.match(src, /floorMat = new THREE\.MeshStandardMaterial/);
+  assert.match(src, /syncSecretaryPlacement/);
+  assert.match(src, /SECRETARY_SPRITE_URL_SOFA|secretary-sofa\.webp/);
+  assert.equal(SECRETARY_SPRITE_URL_SOFA, '/assets/private-team/secretary-sofa.webp');
+});
+
 test('待命閒置起舞條件', () => {
   const now = 1_000_000;
   const base = {
