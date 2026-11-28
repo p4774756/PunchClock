@@ -63,7 +63,10 @@ import {
   PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT,
   PRIVATE_TEAM_PITCH_MAX_UP_DEG,
   PRIVATE_TEAM_PITCH_MAX_DOWN_DEG,
-  clampPrivateTeamPitch
+  clampPrivateTeamPitch,
+  PRIVATE_TEAM_SCENE_TARGET_FPS,
+  privateTeamSceneRenderDue,
+  privateTeamSceneAnimationPaused
 } from './private-team-scene-controls.js';
 
 import {
@@ -180,6 +183,9 @@ export {
   privateTeamPitchFromDragDelta,
   privateTeamPitchDragVelocityRadPerMs,
   privateTeamPitchMomentumTick,
+  PRIVATE_TEAM_SCENE_TARGET_FPS,
+  privateTeamSceneRenderDue,
+  privateTeamSceneAnimationPaused,
   privateTeamSceneLighting,
   privateTeamCandleFlickerMultiplier,
   PRIVATE_TEAM_WINDOW_TEXTURE_URLS,
@@ -1628,6 +1634,15 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   let running = true;
   let animationPaused = false;
+  let pageHidden = !!(doc && doc.hidden);
+  let lastRenderMs = 0;
+  function onVisibilityChange() {
+    if (!doc) return;
+    pageHidden = !!(doc.hidden || doc.visibilityState !== 'visible');
+  }
+  if (doc && typeof doc.addEventListener === 'function') {
+    doc.addEventListener('visibilitychange', onVisibilityChange);
+  }
   if (typeof win.matchMedia === 'function') {
     const mq = win.matchMedia('(prefers-reduced-motion: reduce)');
     reducedMotion = !!mq.matches;
@@ -1690,9 +1705,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   function tick(now) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
+    if (privateTeamSceneAnimationPaused(animationPaused, pageHidden)) return;
+    if (!privateTeamSceneRenderDue(lastRenderMs, now, PRIVATE_TEAM_SCENE_TARGET_FPS)) return;
     const frameDt = lastFrameMs ? now - lastFrameMs : 0;
     lastFrameMs = now;
-    if (animationPaused) return;
     if (dancePlayback) {
       const elapsed = now - dancePlayback.startMs;
       if (elapsed >= SECRETARY_DANCE_DURATION_MS) {
@@ -1897,6 +1913,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     lampHalo.lookAt(camera.position);
 
     renderer.render(scene, camera);
+    lastRenderMs = now;
   }
 
   resize();
@@ -1940,6 +1957,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     destroy() {
       running = false;
       win.cancelAnimationFrame(raf);
+      if (doc && typeof doc.removeEventListener === 'function') {
+        doc.removeEventListener('visibilitychange', onVisibilityChange);
+      }
       win.removeEventListener('resize', resize);
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);

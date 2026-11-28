@@ -323,6 +323,14 @@ export function addBathPillow(parent) {
   parent.add(group);
 }
 
+export const MONITOR_SCREEN_PULSE_STEPS = 28;
+
+export function quantizeMonitorScreenPulse(pulse) {
+  const p = Number(pulse);
+  if (!Number.isFinite(p)) return 0;
+  return Math.round(p * MONITOR_SCREEN_PULSE_STEPS) / MONITOR_SCREEN_PULSE_STEPS;
+}
+
 export function makeScreenPainter() {
   const canvas = document.createElement('canvas');
   canvas.width = 160;
@@ -333,14 +341,18 @@ export function makeScreenPainter() {
   const mat = new THREE.MeshBasicMaterial({ map: tex });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.38), mat);
   mesh.position.z = 0.04;
+  let lastDrawnPulse = null;
   function draw(pulse) {
+    const q = quantizeMonitorScreenPulse(pulse);
+    if (q === lastDrawnPulse) return;
+    lastDrawnPulse = q;
     ctx.fillStyle = '#121a2c';
     ctx.fillRect(0, 0, 160, 110);
     const glow = '#b9e2ff';
-    ctx.fillStyle = 'rgba(94, 186, 255, ' + (0.45 + pulse * 0.45) + ')';
+    ctx.fillStyle = 'rgba(94, 186, 255, ' + (0.45 + q * 0.45) + ')';
     ctx.fillRect(12, 14, 136, 82);
     ctx.fillStyle = glow;
-    const slide = (pulse * 28) | 0;
+    const slide = (q * MONITOR_SCREEN_PULSE_STEPS) | 0;
     ctx.fillRect(22, 26, 48 + slide, 10);
     ctx.fillRect(22, 46, 90, 8);
     ctx.fillRect(22, 64, 62 + (18 - slide / 2), 8);
