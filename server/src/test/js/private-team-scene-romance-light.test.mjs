@@ -6,7 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { loadPublicModule, readPrivateTeamSceneBundle } from './load-public-module.mjs';
 
 const sceneSrc = readPrivateTeamSceneBundle();
-const { privateTeamCandleFlickerMultiplier } = await loadPublicModule('private-team-scene.js');
+const { privateTeamCandleFlickerMultiplier, privateTeamSceneLighting } =
+  await loadPublicModule('private-team-scene.js');
 
 test('紫藍月光、窗框影子、水光、燭火與暖色洗牆', () => {
   const src = sceneSrc;
@@ -21,6 +22,13 @@ test('紫藍月光、窗框影子、水光、燭火與暖色洗牆', () => {
   assert.match(src, /windowMoonlightWall/);
   assert.match(src, /rgba\(16,22,52/);
   assert.doesNotMatch(src, /shadowMap\.enabled\s*=\s*true/);
+});
+
+test('白天窗光收斂、地毯月光洗地不再過亮', () => {
+  const day = privateTeamSceneLighting('day');
+  assert.ok(day.floorWash < 0.35);
+  assert.ok(day.dir + (day.dirBoost || 0) < 0.5);
+  assert.ok(day.galleryMul < 0.2);
 });
 
 test('蠟燭閃爍在 reducedMotion 時趨於穩定', () => {
