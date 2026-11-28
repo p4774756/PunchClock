@@ -236,7 +236,7 @@ export function addPrivateTeamGalleryLighting(root, layout) {
       distance: 4.2,
       angle: Math.PI / 6.8,
       penumbra: 0.58,
-      poolRadius: 0.42
+      poolRadius: 0 // 目標在牆上：不在地板打光圈，避免地面出現零散亮斑
     }),
     addSpotWithPool(root, {
       name: 'galleryAccentSpotBathtub',
@@ -278,7 +278,7 @@ export function addPrivateTeamGalleryLighting(root, layout) {
       distance: 4.4,
       angle: Math.PI / 6.2,
       penumbra: 0.62,
-      poolRadius: 0.38
+      poolRadius: 0 // 目標在窗邊櫃上，同上
     })
   ];
 

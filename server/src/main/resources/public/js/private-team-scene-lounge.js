@@ -5,7 +5,8 @@ import {
   loadRepeatTex,
   COL,
   roundedRectShape,
-  extrudedRoundedPlate
+  extrudedRoundedPlate,
+  lampGlowTexture
 } from './private-team-scene-room.js';
 import { privateTeamSeededRand } from './private-team-scene-window.js';
 import { isLoungeTigerStatus, isWorkingTigerStatus, parseSecretaryOutfitId } from './private-team-scene-secretary.js';
@@ -576,17 +577,48 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   sfPole.position.set(0, 0.46, 0);
   sofaLamp.add(sfPole);
   const sfShade = cyl(0.1, 0.18, 0.22, 16, COL.lampShade);
-  sfShade.material.emissive = new THREE.Color(0x7a5424);
-  sfShade.material.emissiveIntensity = 0.55;
+  sfShade.material.emissive = new THREE.Color(0xffb85c);
+  sfShade.material.emissiveIntensity = 1.25;
   sfShade.position.set(0, 0.96, 0);
   sofaLamp.add(sfShade);
   const sfCap = cyl(0.03, 0.03, 0.03, 8, COL.lampMetal);
   sfCap.position.set(0, 1.09, 0);
   sofaLamp.add(sfCap);
-  const sfBulb = new THREE.PointLight(0xffc888, 0.62, 2.4, 2);
-  sfBulb.position.set(0, 0.88, 0);
+  const sfBulb = new THREE.PointLight(0xffc27a, 2.1, 3.4, 1.8);
+  sfBulb.position.set(0.12, 0.92, 0.05);
   sfBulb.name = 'sofaFloorLampBulb';
   sofaLamp.add(sfBulb);
+  // 看得出「亮著」：燈罩外圈柔光暈＋沙發／地板上一圈暖色光池（加法混色，便宜）。
+  const sfHalo = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: lampGlowTexture(),
+      color: 0xffb25a,
+      transparent: true,
+      opacity: 0.6,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  sfHalo.scale.set(0.8, 0.8, 1);
+  sfHalo.position.set(0, 0.96, 0);
+  sfHalo.name = 'sofaFloorLampHalo';
+  sofaLamp.add(sfHalo);
+  const sfPool = new THREE.Mesh(
+    new THREE.CircleGeometry(0.55, 28),
+    new THREE.MeshBasicMaterial({
+      map: lampGlowTexture(),
+      color: 0xffa850,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  sfPool.rotation.x = -Math.PI / 2;
+  sfPool.position.set(0.28, 0.06, 0.05);
+  sfPool.renderOrder = 2;
+  sfPool.name = 'sofaFloorLampPool';
+  sofaLamp.add(sfPool);
   root.add(sofaLamp);
 
   addMonstera(root, LOUNGE_MONSTERA_POSITION.x, LOUNGE_MONSTERA_POSITION.z);
