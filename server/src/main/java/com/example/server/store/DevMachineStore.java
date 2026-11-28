@@ -181,24 +181,67 @@ public final class DevMachineStore {
 
     private final ConcurrentHashMap<String, Snapshot> byMachine = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, GraceHold> graceByMachine = new ConcurrentHashMap<>();
+    private static final long AGENT_SESSION_RESTART_MS = 5_000L;
+
     private final Clock clock;
     private final OfficeDevStartStore devStartStore;
+    private final OfficeIssueAgentWorkStore agentWorkStore;
+    private final ConcurrentHashMap<String, OpenAgentWork> openAgentByMachine = new ConcurrentHashMap<>();
+
+    static final class OpenAgentWork {
+        final int issue;
+        final long startMs;
+
+        OpenAgentWork(int issue, long startMs) {
+            this.issue = issue;
+            this.startMs = startMs;
+        }
+    }
 
     public DevMachineStore() {
-        this(System::currentTimeMillis, new OfficeDevStartStore(OfficeDevStartStore.defaultFile()));
+        this(System::currentTimeMillis,
+                new OfficeDevStartStore(OfficeDevStartStore.defaultFile()),
+                new OfficeIssueAgentWorkStore(OfficeIssueAgentWorkStore.defaultFile()));
     }
 
     public DevMachineStore(Clock clock) {
-        this(clock, new OfficeDevStartStore(null));
+        this(clock, new OfficeDevStartStore(null), new OfficeIssueAgentWorkStore(null));
     }
 
     DevMachineStore(Clock clock, OfficeDevStartStore devStartStore) {
+        this(clock, devStartStore, new OfficeIssueAgentWorkStore(null));
+    }
+
+    DevMachineStore(Clock clock, OfficeDevStartStore devStartStore, OfficeIssueAgentWorkStore agentWorkStore) {
         this.clock = clock == null ? System::currentTimeMillis : clock;
         this.devStartStore = devStartStore == null ? new OfficeDevStartStore(null) : devStartStore;
+        this.agentWorkStore = agentWorkStore == null ? new OfficeIssueAgentWorkStore(null) : agentWorkStore;
     }
 
     public Long recordedDevStart(int issue) {
         return devStartStore == null ? null : devStartStore.earliestDevStart(issue);
+    }
+
+    public Long recordedAgentWorkMinutes(int issue) {
+        return agentWorkStore == null ? null : agentWorkStore.agentWorkMinutes(issue);
+    }
+
+    public void closeOpenAgentWorkForIssue(int issue, long endMs) {
+        if (agentWorkStore == null || issue <= 0 || endMs <= 0) {
+            return;
+        }
+        long end = normalizeAgentEpochMillis(endMs);
+        List<String> done = new ArrayList<>();
+        for (Map.Entry<String, OpenAgentWork> entry : openAgentByMachine.entrySet()) {
+            OpenAgentWork open = entry.getValue();
+            if (open != null && open.issue == issue) {
+                agentWorkStore.addClosedSegment(issue, open.startMs, end);
+                done.add(entry.getKey());
+            }
+        }
+        for (String machine : done) {
+            openAgentByMachine.remove(machine);
+        }
     }
 
     public static boolean isAllowedMachine(String machine) {
@@ -277,7 +320,120 @@ public final class DevMachineStore {
         );
         byMachine.put(machine, next);
         recordDevStarts(parsed);
+        recordAgentWork(machine, now, previous, parsed);
         return ApplyResult.OK;
+    }
+
+    private void recordAgentWork(String machine, long now, Snapshot previous, Parsed parsed) {
+        if (agentWorkStore == null || parsed == null) {
+            return;
+        }
+        OpenAgentWork open = openAgentByMachine.get(machine);
+        boolean wasRunning = previous != null && previous.agentRunning;
+        Integer issue = resolveAgentIssue(parsed);
+        Long sessionStart = sessionStartMs(parsed, issue);
+        if (parsed.agentRunning && issue != null && issue > 0) {
+            boolean fresh = !wasRunning;
+            if (!fresh && open != null && open.issue != issue) {
+                closeOpenAgentWork(machine, open, now);
+                open = null;
+                fresh = true;
+            }
+            if (!fresh && open != null && sessionStart != null) {
+                long normStart = normalizeAgentEpochMillis(sessionStart);
+                if (normStart > open.startMs + AGENT_SESSION_RESTART_MS) {
+                    closeOpenAgentWork(machine, open, now);
+                    open = null;
+                    fresh = true;
+                }
+            }
+            if (fresh) {
+                long start = sessionStart != null ? normalizeAgentEpochMillis(sessionStart) : now;
+                if (start > now) {
+                    start = now;
+                }
+                openAgentByMachine.put(machine, new OpenAgentWork(issue, start));
+            }
+            return;
+        }
+        if (open != null) {
+            closeOpenAgentWork(machine, open, now);
+            openAgentByMachine.remove(machine);
+        } else if (wasRunning && issue != null && issue > 0) {
+            Long start = sessionStart != null ? normalizeAgentEpochMillis(sessionStart) : null;
+            if (start == null && previous != null) {
+                start = previous.runStartedAt != null ? normalizeAgentEpochMillis(previous.runStartedAt)
+                        : previous.lastSeen;
+            }
+            if (start != null && start < now) {
+                agentWorkStore.addClosedSegment(issue, start, now);
+            }
+        }
+    }
+
+    private void closeOpenAgentWork(String machine, OpenAgentWork open, long endMs) {
+        if (open == null || agentWorkStore == null) {
+            return;
+        }
+        agentWorkStore.addClosedSegment(open.issue, open.startMs, endMs);
+    }
+
+    private static Integer resolveAgentIssue(Parsed parsed) {
+        if (parsed.issue != null && parsed.issue > 0) {
+            return parsed.issue;
+        }
+        if (parsed.runs == null || parsed.runs.isEmpty()) {
+            return null;
+        }
+        int picked = 0;
+        long latestStart = Long.MIN_VALUE;
+        for (RunEntry run : parsed.runs) {
+            if (run == null || run.issue <= 0) {
+                continue;
+            }
+            long st = run.startedAt == null ? 0L : run.startedAt;
+            if (st >= latestStart) {
+                latestStart = st;
+                picked = run.issue;
+            }
+        }
+        return picked > 0 ? picked : null;
+    }
+
+    private static Long sessionStartMs(Parsed parsed, Integer issue) {
+        if (parsed.stageStartedAt != null && parsed.stageStartedAt > 0) {
+            return parsed.stageStartedAt;
+        }
+        if (parsed.runStartedAt != null && parsed.runStartedAt > 0) {
+            return parsed.runStartedAt;
+        }
+        if (parsed.runs == null || parsed.runs.isEmpty()) {
+            return null;
+        }
+        long best = Long.MAX_VALUE;
+        for (RunEntry run : parsed.runs) {
+            if (run == null || run.startedAt == null || run.startedAt <= 0) {
+                continue;
+            }
+            if (issue != null && issue > 0 && run.issue != issue) {
+                continue;
+            }
+            best = Math.min(best, run.startedAt);
+        }
+        return best == Long.MAX_VALUE ? null : best;
+    }
+
+    private static long normalizeAgentEpochMillis(long value) {
+        if (value <= 0) {
+            return value;
+        }
+        if (value >= 1_000_000_000_000L) {
+            return value;
+        }
+        if (value >= 1_000_000_000L) {
+            return value * 1000L;
+        }
+        return value;
     }
 
     private void recordDevStarts(Parsed parsed) {

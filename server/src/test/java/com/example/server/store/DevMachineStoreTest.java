@@ -308,6 +308,59 @@ public class DevMachineStoreTest {
         assertEquals(DevMachineStore.ApplyResult.BAD_BODY, store.applyHeartbeat("tiger", body));
     }
 
+    @Test
+    public void accumulatesAgentWorkAcrossSessions() {
+        AtomicLong clock = new AtomicLong(100_000L);
+        DevMachineStore store = new DevMachineStore(clock::get);
+        Map<String, Object> start = new HashMap<>();
+        start.put("machine", "tiger");
+        start.put("issue", 880);
+        start.put("branch", "ai/issue-880");
+        start.put("agentRunning", true);
+        start.put("runStartedAt", 100_000L);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", start));
+
+        clock.set(100_000L + 5 * 60_000L);
+        Map<String, Object> stop = new HashMap<>();
+        stop.put("machine", "tiger");
+        stop.put("agentRunning", false);
+        assertEquals(DevMachineStore.ApplyResult.OK, store.applyHeartbeat("tiger", stop));
+        assertEquals(Long.valueOf(5L), store.recordedAgentWorkMinutes(880));
+
+        clock.set(200_000L);
+        Map<String, Object> again = new HashMap<>();
+        again.put("machine", "tiger");
+        again.put("issue", 880);
+        again.put("branch", "ai/issue-880");
+        again.put("agentRunning", true);
+        again.put("runStartedAt", 200_000L);
+        store.applyHeartbeat("tiger", again);
+        clock.set(200_000L + 8 * 60_000L);
+        Map<String, Object> stop2 = new HashMap<>();
+        stop2.put("machine", "tiger");
+        stop2.put("agentRunning", false);
+        store.applyHeartbeat("tiger", stop2);
+        assertEquals(Long.valueOf(13L), store.recordedAgentWorkMinutes(880));
+    }
+
+    @Test
+    public void recordsAgentWorkWithFixedOfficeClock() {
+        DevMachineStore store = new DevMachineStore(() -> 9_000_000L);
+        long agentStart = 9_000_000L - 15 * 60_000L;
+        Map<String, Object> work = new HashMap<>();
+        work.put("machine", "tiger");
+        work.put("issue", 810);
+        work.put("branch", "ai/issue-810");
+        work.put("agentRunning", true);
+        work.put("runStartedAt", agentStart);
+        store.applyHeartbeat("tiger", work);
+        Map<String, Object> idle = new HashMap<>();
+        idle.put("machine", "tiger");
+        idle.put("agentRunning", false);
+        store.applyHeartbeat("tiger", idle);
+        assertEquals(Long.valueOf(15L), store.recordedAgentWorkMinutes(810));
+    }
+
     private static Map<String, Object> payload(String machine, Integer issue, String branch, long runStartedAt) {
         Map<String, Object> m = new HashMap<>();
         m.put("machine", machine);

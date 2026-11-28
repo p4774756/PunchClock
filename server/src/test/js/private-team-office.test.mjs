@@ -19,7 +19,9 @@ const {
   isSafePublicText,
   phraseForDoneDisplay,
   titleForDoneDisplay,
-  formatDoneDuration,
+  formatAiWorkDuration,
+  formatMergeSpanDuration,
+  renderCompletedList,
   phraseForActiveDisplay,
   renderActiveBlock,
   progressSegmentsForActive,
@@ -169,12 +171,33 @@ test('titleForDoneDisplay 只用公開標題', () => {
   assert.equal(phraseForDoneDisplay({ title: '相容別名' }), '相容別名');
 });
 
-test('formatDoneDuration 耗時字樣', () => {
-  assert.equal(formatDoneDuration(12), '耗時 12 分');
-  assert.equal(formatDoneDuration(72), '耗時 1 時 12 分');
-  assert.equal(formatDoneDuration(60), '耗時 1 時');
-  assert.equal(formatDoneDuration(0), '耗時 < 1 分');
-  assert.equal(formatDoneDuration(16_666_620), '');
+test('formatAiWorkDuration 與開單到合併字樣', () => {
+  assert.equal(formatAiWorkDuration(12), 'AI 工作 12 分');
+  assert.equal(formatAiWorkDuration(0), '');
+  assert.equal(formatAiWorkDuration(72), 'AI 工作 1 時 12 分');
+  assert.equal(formatMergeSpanDuration(72), '開單到合併 1 時 12 分');
+  assert.equal(formatMergeSpanDuration(60), '開單到合併 1 時');
+  assert.equal(formatMergeSpanDuration(16_666_620), '');
+});
+
+test('renderCompletedList 缺 AI 工時只顯示開單到合併', () => {
+  const doc = {
+    createElement(tag) {
+      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '' };
+      node.appendChild = (c) => { node.childNodes.push(c); return c; };
+      node.setAttribute = () => {};
+      return node;
+    }
+  };
+  const oldOnly = renderCompletedList(doc, [{ issue: 1, durationMinutes: 30 }], {});
+  const oldFlat = JSON.stringify(oldOnly);
+  assert.ok(oldFlat.includes('開單到合併 30 分'));
+  assert.ok(!oldFlat.includes('AI 工作'));
+  const both = renderCompletedList(doc, [{ issue: 2, aiWorkMinutes: 8, durationMinutes: 90 }], {});
+  const bothFlat = JSON.stringify(both);
+  assert.ok(bothFlat.includes('AI 工作 8 分'));
+  assert.ok(bothFlat.includes('pt-status-done-span'));
+  assert.ok(bothFlat.includes('開單到合併 1 時 30 分'));
 });
 
 test('phraseForActiveDisplay 空泛句改標題', () => {

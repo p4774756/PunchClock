@@ -597,6 +597,13 @@ public final class OfficePublicRoutes {
                 if (devStart == null && pull.createdAt > 0) {
                     devStart = normalizeOfficeEpochMillis(pull.createdAt);
                 }
+                if (store != null) {
+                    store.closeOpenAgentWorkForIssue(issue, pull.mergedAt);
+                }
+                Long aiWorkMinutes = store == null ? null : store.recordedAgentWorkMinutes(issue);
+                if (aiWorkMinutes != null) {
+                    row.put("aiWorkMinutes", aiWorkMinutes);
+                }
                 Long durationMinutes = devDurationMinutes(pull.mergedAt, devStart);
                 if (durationMinutes != null) {
                     row.put("durationMinutes", durationMinutes);

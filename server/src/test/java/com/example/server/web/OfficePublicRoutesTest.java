@@ -428,6 +428,54 @@ public class OfficePublicRoutesTest {
         JsonObject item = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
                 .getAsJsonArray("completedToday").get(0).getAsJsonObject();
         assertEquals(72, item.get("durationMinutes").getAsLong());
+        assertFalse(item.has("aiWorkMinutes"));
+    }
+
+    @Test
+    public void completedTodayShowsAiWorkWhenAgentSessionsRecorded() throws Exception {
+        ZoneId taipei = ZoneId.of("Asia/Taipei");
+        long now = 9_000_000L;
+        long devStart = 1_000_000L;
+        long mergedAt = devStart + 72 * 60_000L;
+        long dayStart = Instant.ofEpochMilli(now).atZone(taipei).toLocalDate()
+                .atStartOfDay(taipei).toInstant().toEpochMilli();
+        assertTrue(mergedAt >= dayStart);
+        status = new DevStatusService(repo -> githubWithIssue(810, "AI 工時",
+                new DevStatusModels.PullRow(811, "pr", false, false, true, devStart, 0, mergedAt, null,
+                        new HashSet<>(Collections.singletonList(810)))));
+        startApp();
+
+        Map<String, Object> devMark = new HashMap<>();
+        devMark.put("issue", 810);
+        devMark.put("round", 0);
+        devMark.put("branch", "ai/issue-810");
+        devMark.put("startedAt", devStart);
+        devMark.put("role", "dev");
+        Map<String, Object> markBody = new LinkedHashMap<>();
+        markBody.put("machine", "tiger");
+        markBody.put("agentRunning", false);
+        markBody.put("runs", Collections.singletonList(devMark));
+        store.applyHeartbeat("tiger", markBody);
+
+        long agentStart = now - 15 * 60_000L;
+        Map<String, Object> work = new LinkedHashMap<>();
+        work.put("machine", "tiger");
+        work.put("issue", 810);
+        work.put("branch", "ai/issue-810");
+        work.put("agentRunning", true);
+        work.put("runStartedAt", agentStart);
+        store.applyHeartbeat("tiger", work);
+
+        Map<String, Object> idle = new LinkedHashMap<>();
+        idle.put("machine", "tiger");
+        idle.put("agentRunning", false);
+        store.applyHeartbeat("tiger", idle);
+        assertEquals(Long.valueOf(15L), store.recordedAgentWorkMinutes(810));
+
+        JsonObject item = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("completedToday").get(0).getAsJsonObject();
+        assertEquals(72, item.get("durationMinutes").getAsLong());
+        assertEquals(15, item.get("aiWorkMinutes").getAsLong());
     }
 
     @Test

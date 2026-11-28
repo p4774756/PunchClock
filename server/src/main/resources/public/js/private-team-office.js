@@ -286,15 +286,25 @@ export function phraseForDoneDisplay(row) {
 
 const MAX_DONE_DURATION_MINUTES = 30 * 24 * 60;
 
-export function formatDoneDuration(minutes) {
+function formatDoneMinutes(minutes, prefix) {
   const m = Number(minutes);
   if (!Number.isFinite(m) || m < 0 || m > MAX_DONE_DURATION_MINUTES) return '';
-  if (m === 0) return '耗時 < 1 分';
-  if (m < 60) return '耗時 ' + m + ' 分';
+  if (m === 0) return prefix + ' < 1 分';
+  if (m < 60) return prefix + ' ' + m + ' 分';
   const hours = Math.floor(m / 60);
   const rem = m % 60;
-  if (rem === 0) return '耗時 ' + hours + ' 時';
-  return '耗時 ' + hours + ' 時 ' + rem + ' 分';
+  if (rem === 0) return prefix + ' ' + hours + ' 時';
+  return prefix + ' ' + hours + ' 時 ' + rem + ' 分';
+}
+
+export function formatAiWorkDuration(minutes) {
+  const m = Number(minutes);
+  if (!Number.isFinite(m) || m < 1) return '';
+  return formatDoneMinutes(minutes, 'AI 工作');
+}
+
+export function formatMergeSpanDuration(minutes) {
+  return formatDoneMinutes(minutes, '開單到合併');
 }
 
 const ACTIVE_DISPLAY_FALLBACK = '正在處理一項工作';
@@ -505,11 +515,16 @@ export function renderCompletedList(doc, items, ui) {
     if (!row || typeof row !== 'object') return;
     const li = el(doc, 'li', 'pt-status-done-item');
     const clock = formatOfficeClock(row.at);
-    const duration = formatDoneDuration(row.durationMinutes);
-    if (clock || duration) {
+    const aiWork = formatAiWorkDuration(row.aiWorkMinutes);
+    const mergeSpan = formatMergeSpanDuration(row.durationMinutes);
+    if (clock || aiWork || mergeSpan) {
       const head = el(doc, 'div', 'pt-status-done-head');
       if (clock) head.appendChild(el(doc, 'span', 'pt-status-done-time', clock));
-      if (duration) head.appendChild(el(doc, 'span', 'pt-status-done-duration', duration));
+      if (aiWork) head.appendChild(el(doc, 'span', 'pt-status-done-duration', aiWork));
+      else if (mergeSpan) head.appendChild(el(doc, 'span', 'pt-status-done-duration', mergeSpan));
+      if (aiWork && mergeSpan) {
+        head.appendChild(el(doc, 'span', 'pt-status-done-span', mergeSpan));
+      }
       li.appendChild(head);
     }
     const title = titleForDoneDisplay(row);
