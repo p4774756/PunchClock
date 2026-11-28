@@ -88,9 +88,21 @@ export function layoutAuthMenuInViewport(doc, win, menuEl, taskBtnEl, marginPx) 
 }
 
 export const GUEST_MONITOR_HINT_TEXT = '請先從左上角登入';
-const GUEST_MONITOR_HINT_MS = 4000;
+export const GUEST_MONITOR_HINT_MS = 4000;
+export const GUEST_MONITOR_HINT_TOAST_CLASS = 'pt-guest-hint-toast';
+export const GUEST_MONITOR_HINT_PULSE_CLASS = 'pt-hud-task--hint-pulse';
 
 let guestMonitorHintDismiss = null;
+let guestMonitorHintTimer = null;
+let guestMonitorHintClear = null;
+
+function clearGuestMonitorHintTimer() {
+  if (guestMonitorHintTimer != null && typeof guestMonitorHintClear === 'function') {
+    guestMonitorHintClear(guestMonitorHintTimer);
+  }
+  guestMonitorHintTimer = null;
+  guestMonitorHintClear = null;
+}
 
 function createScenePlaceholder() {
   const noop = () => {};
@@ -116,6 +128,7 @@ function removeDomNode(node) {
 }
 
 export function dismissGuestMonitorHintToast(doc) {
+  clearGuestMonitorHintTimer();
   if (guestMonitorHintDismiss) {
     guestMonitorHintDismiss();
     guestMonitorHintDismiss = null;
@@ -125,14 +138,27 @@ export function dismissGuestMonitorHintToast(doc) {
   removeDomNode(existing);
 }
 
+function pulseGuestLoginBadge(doc, on) {
+  if (!doc || !doc.querySelector) return null;
+  const badge = doc.querySelector('[data-pt-task-btn]');
+  if (!badge || !badge.classList) return null;
+  if (on && typeof badge.classList.add === 'function') {
+    badge.classList.add(GUEST_MONITOR_HINT_PULSE_CLASS);
+  } else if (!on && typeof badge.classList.remove === 'function') {
+    badge.classList.remove(GUEST_MONITOR_HINT_PULSE_CLASS);
+  }
+  return badge;
+}
+
 /** 訪客點桌邊小螢幕：輕量引導至左上角登入，不開密碼視窗 */
 export function showGuestMonitorHintToast(doc, win) {
   if (!doc || !doc.body) return null;
   dismissGuestMonitorHintToast(doc);
   const wrap = doc.createElement('div');
-  wrap.className = 'dev-login-toast maple-window donate-toast';
+  wrap.className = 'dev-login-toast maple-window donate-toast ' + GUEST_MONITOR_HINT_TOAST_CLASS;
   wrap.setAttribute('data-pt-guest-monitor-hint', '1');
   wrap.setAttribute('role', 'status');
+  wrap.setAttribute('aria-live', 'polite');
   const msg = doc.createElement('p');
   msg.className = 'dev-login-toast-msg donate-toast-msg';
   msg.textContent = GUEST_MONITOR_HINT_TEXT;
@@ -141,10 +167,14 @@ export function showGuestMonitorHintToast(doc, win) {
   close.className = 'dev-login-toast-close';
   close.setAttribute('aria-label', '關閉');
   close.textContent = '×';
+  pulseGuestLoginBadge(doc, true);
   const teardown = () => {
+    if (guestMonitorHintDismiss !== teardown) return;
+    clearGuestMonitorHintTimer();
     if (doc.removeEventListener) doc.removeEventListener('keydown', onKey, true);
+    pulseGuestLoginBadge(doc, false);
     removeDomNode(wrap);
-    if (guestMonitorHintDismiss === teardown) guestMonitorHintDismiss = null;
+    guestMonitorHintDismiss = null;
   };
   const onKey = (ev) => {
     if (ev.key !== 'Escape') return;
@@ -160,7 +190,9 @@ export function showGuestMonitorHintToast(doc, win) {
   doc.body.appendChild(wrap);
   guestMonitorHintDismiss = teardown;
   const schedule = win && typeof win.setTimeout === 'function' ? win.setTimeout : setTimeout;
-  schedule(teardown, GUEST_MONITOR_HINT_MS);
+  const clear = win && typeof win.clearTimeout === 'function' ? win.clearTimeout : clearTimeout;
+  guestMonitorHintClear = clear;
+  guestMonitorHintTimer = schedule(teardown, GUEST_MONITOR_HINT_MS);
   return wrap;
 }
 
