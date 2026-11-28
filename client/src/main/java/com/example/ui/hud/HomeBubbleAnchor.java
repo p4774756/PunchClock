@@ -9,7 +9,7 @@ import java.util.Map;
 public final class HomeBubbleAnchor {
 
     public static final class Spec {
-        /** 嘴巴／尾巴指向（原圖比例）。 */
+        /** 嘴巴／臉中心（原圖比例），用來把泡泡水平對齊到臉旁邊。 */
         public final double mouthX;
         public final double mouthY;
         /** 泡泡偏好中心（原圖比例）。 */
@@ -93,7 +93,7 @@ public final class HomeBubbleAnchor {
     }
 
     /**
-     * 沒有 metadata、也估不到臉時的後備：泡泡放左上安全帶，尾巴指向畫面中上（常見人像臉區），
+     * 沒有 metadata、也估不到臉時的後備：泡泡放左上安全帶，臉參考點取畫面中上（常見人像臉區），
      * 並帶一個假設臉框供避開。
      */
     public static Spec safeTopFallback() {
