@@ -95,3 +95,17 @@ test('小瑪莉外圈方形格位', () => {
   assert.ok(hole.x > p0.x && hole.x < p7.x);
   assert.ok(hole.y > p0.y && hole.y < p19.y);
 });
+test('LCD 圖示為 12×12 雙色像素剪影，中間字加大，選中格用最深底', () => {
+  const lcd = readFileSync(join(publicRoot, 'js/private-team-pocket-lcd.js'), 'utf8');
+  assert.match(lcd, /12×12 像素圖/);
+  assert.match(lcd, /imageSmoothingEnabled = false/);
+  assert.match(lcd, /bold 11px monospace/);
+  assert.match(lcd, /bold 10px monospace/);
+  assert.match(lcd, /bold 8px monospace/);
+  assert.match(lcd, /總注 /);
+  assert.match(lcd, /ctx\.fillStyle = PAL\.ink;\s*ctx\.fillRect\(x \+ 2/);
+  assert.match(lcd, /watermelon:[\s\S]{0,400}1111111111/);
+  const rows = lcd.match(/apple: \[([\s\S]*?)\]/)[1].match(/'([^']*)'/g);
+  assert.equal(rows.length, 12);
+  assert.ok(rows.every((r) => r.length === 14));
+});
