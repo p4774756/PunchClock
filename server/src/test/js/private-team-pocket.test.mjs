@@ -7,7 +7,9 @@ import { loadPublicModule } from './load-public-module.mjs';
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 
-const { pocketButtonFromKeyboard, POCKET_BTN_KEYS } = await loadPublicModule('private-team-pocket.js');
+const { pocketButtonFromKeyboard, POCKET_BTN_KEYS, applyPocketShellFit } = await loadPublicModule(
+  'private-team-pocket.js'
+);
 const {
   POCKET_LCD_W,
   POCKET_LCD_H,
@@ -18,13 +20,19 @@ const {
 test('彈窗 HTML 與 CSS 結構', () => {
   const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
   const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
+  const pocketCss = css.slice(css.indexOf('Game Boy 彈窗'), css.indexOf('.lab-office-stage.pt-pocket-open'));
+  const pocketJs = readFileSync(join(publicRoot, 'js/private-team-pocket.js'), 'utf8');
   assert.match(html, /id="pocketBoard"/);
+  assert.match(html, /class="pt-pocket-fit"/);
   assert.match(html, /data-pocket-lcd/);
   assert.match(html, /data-pocket-btn="start"/);
   assert.match(css, /image-rendering:\s*pixelated/);
   assert.match(css, /\.pt-pocket-shell/);
-  assert.match(css, /90vh/);
-  assert.match(css, /zoom:\s*min\([^)]*90vh/);
+  assert.doesNotMatch(pocketCss, /zoom:/);
+  assert.match(pocketJs, /0\.92 \* v[wh]/);
+  assert.match(pocketCss, /transform:\s*scale\(var\(--pt-pocket-scale\)\)/);
+  assert.match(pocketCss, /--pt-pocket-design-h/);
+  assert.match(pocketCss, /--pt-pocket-scale/);
 });
 
 test('首頁接上掌機彈窗與 3D 點擊', () => {

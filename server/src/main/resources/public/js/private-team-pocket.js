@@ -40,6 +40,25 @@ export function pocketButtonFromKeyboard(ev) {
   return KEY_MAP[ev.code] || '';
 }
 
+/** 量測未縮放機身尺寸，並依 92vw／92vh 上限算出等比 --pt-pocket-scale。 */
+export function applyPocketShellFit(board, win = globalThis) {
+  if (!board) return;
+  const fit = board.querySelector('.pt-pocket-fit');
+  const shell = board.querySelector('.pt-pocket-shell');
+  if (!fit || !shell) return;
+  fit.classList.add('pt-pocket-fit--measure');
+  const w = shell.offsetWidth;
+  const h = shell.offsetHeight;
+  fit.classList.remove('pt-pocket-fit--measure');
+  if (w < 1 || h < 1) return;
+  board.style.setProperty('--pt-pocket-design-w', w + 'px');
+  board.style.setProperty('--pt-pocket-design-h', h + 'px');
+  const vw = win.innerWidth || 0;
+  const vh = win.innerHeight || 0;
+  const scale = Math.min((0.92 * vw) / w, (0.92 * vh) / h);
+  board.style.setProperty('--pt-pocket-scale', String(scale));
+}
+
 export function wireGameBoyModal(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
   const win = (opts && opts.win) || globalThis;
@@ -254,6 +273,10 @@ export function wireGameBoyModal(opts) {
       loadSound();
       paintChipReadout();
       paintLcd();
+      applyPocketShellFit(board, win);
+      if (typeof win.requestAnimationFrame === 'function') {
+        win.requestAnimationFrame(() => applyPocketShellFit(board, win));
+      }
       if (officeModal) officeModal.notifyOpened('pocket', meta && meta.trigger);
       lastFocus = doc.activeElement;
       const focusTarget = closeBtn || lcdCanvas;
@@ -318,10 +341,15 @@ export function wireGameBoyModal(opts) {
     if (ev.target === board) setOpen(false);
   });
 
-  const shell = board.querySelector('.pt-pocket-shell');
-  if (shell) {
-    shell.addEventListener('click', (ev) => ev.stopPropagation());
+  const fit = board.querySelector('.pt-pocket-fit');
+  if (fit) {
+    fit.addEventListener('click', (ev) => ev.stopPropagation());
   }
+
+  function onPocketResize() {
+    if (open) applyPocketShellFit(board, win);
+  }
+  win.addEventListener('resize', onPocketResize);
 
   function onKeyDown(ev) {
     if (!open) return;
@@ -344,6 +372,7 @@ export function wireGameBoyModal(opts) {
   function destroy() {
     stopSpinLoop();
     win.clearInterval(tickId);
+    win.removeEventListener('resize', onPocketResize);
     doc.removeEventListener('keydown', onKeyDown);
     doc.removeEventListener('keyup', onKeyUp);
   }
