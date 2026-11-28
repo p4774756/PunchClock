@@ -11,7 +11,8 @@ const SCENE_BUNDLE_FILES = [
   'private-team-scene-controls.js',
   'private-team-scene-window.js',
   'private-team-scene-room.js',
-  'private-team-scene-lounge.js'
+  'private-team-scene-lounge.js',
+  'private-team-scene-aquarium.js'
 ];
 
 /** 拆檔後單元測試仍可 grep 完整場景原始碼（與舊版讀單檔行為等價）。 */

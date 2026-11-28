@@ -290,8 +290,9 @@ export function addRomanceCandle(parent, x, y, z, name) {
 
 export function stripUnderwaterTint(mat) {
   if (!mat) return;
-  mat.onBeforeCompile = null;
+  delete mat.onBeforeCompile;
   mat.customProgramCacheKey = () => 'meshbasic-vanilla';
+  mat.alphaTest = 0;
   mat.needsUpdate = true;
 }
 
