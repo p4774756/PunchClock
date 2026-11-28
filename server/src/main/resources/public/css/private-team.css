@@ -1053,198 +1053,249 @@ button.pt-hud-id-plate {
   word-break: break-word;
 }
 
+/* Pipeline: even circle nodes + rounded tracks */
 .pt-status-progress {
   display: flex;
   align-items: flex-start;
   width: 100%;
   min-width: 0;
-  margin-bottom: 0.45rem;
+  box-sizing: border-box;
+  margin: 0.1rem 0 0.55rem;
+  padding: 0.8rem 0.55rem 0.7rem;
   gap: 0;
+  background:
+    linear-gradient(180deg, rgba(22, 58, 112, 0.055) 0%, rgba(22, 58, 112, 0.02) 100%);
+  border: 1px solid rgba(22, 58, 112, 0.1);
+  border-radius: 12px;
 }
 
 .pt-status-progress-step {
   display: flex;
   flex: 1 1 0;
   align-items: flex-start;
+  justify-content: center;
+  position: relative;
   min-width: 0;
-}
-
-.pt-status-progress-step:last-child {
-  flex: 0 0 auto;
 }
 
 .pt-status-progress-node {
   display: flex;
   flex-direction: column;
   align-items: center;
-  flex: 0 0 auto;
-  min-width: 2.15rem;
+  width: 100%;
   max-width: 100%;
-  padding: 0.2rem 0.15rem 0.12rem;
-  border-radius: 6px;
-  background: rgba(200, 214, 228, 0.45);
-  border: 1px solid rgba(22, 58, 112, 0.14);
+  padding: 0;
+  border: 0;
+  background: transparent;
   text-align: center;
   cursor: default;
-}
-
-.pt-status-progress-node-mark {
-  font-size: 0.55rem;
-  font-weight: 900;
-  line-height: 1;
-  color: #3d7a52;
-  margin-bottom: 0.05rem;
-}
-
-.pt-status-progress-node-label {
-  font-size: 0.58rem;
-  font-weight: 800;
-  line-height: 1.15;
-  color: var(--maple-navy, #163a70);
-  word-break: keep-all;
-}
-
-.pt-status-progress-node-time {
-  margin-top: 0.12rem;
-  font-size: 0.52rem;
-  font-weight: 700;
-  line-height: 1.1;
-  color: #4a627e;
-}
-
-.pt-status-progress-node.done {
-  background: rgba(88, 148, 108, 0.14);
-  border-color: rgba(61, 122, 82, 0.35);
-}
-
-.pt-status-progress-node.done .pt-status-progress-node-label {
-  color: #3d5a48;
-  font-weight: 700;
-}
-
-.pt-status-progress-node.current {
-  border: 2px solid var(--maple-navy, #163a70);
-  background: linear-gradient(180deg, rgba(236, 196, 64, 0.92), rgba(220, 175, 45, 0.78));
-  box-shadow: 0 0 10px rgba(236, 196, 64, 0.45);
-  animation: pt-stage-pulse 1.6s ease-in-out infinite;
   z-index: 1;
 }
 
+.pt-status-progress-node-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  font-size: 0.82rem;
+  font-weight: 800;
+  line-height: 1;
+  background: #f4f7fb;
+  border: 2px solid #c5d0dc;
+  color: #6a7a90;
+}
+
+.pt-status-progress-node-mark,
+.pt-status-progress-node-num {
+  position: relative;
+  z-index: 1;
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: 1;
+}
+
+.pt-status-progress-node-label {
+  margin-top: 0.42rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #1e3050;
+  max-width: 100%;
+  padding: 0 0.12rem;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+}
+
+.pt-status-progress-node-note,
+.pt-status-progress-node-time {
+  margin-top: 0.1rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #5a6a82;
+}
+
+.pt-status-progress-node.done .pt-status-progress-node-icon {
+  background: linear-gradient(180deg, #2fad86, #1e8a6c);
+  border-color: #18745b;
+  color: #f8fbff;
+  box-shadow: 0 1px 3px rgba(16, 70, 56, 0.28);
+}
+
+.pt-status-progress-node.done .pt-status-progress-node-label {
+  color: #1a5c4a;
+  font-weight: 700;
+}
+
+.pt-status-progress-node.current .pt-status-progress-node-icon {
+  background: linear-gradient(180deg, #f6d868, #d4a117);
+  border-color: #b8860a;
+  color: var(--maple-navy, #163a70);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    0 0 0 3px rgba(236, 196, 64, 0.34),
+    0 2px 8px rgba(201, 150, 20, 0.4);
+  animation: pt-pipeline-pulse 1.8s ease-in-out infinite;
+}
+
+.pt-status-progress-node.current .pt-status-progress-node-icon::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 2px solid rgba(236, 196, 64, 0.5);
+  z-index: -1;
+  animation: pt-pipeline-ring 1.8s ease-out infinite;
+}
+
 .pt-status-progress-node.current .pt-status-progress-node-label {
-  font-weight: 900;
+  font-weight: 800;
   color: var(--maple-navy, #163a70);
 }
 
 .pt-status-progress-node.current .pt-status-progress-node-time {
-  color: var(--maple-navy, #163a70);
+  color: #8a6a10;
   font-weight: 800;
 }
 
-.pt-status-progress-node.skipped {
-  background: rgba(214, 222, 232, 0.45);
-  border: 1px dashed rgba(90, 106, 130, 0.5);
+.pt-status-progress-node.skipped .pt-status-progress-node-icon {
+  background: #eef2f6;
+  border: 2px dashed #9aa8b8;
+  color: #7a889c;
 }
 
-.pt-status-progress-node.skipped .pt-status-progress-node-label {
-  color: #5a6a82;
-  font-weight: 700;
-  font-size: 0.52rem;
+.pt-status-progress-node.skipped .pt-status-progress-node-label,
+.pt-status-progress-node.skipped .pt-status-progress-node-note {
+  color: #6a7a90;
+  font-weight: 600;
 }
 
-.pt-status-progress-node.fail {
-  background: #c44a4a;
-  border-color: #8c3030;
-}
-
-.pt-status-progress-node.fail .pt-status-progress-node-label {
+.pt-status-progress-node.fail .pt-status-progress-node-icon {
+  background: linear-gradient(180deg, #d3554c, #b33a33);
+  border-color: #8c2c28;
   color: #f8fbff;
-  font-weight: 900;
+  box-shadow: 0 0 0 3px rgba(179, 58, 51, 0.2), 0 2px 6px rgba(140, 44, 40, 0.28);
 }
 
-.pt-status-progress-node.pending {
-  background: rgba(200, 214, 228, 0.28);
-  border-color: rgba(22, 58, 112, 0.08);
+.pt-status-progress-node.fail .pt-status-progress-node-label,
+.pt-status-progress-node.fail .pt-status-progress-node-note {
+  color: #a33a34;
+  font-weight: 800;
+}
+
+.pt-status-progress-node.pending .pt-status-progress-node-icon {
+  background: #f7f9fc;
+  border-color: #c5d0dc;
+  color: #7a889c;
 }
 
 .pt-status-progress-node.pending .pt-status-progress-node-label {
   color: #6a7a90;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .pt-status-progress-connector {
-  flex: 1 1 auto;
-  align-self: center;
-  min-width: 0.35rem;
-  height: 3px;
-  margin-top: 0.85rem;
-  border-radius: 2px;
-  background: rgba(160, 176, 196, 0.45);
-  position: relative;
-}
-
-.pt-status-progress-connector::after {
-  content: '';
   position: absolute;
-  right: -1px;
-  top: 50%;
-  transform: translateY(-50%);
-  border: 4px solid transparent;
-  border-left-color: rgba(160, 176, 196, 0.55);
-  border-left-width: 5px;
+  top: 15px;
+  left: calc(50% + 21px);
+  width: calc(100% - 42px);
+  height: 4px;
+  border-radius: 999px;
+  background: #d4dce6;
+  pointer-events: none;
+  z-index: 0;
 }
 
 .pt-status-progress-connector.is-complete {
-  background: rgba(61, 122, 82, 0.55);
-}
-
-.pt-status-progress-connector.is-complete::after {
-  border-left-color: rgba(61, 122, 82, 0.65);
+  background: linear-gradient(90deg, #1e8a6c, #3cb389);
 }
 
 .pt-status-progress-connector.is-skipped {
-  background: rgba(130, 142, 158, 0.4);
-}
-
-.pt-status-progress-connector.is-skipped::after {
-  border-left-color: rgba(130, 142, 158, 0.5);
+  background: repeating-linear-gradient(
+    90deg,
+    #c5d0dc 0 6px,
+    transparent 6px 10px
+  );
+  background-color: transparent;
+  height: 3px;
+  opacity: 0.85;
 }
 
 .pt-status-progress-connector.is-flowing {
   background: linear-gradient(
     90deg,
-    rgba(61, 122, 82, 0.55) 0%,
-    rgba(236, 196, 64, 0.75) 45%,
-    rgba(160, 176, 196, 0.35) 100%
+    #1e8a6c 0%,
+    #ecc440 42%,
+    #f8dc6e 50%,
+    #ecc440 58%,
+    #d4dce6 100%
   );
-  background-size: 200% 100%;
-  animation: pt-pipeline-flow 2.2s linear infinite;
-}
-
-.pt-status-progress-connector.is-flowing::after {
-  border-left-color: rgba(236, 196, 64, 0.85);
+  background-size: 220% 100%;
+  animation: pt-pipeline-flow 1.6s linear infinite;
+  box-shadow: 0 0 6px rgba(236, 196, 64, 0.35);
 }
 
 .pt-status-progress-connector.is-blocked {
-  background: rgba(196, 74, 74, 0.35);
-}
-
-.pt-status-progress-connector.is-blocked::after {
-  border-left-color: rgba(160, 176, 196, 0.45);
+  background: linear-gradient(90deg, #d3554c, #e8a8a4);
 }
 
 .pt-status-progress-connector.is-pending {
-  background: rgba(160, 176, 196, 0.3);
+  background: #d4dce6;
 }
 
-@keyframes pt-stage-pulse {
+@keyframes pt-pipeline-pulse {
   0%,
   100% {
-    filter: brightness(0.94);
-    box-shadow: 0 0 8px rgba(236, 196, 64, 0.35);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 0 0 3px rgba(236, 196, 64, 0.3),
+      0 2px 8px rgba(201, 150, 20, 0.35);
   }
   50% {
-    filter: brightness(1.06);
-    box-shadow: 0 0 14px rgba(236, 196, 64, 0.55);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.55),
+      0 0 0 5px rgba(236, 196, 64, 0.45),
+      0 2px 12px rgba(201, 150, 20, 0.5);
+  }
+}
+
+@keyframes pt-pipeline-ring {
+  0% {
+    opacity: 0.55;
+    transform: scale(0.92);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.2);
   }
 }
 
@@ -1258,16 +1309,24 @@ button.pt-hud-id-plate {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .pt-status-progress-node.current {
+  .pt-status-progress-node.current .pt-status-progress-node-icon {
     animation: none;
-    filter: none;
-    box-shadow: inset 0 0 0 2px rgba(22, 58, 112, 0.35);
-    background: rgba(236, 196, 64, 0.95);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      0 0 0 3px rgba(22, 58, 112, 0.22),
+      0 1px 3px rgba(201, 150, 20, 0.35);
+  }
+
+  .pt-status-progress-node.current .pt-status-progress-node-icon::after {
+    animation: none;
+    opacity: 0;
+    content: none;
   }
 
   .pt-status-progress-connector.is-flowing {
     animation: none;
-    background: rgba(236, 196, 64, 0.65);
+    background: linear-gradient(90deg, #1e8a6c, #ecc440);
+    box-shadow: none;
   }
 }
 
@@ -1455,23 +1514,30 @@ button.pt-hud-id-plate {
     font-size: 0.72rem;
   }
 
-  .pt-status-progress-node {
-    min-width: 1.65rem;
-    padding: 0.15rem 0.08rem 0.1rem;
+  .pt-status-progress {
+    padding: 0.7rem 0.3rem 0.55rem;
+  }
+
+  .pt-status-progress-node-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 0.78rem;
   }
 
   .pt-status-progress-node-label {
-    font-size: 0.5rem;
-    line-height: 1.1;
+    font-size: 0.62rem;
+    line-height: 1.2;
   }
 
+  .pt-status-progress-node-note,
   .pt-status-progress-node-time {
-    font-size: 0.48rem;
+    font-size: 0.55rem;
   }
 
   .pt-status-progress-connector {
-    min-width: 0.2rem;
-    margin-top: 0.75rem;
+    top: 14px;
+    left: calc(50% + 20px);
+    width: calc(100% - 40px);
   }
 
   .pt-a-bar-row {

@@ -409,16 +409,23 @@ export function progressSegmentsForActive(item) {
 function pipelineNodePrimaryLabel(seg, item) {
   const row = item && typeof item === 'object' ? item : {};
   const round = Number(row.round);
-  if (seg.state === 'skipped') return seg.label === '審核' ? '略過審核' : '略過';
-  if (seg.state === 'fail') return 'CI 失敗';
-  if (seg.label === 'CI') {
-    if (seg.state === 'done') return 'CI 通過';
-    if (seg.state === 'current') return 'CI 進行中';
-  }
-  if (seg.label === '審核' && Number.isFinite(round) && round > 0) {
-    return round === 1 ? '審核 1' : '審核 第 ' + round + ' 輪';
+  if (seg.label === '審核' && seg.state !== 'skipped' && Number.isFinite(round) && round > 0) {
+    return '審核 第 ' + round + ' 輪';
   }
   return seg.label;
+}
+
+function pipelineNodeCaption(seg) {
+  if (seg.state === 'fail') return '失敗';
+  if (seg.state === 'skipped') return '已略過';
+  return '';
+}
+
+function pipelineNodeIconChild(doc, seg, index) {
+  if (seg.state === 'done') return el(doc, 'span', 'pt-status-progress-node-mark', '\u2713');
+  if (seg.state === 'fail') return el(doc, 'span', 'pt-status-progress-node-mark', '\u2715');
+  if (seg.state === 'skipped') return el(doc, 'span', 'pt-status-progress-node-mark', '\u2013');
+  return el(doc, 'span', 'pt-status-progress-node-num', String(index + 1));
 }
 
 function pipelineNodeShowMinutes(seg) {
@@ -429,11 +436,12 @@ export function progressAriaLabelForActive(item) {
   return statusLineForActive(item);
 }
 
-function connectorClassAfter(seg) {
+function connectorClassAfter(seg, next, index) {
   const base = 'pt-status-progress-connector';
+  if (next && next.state === 'current') return base + ' is-flowing';
+  if (seg.state === 'current' && index === 0) return base + ' is-flowing';
   if (seg.state === 'done') return base + ' is-complete';
   if (seg.state === 'skipped') return base + ' is-skipped';
-  if (seg.state === 'current') return base + ' is-flowing';
   if (seg.state === 'fail') return base + ' is-blocked';
   return base + ' is-pending';
 }
@@ -489,12 +497,15 @@ function renderStageProgress(doc, item) {
   segments.forEach((seg, index) => {
     const step = el(doc, 'div', 'pt-status-progress-step');
     const node = el(doc, 'div', 'pt-status-progress-node ' + seg.state);
-    if (seg.state === 'done') {
-      const mark = el(doc, 'span', 'pt-status-progress-node-mark', '\u2713');
-      mark.setAttribute('aria-hidden', 'true');
-      node.appendChild(mark);
-    }
+    const icon = el(doc, 'span', 'pt-status-progress-node-icon');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.appendChild(pipelineNodeIconChild(doc, seg, index));
+    node.appendChild(icon);
     node.appendChild(el(doc, 'span', 'pt-status-progress-node-label', pipelineNodePrimaryLabel(seg, row)));
+    const caption = pipelineNodeCaption(seg);
+    if (caption) {
+      node.appendChild(el(doc, 'span', 'pt-status-progress-node-note', caption));
+    }
     if (pipelineNodeShowMinutes(seg)) {
       const minutes = Number(row.minutes);
       if (Number.isFinite(minutes) && minutes > 0) {
@@ -503,7 +514,7 @@ function renderStageProgress(doc, item) {
     }
     step.appendChild(node);
     if (index < segments.length - 1) {
-      const conn = el(doc, 'span', connectorClassAfter(seg));
+      const conn = el(doc, 'span', connectorClassAfter(seg, segments[index + 1], index));
       conn.setAttribute('aria-hidden', 'true');
       step.appendChild(conn);
     }
