@@ -1360,6 +1360,14 @@ export function mountPrivateTeamScene(canvas, opts) {
           const fallback = secretaryTubFallbackUrlForStatus(tigerStatus, secretaryPack);
           if (fallback && fallback !== next) {
             applySecretarySpriteUrl(fallback);
+            return;
+          }
+        }
+        if (secretaryOutfitId === 'stage') {
+          const fallback = secretaryEquivalentSpriteUrl(next, 'default');
+          if (fallback && fallback !== next) {
+            applySecretarySpriteUrl(fallback);
+            return;
           }
         }
         syncSecretaryPlacement();
@@ -1497,6 +1505,11 @@ export function mountPrivateTeamScene(canvas, opts) {
     const oldMap = secretarySprite.material.map;
     secretarySprite.material.map = tex;
     secretarySprite.material.needsUpdate = true;
+    if (secretaryInLoungePose) {
+      stripUnderwaterTint(secretarySprite.material);
+    } else {
+      applyUnderwaterTint(secretarySprite.material, waterYUniform);
+    }
     if (oldMap && oldMap !== tex) oldMap.dispose();
     if (dancePlayback) {
       secretarySprite.position.x = 0;
@@ -1587,12 +1600,15 @@ export function mountPrivateTeamScene(canvas, opts) {
     secretaryInLoungePose = wantLounge;
     if (wantLounge) {
       const sofaPlace = secretarySofaPlacementForOutfit(secretaryOutfitId);
-      secretaryRoot.position.set(
-        sofaPlace.position.x,
-        sofaPlace.position.y,
-        sofaPlace.position.z
-      );
-      secretaryRoot.scale.set(sofaPlace.scale, sofaPlace.scale, sofaPlace.scale);
+      const px = Number(sofaPlace.position.x);
+      const py = Number(sofaPlace.position.y);
+      const pz = Number(sofaPlace.position.z);
+      const scale = Number(sofaPlace.scale);
+      const finite = [px, py, pz, scale].every(Number.isFinite) && scale > 0;
+      const pos = finite ? { x: px, y: py, z: pz } : SECRETARY_SOFA_POSITION;
+      const sc = finite ? scale : 1;
+      secretaryRoot.position.set(pos.x, pos.y, pos.z);
+      secretaryRoot.scale.set(sc, sc, sc);
       secretaryRoot.rotation.y = -0.42;
       shadow.position.set(
         SECRETARY_SHADOW_SOFA.x,
@@ -1600,7 +1616,14 @@ export function mountPrivateTeamScene(canvas, opts) {
         SECRETARY_SHADOW_SOFA.z
       );
       const bubbleY = sofaPlace.bubble.y == null ? bubble.position.y : sofaPlace.bubble.y;
-      bubble.position.set(sofaPlace.bubble.x, bubbleY, sofaPlace.bubble.z);
+      const bx = Number(sofaPlace.bubble.x);
+      const bz = Number(sofaPlace.bubble.z);
+      const by = Number(bubbleY);
+      if ([bx, bz, by].every(Number.isFinite)) {
+        bubble.position.set(bx, by, bz);
+      } else {
+        bubble.position.set(SECRETARY_BUBBLE_SOFA.x, bubble.position.y, SECRETARY_BUBBLE_SOFA.z);
+      }
       if (poseChanged && secretarySprite && secretarySprite.material) {
         stripUnderwaterTint(secretarySprite.material);
       }

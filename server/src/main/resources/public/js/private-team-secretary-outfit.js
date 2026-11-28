@@ -136,7 +136,16 @@ export function secretaryOutfitPreloadUrls(outfitId) {
 export function readSecretaryOutfitFromStorage(storage) {
   try {
     if (!storage || typeof storage.getItem !== 'function') return 'default';
-    return parseSecretaryOutfitId(storage.getItem(SECRETARY_OUTFIT_STORAGE_KEY));
+    const raw = storage.getItem(SECRETARY_OUTFIT_STORAGE_KEY);
+    const parsed = parseSecretaryOutfitId(raw);
+    if (raw != null && String(raw) !== parsed && typeof storage.setItem === 'function') {
+      try {
+        storage.setItem(SECRETARY_OUTFIT_STORAGE_KEY, parsed);
+      } catch {
+        /* 清理失效值失敗時仍回傳正規結果 */
+      }
+    }
+    return parsed;
   } catch {
     return 'default';
   }

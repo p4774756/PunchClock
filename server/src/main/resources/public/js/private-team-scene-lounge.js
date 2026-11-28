@@ -27,28 +27,49 @@ export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0.02, y: -0.18, z: -0.03 };
 export const SECRETARY_STAGE_SOFA_BUBBLE_OFFSET = { x: 0.12, z: 0.22 };
 export const SECRETARY_STAGE_SOFA_BUBBLE_Y = 1.16;
 
-export function secretarySofaPlacementForOutfit(outfitId) {
+function finiteNumber(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function defaultSecretarySofaPlacement() {
   const base = SECRETARY_SOFA_POSITION;
-  if (parseSecretaryOutfitId(outfitId) !== 'stage') {
-    return {
-      position: { x: base.x, y: base.y, z: base.z },
-      scale: 1,
-      bubble: { x: SECRETARY_BUBBLE_SOFA.x, z: SECRETARY_BUBBLE_SOFA.z, y: null }
-    };
-  }
   return {
     position: {
-      x: base.x + SECRETARY_STAGE_SOFA_OFFSET.x,
-      y: base.y + SECRETARY_STAGE_SOFA_OFFSET.y,
-      z: base.z + SECRETARY_STAGE_SOFA_OFFSET.z
+      x: finiteNumber(base.x, 1.05),
+      y: finiteNumber(base.y, 0),
+      z: finiteNumber(base.z, -0.1)
     },
-    scale: SECRETARY_STAGE_SOFA_SCALE,
+    scale: 1,
     bubble: {
-      x: base.x + SECRETARY_STAGE_SOFA_BUBBLE_OFFSET.x,
-      z: base.z + SECRETARY_STAGE_SOFA_BUBBLE_OFFSET.z,
-      y: SECRETARY_STAGE_SOFA_BUBBLE_Y
+      x: finiteNumber(SECRETARY_BUBBLE_SOFA.x, 1.18),
+      z: finiteNumber(SECRETARY_BUBBLE_SOFA.z, 0.35),
+      y: null
     }
   };
+}
+
+/** 沙發擺位；無效服裝或非有限數字一律回退預設，避免立繪被移出畫面。 */
+export function secretarySofaPlacementForOutfit(outfitId) {
+  const fallback = defaultSecretarySofaPlacement();
+  if (parseSecretaryOutfitId(outfitId) !== 'stage') {
+    return fallback;
+  }
+  const scale = finiteNumber(SECRETARY_STAGE_SOFA_SCALE, 0);
+  if (!(scale > 0)) return fallback;
+  const pos = {
+    x: finiteNumber(fallback.position.x + Number(SECRETARY_STAGE_SOFA_OFFSET.x), NaN),
+    y: finiteNumber(fallback.position.y + Number(SECRETARY_STAGE_SOFA_OFFSET.y), NaN),
+    z: finiteNumber(fallback.position.z + Number(SECRETARY_STAGE_SOFA_OFFSET.z), NaN)
+  };
+  if (![pos.x, pos.y, pos.z].every(Number.isFinite)) return fallback;
+  const bubble = {
+    x: finiteNumber(fallback.position.x + Number(SECRETARY_STAGE_SOFA_BUBBLE_OFFSET.x), NaN),
+    z: finiteNumber(fallback.position.z + Number(SECRETARY_STAGE_SOFA_BUBBLE_OFFSET.z), NaN),
+    y: finiteNumber(SECRETARY_STAGE_SOFA_BUBBLE_Y, NaN)
+  };
+  if (![bubble.x, bubble.z, bubble.y].every(Number.isFinite)) return fallback;
+  return { position: pos, scale, bubble };
 }
 
 export function secretaryAtLoungePose(status, sofaSpriteOk) {
