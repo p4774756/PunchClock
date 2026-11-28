@@ -15,8 +15,6 @@ public class HeartbeatFailurePolicyTest {
     @Test
     public void backoff_advancesOnFailureAndResetsOnSuccess() {
         HeartbeatFailurePolicy policy = new HeartbeatFailurePolicy();
-        assertEquals(15, policy.currentIntervalSeconds());
-        policy.onConnectionFailure("x");
         assertEquals(30, policy.currentIntervalSeconds());
         policy.onConnectionFailure("x");
         assertEquals(60, policy.currentIntervalSeconds());
@@ -26,8 +24,10 @@ public class HeartbeatFailurePolicyTest {
         assertEquals(300, policy.currentIntervalSeconds());
         policy.onConnectionFailure("x");
         assertEquals(300, policy.currentIntervalSeconds());
+        policy.onConnectionFailure("x");
+        assertEquals(300, policy.currentIntervalSeconds());
         policy.onSuccess();
-        assertEquals(15, policy.currentIntervalSeconds());
+        assertEquals(30, policy.currentIntervalSeconds());
     }
 
     @Test
@@ -64,9 +64,9 @@ public class HeartbeatFailurePolicyTest {
     public void reset_clearsBackoff() {
         HeartbeatFailurePolicy policy = new HeartbeatFailurePolicy();
         policy.onConnectionFailure("x");
-        assertEquals(30, policy.currentIntervalSeconds());
+        assertEquals(60, policy.currentIntervalSeconds());
         policy.reset();
-        assertEquals(15, policy.currentIntervalSeconds());
+        assertEquals(30, policy.currentIntervalSeconds());
     }
 
     @Test

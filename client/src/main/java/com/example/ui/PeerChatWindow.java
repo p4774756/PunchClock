@@ -347,7 +347,7 @@ public class PeerChatWindow extends JFrame {
                 statusLabel.setText("雲端未啟用，無法傳送");
                 statusLabel.setForeground(new Color(255, 150, 150));
             } else {
-                statusLabel.setText("文字對話，約 15 秒內送達");
+                statusLabel.setText("文字對話，約 30 秒內送達");
                 statusLabel.setForeground(NightTheme.MUTED);
             }
             return;

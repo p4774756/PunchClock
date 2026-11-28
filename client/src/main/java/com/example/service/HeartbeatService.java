@@ -33,7 +33,7 @@ import java.util.function.Supplier;
 
 /**
  * 專責與 server 進行單向 HTTP POST 存活與多任務狀態上報。
- * 打卡結果存在任務的 lastResult 欄位，跟著一般心跳送；timeout 就等下次 15 秒心跳再帶一次。
+ * 打卡結果存在任務的 lastResult 欄位，跟著一般心跳送；timeout 就等下次 30 秒心跳再帶一次。
  * 同事訊息見 {@link PeerMessageClient}，傳檔與直傳見 {@link PeerFileClient}，
  * 回應解析見 {@link HeartbeatResponseParser}。
  */

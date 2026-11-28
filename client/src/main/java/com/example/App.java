@@ -145,7 +145,7 @@ public class App extends JFrame {
     private String announcedUpdateVersion = "";
     /** 上次成功問到伺服器版本的時間。失敗的檢查不覆寫。 */
     private LocalDateTime lastUpdateCheckAt;
-    /** 已寫進設定檔的「上次檢查」分鐘，避免心跳每 15 秒就重存。 */
+    /** 已寫進設定檔的「上次檢查」分鐘，避免心跳每 30 秒就重存。 */
     private String lastUpdateCheckMinute = "";
     private static final DateTimeFormatter UPDATE_CHECK_TIME =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
@@ -1391,34 +1391,7 @@ public class App extends JFrame {
      * 在線排前面，離線排後面。最愛只在同一組裡排最上面，組內維持原本順序。
      */
     static List<PeerInfo> orderPeers(List<PeerInfo> peers, Set<String> favorites) {
-        List<PeerInfo> onlineFavorite = new ArrayList<>();
-        List<PeerInfo> online = new ArrayList<>();
-        List<PeerInfo> offlineFavorite = new ArrayList<>();
-        List<PeerInfo> offline = new ArrayList<>();
-        if (peers != null) {
-            for (PeerInfo peer : peers) {
-                if (peer == null) {
-                    continue;
-                }
-                boolean on = "ONLINE".equalsIgnoreCase(peer.status);
-                boolean favorite = favorites != null && favorites.contains(peer.clientId);
-                if (on && favorite) {
-                    onlineFavorite.add(peer);
-                } else if (on) {
-                    online.add(peer);
-                } else if (favorite) {
-                    offlineFavorite.add(peer);
-                } else {
-                    offline.add(peer);
-                }
-            }
-        }
-        List<PeerInfo> ordered = new ArrayList<>();
-        ordered.addAll(onlineFavorite);
-        ordered.addAll(online);
-        ordered.addAll(offlineFavorite);
-        ordered.addAll(offline);
-        return ordered;
+        return AppPeerOrdering.orderPeers(peers, favorites);
     }
 
     private void updatePeerTable(java.util.List<PeerInfo> peers) {
@@ -1494,7 +1467,7 @@ public class App extends JFrame {
         }
         if (peerRefs.peerHintLabel != null) {
             peerRefs.peerHintLabel.setText(
-                    "只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
+                    "只顯示同一伺服器上的好友（不含本機，每 30 秒隨心跳更新）");
         }
 
         if (selectedId != null && peerRefs.peerTable != null) {
@@ -1523,7 +1496,7 @@ public class App extends JFrame {
         }
         if (peerRefs.peerHintLabel != null) {
             peerRefs.peerHintLabel.setText(
-                    "只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
+                    "只顯示同一伺服器上的好友（不含本機，每 30 秒隨心跳更新）");
         }
         showPeerWaitingView();
     }
