@@ -12,6 +12,9 @@ const {
   showGuestMonitorHintToast,
   dismissGuestMonitorHintToast,
   GUEST_MONITOR_HINT_TEXT,
+  GUEST_MONITOR_HINT_MS,
+  GUEST_MONITOR_HINT_TOAST_CLASS,
+  GUEST_MONITOR_HINT_PULSE_CLASS,
   syncPrivateTeamPageViewport,
   bindPrivateTeamPageViewport
 } = await loadPublicModule('private-team-page.js');
@@ -64,6 +67,19 @@ function miniDocForGuestHint() {
       attributes: {},
       textContent: '',
       parentNode: null,
+      classList: {
+        add(c) {
+          const parts = n.className.split(/\s+/).filter(Boolean);
+          if (!parts.includes(c)) parts.push(c);
+          n.className = parts.join(' ');
+        },
+        remove(c) {
+          n.className = n.className.split(/\s+/).filter((x) => x && x !== c).join(' ');
+        },
+        contains(c) {
+          return n.className.split(/\s+/).includes(c);
+        }
+      },
       removeChild(c) {
         const i = this.childNodes.indexOf(c);
         if (i >= 0) this.childNodes.splice(i, 1);
@@ -92,9 +108,13 @@ function miniDocForGuestHint() {
     return n;
   }
   const body = el('body');
+  const badge = el('button');
+  badge.className = 'pt-hud-task';
+  badge.setAttribute('data-pt-task-btn', '');
   return {
     createElement: el,
     body,
+    badge,
     nodes,
     addEventListener() {},
     removeEventListener() {},
@@ -102,23 +122,67 @@ function miniDocForGuestHint() {
       if (sel === '[data-pt-guest-monitor-hint]') {
         return nodes.find((n) => n.attributes['data-pt-guest-monitor-hint']) || null;
       }
+      if (sel === '[data-pt-task-btn]') {
+        return nodes.find((n) => Object.prototype.hasOwnProperty.call(n.attributes, 'data-pt-task-btn')) || null;
+      }
       return null;
     }
   };
 }
 
 test('訪客螢幕提示 toast', () => {
+  const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
+  assert.match(css, /\.pt-guest-hint-toast/);
+  assert.match(css, /background:\s*linear-gradient\([^)]*#163a70[^)]*#102548\)/);
+  assert.match(css, /\.pt-guest-hint-toast[^{]*\{[^}]*border:\s*2px solid #c9a64a/);
+  assert.match(css, /\.pt-guest-hint-toast[^{]*\{[^}]*color:\s*#f8fbff/);
+  assert.match(css, /\.pt-guest-hint-toast[^{]*\{[^}]*top:\s*max\(/);
+  assert.match(css, /\.pt-guest-hint-toast[^{]*\{[^}]*bottom:\s*auto/);
+  assert.doesNotMatch(
+    css.slice(css.indexOf('.pt-guest-hint-toast')),
+    /var\(--maple-(?:white|ink|navy)\)(?!,)/
+  );
+
+  const timers = [];
+  let nextId = 1;
+  const win = {
+    setTimeout(fn, ms) {
+      const id = nextId++;
+      timers.push({ id, fn, ms, cleared: false });
+      return id;
+    },
+    clearTimeout(id) {
+      const t = timers.find((x) => x.id === id);
+      if (t) t.cleared = true;
+    }
+  };
+
   const doc = miniDocForGuestHint();
-  const win = { setTimeout() {} };
   const wrap = showGuestMonitorHintToast(doc, win);
   assert.ok(wrap);
   assert.equal(wrap.attributes['data-pt-guest-monitor-hint'], '1');
+  assert.equal(wrap.attributes.role, 'status');
+  assert.equal(wrap.attributes['aria-live'], 'polite');
+  assert.ok((wrap.className || '').includes(GUEST_MONITOR_HINT_TOAST_CLASS));
   const msg = wrap.childNodes.find((c) => (c.className || '').includes('dev-login-toast-msg'));
   assert.equal(msg.textContent, GUEST_MONITOR_HINT_TEXT);
+  assert.equal(timers.length, 1);
+  assert.equal(timers[0].ms, GUEST_MONITOR_HINT_MS);
+  assert.equal(GUEST_MONITOR_HINT_MS, 4000);
+  assert.ok(doc.badge.classList.contains(GUEST_MONITOR_HINT_PULSE_CLASS));
+
+  const firstFn = timers[0].fn;
   showGuestMonitorHintToast(doc, win);
+  assert.equal(timers[0].cleared, true);
   assert.equal(doc.body.childNodes.length, 1);
+  firstFn();
+  assert.equal(doc.body.childNodes.length, 1);
+  assert.ok(doc.badge.classList.contains(GUEST_MONITOR_HINT_PULSE_CLASS));
+
   dismissGuestMonitorHintToast(doc);
   assert.equal(doc.body.childNodes.length, 0);
+  assert.equal(timers[1].cleared, true);
+  assert.equal(doc.badge.classList.contains(GUEST_MONITOR_HINT_PULSE_CLASS), false);
 });
 
 test('任務細條僅在有公開計數時顯示', () => {

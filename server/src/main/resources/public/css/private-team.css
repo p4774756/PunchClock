@@ -1909,3 +1909,101 @@ button.pt-hud-id-plate {
     width: 30px;
   }
 }
+
+
+/* 訪客點螢幕：請先從左上角登入。獨立樣式，不依賴無後備的 --maple-*。 */
+.pt-guest-hint-toast,
+.dev-login-toast.pt-guest-hint-toast {
+  position: fixed;
+  left: 50%;
+  top: max(5.5rem, calc(env(safe-area-inset-top, 0px) + 4.75rem));
+  bottom: auto;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.65rem 0.7rem 0.65rem 1rem;
+  max-width: min(92vw, 380px);
+  width: max-content;
+  background: linear-gradient(180deg, #1e4d8c, #163a70 55%, #102548);
+  border: 2px solid #c9a64a;
+  outline: 1px solid rgba(243, 227, 166, 0.45);
+  outline-offset: -5px;
+  border-radius: 999px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(243, 227, 166, 0.35);
+  color: #f8fbff;
+  pointer-events: auto;
+}
+
+.pt-guest-hint-toast .dev-login-toast-msg,
+.pt-guest-hint-toast .donate-toast-msg {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: #f8fbff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+.pt-guest-hint-toast .dev-login-toast-close {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  color: #f8fbff;
+  background: rgba(16, 37, 72, 0.55);
+  border: 2px solid #c9a64a;
+  border-radius: 999px;
+}
+
+@keyframes pt-hud-task-hint-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.31)) drop-shadow(0 0 2px rgba(243, 227, 166, 0.35));
+  }
+  50% {
+    filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.31)) drop-shadow(0 0 14px rgba(243, 227, 166, 0.95));
+  }
+}
+
+.pt-hud-task.pt-hud-task--hint-pulse,
+.pt-hud-task--hint-pulse {
+  animation: pt-hud-task-hint-pulse 0.9s ease-in-out 3;
+}
+
+@media (max-width: 520px) {
+  .pt-guest-hint-toast,
+  .dev-login-toast.pt-guest-hint-toast {
+    top: max(5.25rem, calc(env(safe-area-inset-top, 0px) + 4.5rem));
+    max-width: min(94vw, 380px);
+    padding: 0.55rem 0.55rem 0.55rem 0.85rem;
+  }
+
+  .pt-guest-hint-toast .dev-login-toast-msg,
+  .pt-guest-hint-toast .donate-toast-msg {
+    font-size: 0.88rem;
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-hud-task.pt-hud-task--hint-pulse,
+  .pt-hud-task--hint-pulse {
+    animation: none;
+    filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.31)) drop-shadow(0 0 10px rgba(243, 227, 166, 0.8));
+  }
+}
