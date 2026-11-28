@@ -350,8 +350,20 @@ public class PublicOfficeAuthTest {
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         assertEquals(200, response.statusCode());
         assertTrue(response.body().contains("\"success\":true"));
-        assertTrue(response.headers().firstValue("Set-Cookie").orElse("").startsWith("auth="));
+        String setCookie = response.headers().firstValue("Set-Cookie").orElse("");
+        assertTrue(setCookie.startsWith("auth="));
         assertFalse(response.headers().firstValue("location").isPresent());
+        String cookie = setCookie.split(";", 2)[0];
+        String expectedCsrf = server.csrfHeaderFromCookie(cookie);
+        assertTrue(response.body().contains("\"csrfToken\":\"" + expectedCsrf + "\""));
+        HttpRequest write = HttpRequest.newBuilder(URI.create(base + "/api/clients/x/cancel-schedule"))
+                .timeout(Duration.ofSeconds(5))
+                .header("Cookie", cookie)
+                .header(com.example.server.auth.CsrfTokens.HEADER, expectedCsrf)
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+        HttpResponse<String> cancelled = http.send(write, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        assertEquals(200, cancelled.statusCode());
     }
 
     @Test

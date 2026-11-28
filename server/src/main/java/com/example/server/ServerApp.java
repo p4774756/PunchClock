@@ -275,9 +275,12 @@ public final class ServerApp {
         String password = ctx.formParam("password");
         if (authService.checkAdminPassword(password)) {
             authService.clearLoginAttempt(ip);
-            setAuthCookie(ctx, authService.createSessionToken());
+            String session = authService.createSessionToken();
+            setAuthCookie(ctx, session);
             if (json) {
-                ctx.status(HttpStatus.OK).json(Map.of("success", true));
+                ctx.status(HttpStatus.OK).json(Map.of(
+                        "success", true,
+                        "csrfToken", authService.csrfTokenForSession(session)));
                 return;
             }
             ctx.redirect(nextSafe != null ? nextSafe : "/");

@@ -5,6 +5,20 @@ import { ensureHomeLoginCss } from './home-panel-css-loader.js';
 const LOGIN_RESULT_UNKNOWN = '[警告] 登入失敗，請稍後再試';
 const LOGIN_FAILURE_MESSAGE = '[警告] 密碼錯誤';
 
+
+function applyLoginCsrf(win, data) {
+  const token = data && typeof data.csrfToken === 'string' ? data.csrfToken.trim() : '';
+  if (token) {
+    win.PUNCHCLOCK_CSRF = token;
+    return true;
+  }
+  if (win && win.location && typeof win.location.reload === 'function') {
+    win.location.reload();
+    return false;
+  }
+  return true;
+}
+
 export function wireHomeLoginModal(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
   const win = (opts && opts.win) || globalThis;
@@ -156,8 +170,10 @@ export function wireHomeLoginModal(opts) {
       .catch(() => ({ ok: false, status: 0, data: null }))
       .then((result) => {
         if (result.ok && result.data && result.data.success) {
-          close();
-          if (onAuthed) onAuthed();
+          if (applyLoginCsrf(win, result.data)) {
+            close();
+            if (onAuthed) onAuthed();
+          }
           return;
         }
         applyFailurePayload(result.data);

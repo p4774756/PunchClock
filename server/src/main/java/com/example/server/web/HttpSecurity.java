@@ -44,17 +44,37 @@ public final class HttpSecurity {
         app.before(this::applySecurityHeaders);
     }
 
+    /**
+     * 僅在反向代理明確標示原始請求為 HTTP 時導向 HTTPS。
+     * Render 健康檢查從容器內部以 HTTP 打 {@code /ping}，通常沒有
+     * {@code X-Forwarded-Proto}，不可把這類請求 301 走，否則服務會被判定不健康。
+     * {@code /ping} 一律不導向。
+     */
     private void maybeRedirectToHttps(Context ctx) {
-        if (!isProductionEnv(env) || authService.isHttps(ctx)) {
+        if (!isProductionEnv(env)) {
+            return;
+        }
+        if ("/ping".equals(ctx.path())) {
             return;
         }
         if ("websocket".equalsIgnoreCase(ctx.header("Upgrade"))) {
+            return;
+        }
+        if (!isExplicitHttpForwardedProto(ctx)) {
             return;
         }
         String target = buildHttpsUrl(ctx);
         ctx.status(HttpStatus.MOVED_PERMANENTLY);
         ctx.header("Location", target);
         ctx.skipRemainingHandlers();
+    }
+
+    private static boolean isExplicitHttpForwardedProto(Context ctx) {
+        String proto = ctx.header("X-Forwarded-Proto");
+        if (proto == null || proto.isBlank()) {
+            return false;
+        }
+        return proto.split(",")[0].trim().equalsIgnoreCase("http");
     }
 
     private static String buildHttpsUrl(Context ctx) {

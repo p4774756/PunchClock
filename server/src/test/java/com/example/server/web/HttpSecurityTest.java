@@ -6,6 +6,7 @@ import com.example.server.auth.CsrfTokens;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import io.javalin.Javalin;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -13,6 +14,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -124,6 +126,89 @@ public class HttpSecurityTest {
         assertEquals(302, logout.statusCode());
         HttpResponse<String> status = send("GET", "/api/status", adminCookie, null, null);
         assertEquals(401, status.statusCode());
+    }
+
+    @Test
+    public void productionPingIsNeverRedirectedToHttps() throws Exception {
+        try (ProductionSecurityServer prod = ProductionSecurityServer.start()) {
+            HttpClient noFollow = HttpClient.newBuilder()
+                    .followRedirects(HttpClient.Redirect.NEVER)
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+            HttpResponse<String> bare = prod.get(noFollow, "/ping", null);
+            assertEquals(200, bare.statusCode());
+            assertFalse(bare.headers().firstValue("location").isPresent());
+            assertTrue(bare.body().contains("\"message\":\"pong\""));
+
+            HttpResponse<String> viaHttp = prod.get(noFollow, "/ping", "http");
+            assertEquals(200, viaHttp.statusCode());
+            assertFalse(viaHttp.headers().firstValue("location").isPresent());
+
+            HttpResponse<String> viaHttps = prod.get(noFollow, "/ping", "https");
+            assertEquals(200, viaHttps.statusCode());
+            assertFalse(viaHttps.headers().firstValue("location").isPresent());
+        }
+    }
+
+    @Test
+    public void productionRedirectsOnlyWhenForwardedProtoIsHttp() throws Exception {
+        try (ProductionSecurityServer prod = ProductionSecurityServer.start()) {
+            HttpClient noFollow = HttpClient.newBuilder()
+                    .followRedirects(HttpClient.Redirect.NEVER)
+                    .connectTimeout(Duration.ofSeconds(5))
+                    .build();
+            HttpResponse<String> bare = prod.get(noFollow, "/login", null);
+            assertEquals(200, bare.statusCode());
+            assertFalse(bare.headers().firstValue("location").isPresent());
+
+            HttpResponse<String> viaHttps = prod.get(noFollow, "/login", "https");
+            assertEquals(200, viaHttps.statusCode());
+            assertFalse(viaHttps.headers().firstValue("location").isPresent());
+
+            HttpResponse<String> viaHttp = prod.get(noFollow, "/login?next=/", "http");
+            assertEquals(301, viaHttp.statusCode());
+            String location = viaHttp.headers().firstValue("location").orElse("");
+            assertTrue(location.startsWith("https://"));
+            assertTrue(location.contains("/login?next=/"));
+        }
+    }
+
+    private static final class ProductionSecurityServer implements AutoCloseable {
+        private final Javalin app;
+        private final String base;
+
+        private ProductionSecurityServer(Javalin app, String base) {
+            this.app = app;
+            this.base = base;
+        }
+
+        static ProductionSecurityServer start() {
+            AdminTestServer.IsolatedAuth isolated = AdminTestServer.isolatedAuth();
+            HttpSecurity security = new HttpSecurity(isolated.authService(), Map.of("RENDER", "true"));
+            Javalin app = Javalin.create(config -> config.showJavalinBanner = false);
+            security.register(app);
+            app.get("/ping", ctx -> ctx.json(Map.of("message", "pong")));
+            app.get("/login", ctx -> ctx.status(200).result("ok"));
+            app.start(0);
+            return new ProductionSecurityServer(app, "http://127.0.0.1:" + app.port());
+        }
+
+        HttpResponse<String> get(HttpClient http, String path, String forwardedProto) throws Exception {
+            HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(base + path))
+                    .timeout(Duration.ofSeconds(5))
+                    .GET();
+            if (forwardedProto != null) {
+                builder.header("X-Forwarded-Proto", forwardedProto);
+            }
+            return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public void close() {
+            if (app != null) {
+                app.stop();
+            }
+        }
     }
 
     private HttpResponse<String> send(String method, String path, String cookie, String csrfToken, byte[] body)

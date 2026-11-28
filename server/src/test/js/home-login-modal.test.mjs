@@ -319,8 +319,59 @@ test('首頁登入浮動視窗標記與 fetch JSON', () => {
   assert.match(js, /Accept: 'application\/json'/);
   assert.match(js, /credentials: 'same-origin'/);
   assert.match(js, /POST/);
+  assert.match(js, /PUNCHCLOCK_CSRF/);
+  assert.match(js, /csrfToken/);
+  assert.match(js, /location\.reload/);
   assert.doesNotMatch(js, /innerHTML/);
   assert.doesNotMatch(js, /剩餘嘗試次數：4/);
+});
+
+test('登入成功寫入 CSRF，缺 token 則重整頁面', { concurrency: false }, async () => {
+  const { wireHomeLoginModal } = await loadPublicModule('home-login-modal.js');
+  const doc = createDocument();
+  doc.body.innerHTML = LOGIN_BOARD_HTML;
+  let reloads = 0;
+  let authed = 0;
+  let payload = { success: true, csrfToken: 'csrf-from-login' };
+  const win = {
+    PUNCHCLOCK_CSRF: '',
+    location: {
+      reload() { reloads += 1; }
+    }
+  };
+  const modal = wireHomeLoginModal({
+    doc,
+    win,
+    onAuthed() { authed += 1; },
+    fetch() {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(payload)
+      });
+    }
+  });
+  const board = doc.getElementById('loginBoard');
+  modal.open();
+  board.querySelector('[data-login-password]').value = 'secret';
+  board.querySelector('[data-login-form]').dispatchEvent({ type: 'submit' });
+  await flush();
+  assert.equal(win.PUNCHCLOCK_CSRF, 'csrf-from-login');
+  assert.equal(authed, 1);
+  assert.equal(reloads, 0);
+  assert.equal(board.hidden, true);
+
+  payload = { success: true };
+  win.PUNCHCLOCK_CSRF = '';
+  authed = 0;
+  modal.open();
+  board.querySelector('[data-login-password]').value = 'secret';
+  board.querySelector('[data-login-form]').dispatchEvent({ type: 'submit' });
+  await flush();
+  assert.equal(reloads, 1);
+  assert.equal(authed, 0);
+  assert.equal(win.PUNCHCLOCK_CSRF, '');
+  modal.destroy();
 });
 
 test('登入彈窗錯誤用 textContent，解析失敗不寫死剩餘 4 次', { concurrency: false }, async () => {
@@ -444,7 +495,7 @@ test('左上徽章登入與螢幕待開裝置', { concurrency: false }, async ()
         return Promise.resolve({
           ok: true,
           status: 200,
-          json: () => Promise.resolve({ success: true })
+          json: () => Promise.resolve({ success: true, csrfToken: 'csrf-from-login' })
         });
       }
       if (u.includes('/api/office/public')) {
@@ -484,6 +535,7 @@ test('左上徽章登入與螢幕待開裝置', { concurrency: false }, async ()
   await flush();
   assert.equal(board.hidden, true);
   assert.equal(authLabel.textContent, 'root');
+  assert.equal(win.PUNCHCLOCK_CSRF, 'csrf-from-login');
   assert.equal(tasksOpened, 0);
   activate('monitor');
   assert.equal(tasksOpened, 1);
