@@ -51,8 +51,6 @@ export const LOUNGE_FLOOR_HALF = 1.8;
 /** 地毯：比沙發略大，且左緣要留在浴缸右緣外面。 */
 export const LOUNGE_RUG = { cx: 1.26, cz: -0.26, w: 0.74, d: 0.78 };
 /** 沙發旁落地燈，相對沙發錨點。 */
-/** 未旋轉時的位置；實際位置見 loungeFloorLampPosition()。 */
-export const LOUNGE_FLOOR_LAMP_OFFSET = { x: -0.68, z: -0.24 };
 export const LOUNGE_FLOOR_LAMP_RADIUS = 0.17;
 /** 龜背芋盆栽放在右後角（原本卡在浴缸與沙發之間的窄縫）。 */
 export const LOUNGE_MONSTERA_POSITION = { x: 1.62, z: -1.38 };
@@ -148,12 +146,12 @@ export function rectGap(a, b) {
   return Math.hypot(dx, dz);
 }
 
-/** 落地燈世界位置：跟著沙發一起繞座位點轉，仍站在沙發左後側。 */
+/**
+ * 落地燈世界位置：放在沙發右後方（靠右後角、盆栽前）。
+ * 沙發轉向後，原本左後方的位置會正好擋在窗邊矮櫃（唱片機）前面，所以改到右後方。
+ */
 export function loungeFloorLampPosition() {
-  return rotateAboutSofaSeat(
-    SECRETARY_SOFA_POSITION.x + LOUNGE_FLOOR_LAMP_OFFSET.x,
-    SECRETARY_SOFA_POSITION.z + LOUNGE_FLOOR_LAMP_OFFSET.z
-  );
+  return { x: SECRETARY_SOFA_POSITION.x + 0.3, z: SECRETARY_SOFA_POSITION.z - 0.62 };
 }
 
 /** 路線要避開的實體家具（地毯是貼地的，不算障礙）。 */
@@ -653,7 +651,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   sfCap.position.set(0, 1.09, 0);
   sofaLamp.add(sfCap);
   const sfBulb = new THREE.PointLight(0xffc27a, 2.1, 3.4, 1.8);
-  sfBulb.position.set(0.12, 0.92, 0.05);
+  sfBulb.position.set(-0.1, 0.92, 0.2);
   sfBulb.name = 'sofaFloorLampBulb';
   sofaLamp.add(sfBulb);
   // 看得出「亮著」：燈罩外圈柔光暈＋沙發／地板上一圈暖色光池（加法混色，便宜）。
@@ -683,7 +681,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
     })
   );
   sfPool.rotation.x = -Math.PI / 2;
-  sfPool.position.set(0.28, 0.06, 0.05);
+  sfPool.position.set(-0.2, 0.06, 0.5);
   sfPool.renderOrder = 2;
   sfPool.name = 'sofaFloorLampPool';
   sofaLamp.add(sfPool);
