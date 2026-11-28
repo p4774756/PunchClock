@@ -93,9 +93,15 @@ public class ServerAppBuildInfoTest {
         String homeBody = home.body();
         assertFalse(homeBody.contains("{{SERVER_VERSION}}"));
         assertFalse(homeBody.contains("{{SERVER_BUILD_TIME}}"));
+        assertFalse(homeBody.contains("{{SERVER_ASSET_QUERY}}"));
 
         assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_VERSION = \""));
         assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_BUILD_TIME = \""));
+        assertTrue(homeBody.contains("/css/private-team.css?v="));
+        assertTrue(homeBody.contains("/js/office-page.js?v="));
+        assertEquals("202611281231", ServerApp.compactAssetBuildStamp("2026-11-28 12:31"));
+        assertEquals("4.0.0.202611281231", "4.0.0" + "." + ServerApp.compactAssetBuildStamp("2026-11-28 12:31"));
+        assertEquals("", ServerApp.compactAssetBuildStamp("開發版"));
         assertFalse(homeBody.contains("{{AUTH_JS_BOOL}}"));
         assertFalse(homeBody.contains("{{AUTH_USERNAME}}"));
     }
