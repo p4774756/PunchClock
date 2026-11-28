@@ -40,6 +40,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -101,6 +102,7 @@ public final class AnimeShell extends JPanel {
     private boolean privateAlbumNavVisible = false;
     private final JButton swapIllustrationButton;
     private Runnable swapIllustrationHandler;
+    private final HomeAlbumSlideshow homeAlbum;
 
     public AnimeShell(SchedulerService scheduler, JTabbedPane tabs) {
         super(null);
@@ -119,6 +121,11 @@ public final class AnimeShell extends JPanel {
             }
         });
         add(swapIllustrationButton);
+        homeAlbum = new HomeAlbumSlideshow(
+                () -> repaint(contentBounds()),
+                () -> holdingHome && !miniMode && useRoom,
+                () -> 40,
+                reducedMotion);
         MouseAdapter mouse = new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
@@ -213,6 +220,9 @@ public final class AnimeShell extends JPanel {
                 if (board.animating()) {
                     repaint(board.bubbleArea());
                 }
+                if (homeAlbum.tickCrossfade()) {
+                    // repaint 已由回呼觸發
+                }
             } else if (miniMode && second != paintedSecond) {
                 paintedSecond = second;
                 repaint();
@@ -261,6 +271,7 @@ public final class AnimeShell extends JPanel {
         revalidate();
         repaint();
         refreshChrome();
+        homeAlbum.syncRotateTimer();
     }
 
     public void setCharacterTheme(CharacterTheme theme) {
@@ -302,6 +313,7 @@ public final class AnimeShell extends JPanel {
         revalidate();
         repaint();
         refreshChrome();
+        homeAlbum.syncRotateTimer();
     }
 
     public void openTab(int index) {
@@ -318,6 +330,7 @@ public final class AnimeShell extends JPanel {
         revalidate();
         repaint();
         refreshChrome();
+        homeAlbum.syncRotateTimer();
     }
 
     void releaseHomeFigure() {
@@ -556,6 +569,49 @@ public final class AnimeShell extends JPanel {
         swapIllustrationHandler = handler;
     }
 
+    public void configureHomeAlbum(boolean visible, Path directory, int intervalSeconds, boolean randomOrder) {
+        homeAlbum.configure(visible, directory, intervalSeconds, randomOrder);
+        homeAlbum.reload();
+        repaint(contentBounds());
+    }
+
+    /** @return true 若已處理相簿換圖（否則應輪換內建插畫） */
+    public boolean cycleHomeDisplay() {
+        if (homeAlbum.cycleNext(true)) {
+            return true;
+        }
+        return false;
+    }
+
+    boolean homeAlbumActiveForTests() {
+        return homeAlbum.active();
+    }
+
+    boolean homeAlbumRotateTimerRunningForTests() {
+        return homeAlbum.isRotateTimerRunning();
+    }
+
+    void syncHomeAlbumTimerForTests() {
+        homeAlbum.syncRotateTimer();
+    }
+
+    void settleHomeAlbumForTests() {
+        homeAlbum.settleDisplayForTests();
+    }
+
+    BufferedImage paintHomeFrameForTests() {
+        int w = Math.max(1, getWidth());
+        int h = Math.max(1, getHeight());
+        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = image.createGraphics();
+        try {
+            paint(g);
+        } finally {
+            g.dispose();
+        }
+        return image;
+    }
+
     JButton swapIllustrationButtonForTests() {
         return swapIllustrationButton;
     }
@@ -749,11 +805,19 @@ public final class AnimeShell extends JPanel {
     }
 
     private void paintHome(Graphics2D g, java.awt.Rectangle area) {
-        BufferedImage background = homeIllustrations.get(homeIllustration);
-        int imgW = background == null ? 1 : background.getWidth();
-        int imgH = background == null ? 1 : background.getHeight();
-        board.setIllustrationContext(
-                homeIllustration, imgW, imgH, swapIllustrationButton.getBounds());
+        if (homeAlbum.active()) {
+            board.setIllustrationContext(
+                    HomeIllustration.ROOM_B,
+                    homeAlbum.currentWidth(),
+                    homeAlbum.currentHeight(),
+                    swapIllustrationButton.getBounds());
+        } else {
+            BufferedImage background = homeIllustrations.get(homeIllustration);
+            int imgW = background == null ? 1 : background.getWidth();
+            int imgH = background == null ? 1 : background.getHeight();
+            board.setIllustrationContext(
+                    homeIllustration, imgW, imgH, swapIllustrationButton.getBounds());
+        }
         board.paint(g, hot == HomeBoard.BUBBLE ? HomeBoard.BUBBLE : -1);
     }
 
@@ -985,13 +1049,19 @@ public final class AnimeShell extends JPanel {
         if (!useRoom) {
             return;
         }
+        java.awt.Rectangle content = contentBounds();
+        if (homeAlbum.active()) {
+            homeAlbum.paint(g, content);
+            g.setColor(new Color(16, 10, 32, 48));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            return;
+        }
         BufferedImage background = homeIllustrations.get(homeIllustration);
         if (background == null) {
             g.setColor(new Color(28, 20, 48));
             g.fillRect(0, 0, getWidth(), getHeight());
             return;
         }
-        java.awt.Rectangle content = contentBounds();
         int imgW = background.getWidth();
         int imgH = background.getHeight();
         int sourceTop = HomeBubbleAnchor.sourceTopCropPx(homeIllustration, imgH);

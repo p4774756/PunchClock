@@ -131,6 +131,10 @@ public class ConfigPersistenceService {
         public boolean privateAlbumVisible = false;
         /** 私房相簿圖片資料夾；空白表示 {@code ~/.sklbaby/album/}。 */
         public String privateAlbumDirectory = "";
+        /** 首頁相簿輪播間隔（秒）；0 表示僅開啟 App 或按換圖時換圖。 */
+        public int homeAlbumRotateSeconds = 30;
+        /** 首頁相簿輪播是否隨機順序。 */
+        public boolean homeAlbumRotateRandom = false;
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -289,6 +293,14 @@ public class ConfigPersistenceService {
         } else {
             config.privateAlbumDirectory = config.privateAlbumDirectory.trim();
         }
+        config.homeAlbumRotateSeconds = normalizeHomeAlbumRotateSeconds(config.homeAlbumRotateSeconds);
+    }
+
+    public static int normalizeHomeAlbumRotateSeconds(int seconds) {
+        if (seconds == 0 || seconds == 15 || seconds == 30 || seconds == 60) {
+            return seconds;
+        }
+        return 30;
     }
 
     /** 讀不回來的時間清成空字串，避免畫面顯示壞掉的紀錄。 */

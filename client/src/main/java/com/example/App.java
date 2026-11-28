@@ -430,6 +430,7 @@ public class App extends JFrame {
             }
         });
         shell.setSwapIllustrationHandler(this::cycleHomeIllustration);
+        pushHomeAlbumToShell();
         shell.setMiniModeHandler(this::applyMiniModeFrameSize);
         WindowChrome.setTitleBarMiniToggle(this, () -> {
             if (shell != null && !shell.isMiniMode()) {
@@ -523,6 +524,12 @@ public class App extends JFrame {
         if (serverRefs.privateAlbumOpenFolderButton != null) {
             serverRefs.privateAlbumOpenFolderButton.addActionListener(e -> openPrivateAlbumFolder());
         }
+        if (serverRefs.homeAlbumRotateCombo != null) {
+            serverRefs.homeAlbumRotateCombo.addActionListener(e -> onHomeAlbumSettingsChanged());
+        }
+        if (serverRefs.homeAlbumRotateRandomSwitch != null) {
+            serverRefs.homeAlbumRotateRandomSwitch.addActionListener(e -> onHomeAlbumSettingsChanged());
+        }
     }
 
     private void onPrivateAlbumPathEdited() {
@@ -530,6 +537,16 @@ public class App extends JFrame {
             return;
         }
         refreshPrivateAlbumFromSettings();
+        pushHomeAlbumToShell();
+        saveCloudConfig();
+    }
+
+    private void onHomeAlbumSettingsChanged() {
+        if (suppressConfigSave) {
+            return;
+        }
+        persistHomeAlbumUiToConfig();
+        pushHomeAlbumToShell();
         saveCloudConfig();
     }
 
@@ -579,6 +596,7 @@ public class App extends JFrame {
         if (visible) {
             refreshPrivateAlbumFromSettings();
         }
+        pushHomeAlbumToShell();
         if (persist) {
             saveCloudConfig();
         }
@@ -647,9 +665,93 @@ public class App extends JFrame {
         }
         if (slotController != null && slotController.getConfig() != null) {
             slotController.getConfig().privateAlbumDirectory = directory;
+            slotController.getConfig().homeAlbumRotateSeconds =
+                    ConfigPersistenceService.normalizeHomeAlbumRotateSeconds(config.homeAlbumRotateSeconds);
+            slotController.getConfig().homeAlbumRotateRandom = config.homeAlbumRotateRandom;
+        }
+        if (serverRefs.homeAlbumRotateCombo != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.homeAlbumRotateCombo.setSelectedItem(
+                        homeAlbumRotateSecondsToLabel(config.homeAlbumRotateSeconds));
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        if (serverRefs.homeAlbumRotateRandomSwitch != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.homeAlbumRotateRandomSwitch.setSelected(config.homeAlbumRotateRandom);
+            } finally {
+                suppressConfigSave = previous;
+            }
         }
         applyPrivateAlbumVisible(visible, false);
         refreshPrivateAlbumFromSettings();
+    }
+
+    private void persistHomeAlbumUiToConfig() {
+        if (slotController == null || slotController.getConfig() == null) {
+            return;
+        }
+        slotController.getConfig().homeAlbumRotateSeconds = homeAlbumRotateSecondsFromUi();
+        slotController.getConfig().homeAlbumRotateRandom = homeAlbumRotateRandomFromUi();
+    }
+
+    private void pushHomeAlbumToShell() {
+        if (shell == null) {
+            return;
+        }
+        boolean visible = isPrivateAlbumVisible();
+        Path dir = resolvePrivateAlbumDirectory();
+        int seconds = 30;
+        boolean random = false;
+        if (slotController != null && slotController.getConfig() != null) {
+            seconds = slotController.getConfig().homeAlbumRotateSeconds;
+            random = slotController.getConfig().homeAlbumRotateRandom;
+        }
+        shell.configureHomeAlbum(visible, dir, seconds, random);
+    }
+
+    private int homeAlbumRotateSecondsFromUi() {
+        if (serverRefs.homeAlbumRotateCombo == null) {
+            return 30;
+        }
+        Object selected = serverRefs.homeAlbumRotateCombo.getSelectedItem();
+        return homeAlbumRotateLabelToSeconds(selected == null ? null : selected.toString());
+    }
+
+    private boolean homeAlbumRotateRandomFromUi() {
+        return serverRefs.homeAlbumRotateRandomSwitch != null
+                && serverRefs.homeAlbumRotateRandomSwitch.isSelected();
+    }
+
+    private static int homeAlbumRotateLabelToSeconds(String label) {
+        if ("15 秒".equals(label)) {
+            return 15;
+        }
+        if ("60 秒".equals(label)) {
+            return 60;
+        }
+        if ("僅開啟或按換圖".equals(label)) {
+            return 0;
+        }
+        return 30;
+    }
+
+    private static String homeAlbumRotateSecondsToLabel(int seconds) {
+        switch (ConfigPersistenceService.normalizeHomeAlbumRotateSeconds(seconds)) {
+            case 15:
+                return "15 秒";
+            case 60:
+                return "60 秒";
+            case 0:
+                return "僅開啟或按換圖";
+            default:
+                return "30 秒";
+        }
     }
 
     private void bindDockIconSwimsuitSwitch() {
@@ -1914,6 +2016,9 @@ public class App extends JFrame {
     }
 
     private void cycleHomeIllustration() {
+        if (shell != null && shell.cycleHomeDisplay()) {
+            return;
+        }
         if (slotController == null || slotController.getConfig() == null) {
             return;
         }

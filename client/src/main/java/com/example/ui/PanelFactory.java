@@ -325,7 +325,7 @@ public class PanelFactory {
         refs.privateAlbumVisibleSwitch.setSelected(false);
         refs.privateAlbumVisibleSwitch.setFont(boldFont);
         refs.privateAlbumVisibleSwitch.getAccessibleContext().setAccessibleName("顯示私房相簿");
-        String tip = "開啟後主畫面底部分頁會出現私房相簿，從本機資料夾讀取圖片。";
+        String tip = "開啟後主畫面底部分頁會出現私房相簿，從本機資料夾讀取圖片；有圖時首頁也會輪播相簿。";
         refs.privateAlbumVisibleSwitch.setToolTipText(tip);
 
         JLabel title = new JLabel("顯示私房相簿");
@@ -373,6 +373,32 @@ public class PanelFactory {
         openRow.setOpaque(false);
         openRow.add(refs.privateAlbumOpenFolderButton);
 
+        refs.homeAlbumRotateCombo = new JComboBox<>(new String[]{
+                "15 秒", "30 秒", "60 秒", "僅開啟或按換圖"});
+        refs.homeAlbumRotateCombo.setSelectedItem("30 秒");
+        refs.homeAlbumRotateCombo.setFont(fieldFont);
+        refs.homeAlbumRotateCombo.setToolTipText("首頁相簿輪播自動換圖間隔。");
+
+        JLabel rotateLabel = new JLabel("首頁輪播間隔：");
+        rotateLabel.setFont(mainFont);
+        rotateLabel.setLabelFor(refs.homeAlbumRotateCombo);
+
+        refs.homeAlbumRotateRandomSwitch = new CandySwitch();
+        refs.homeAlbumRotateRandomSwitch.setSelected(false);
+        refs.homeAlbumRotateRandomSwitch.setFont(boldFont);
+        refs.homeAlbumRotateRandomSwitch.getAccessibleContext().setAccessibleName("首頁相簿隨機順序");
+        refs.homeAlbumRotateRandomSwitch.setToolTipText("開啟後首頁相簿輪播以隨機順序換圖。");
+
+        JLabel randomLabel = new JLabel("隨機順序");
+        randomLabel.setFont(boldFont);
+        randomLabel.setLabelFor(refs.homeAlbumRotateRandomSwitch);
+
+        JPanel rotateRow = formRowStretch(rotateLabel, refs.homeAlbumRotateCombo);
+        JPanel randomRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        randomRow.setOpaque(false);
+        randomRow.add(refs.homeAlbumRotateRandomSwitch);
+        randomRow.add(randomLabel);
+
         JPanel column = new JPanel();
         column.setOpaque(false);
         column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
@@ -381,6 +407,8 @@ public class PanelFactory {
         hint.setAlignmentX(Component.LEFT_ALIGNMENT);
         pathRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         openRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        rotateRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        randomRow.setAlignmentX(Component.LEFT_ALIGNMENT);
         column.add(toggleRow);
         column.add(Box.createVerticalStrut(4));
         column.add(hint);
@@ -388,6 +416,10 @@ public class PanelFactory {
         column.add(pathRow);
         column.add(Box.createVerticalStrut(6));
         column.add(openRow);
+        column.add(Box.createVerticalStrut(8));
+        column.add(rotateRow);
+        column.add(Box.createVerticalStrut(6));
+        column.add(randomRow);
         return column;
     }
 
@@ -709,6 +741,8 @@ public class PanelFactory {
         public JToggleButton privateAlbumVisibleSwitch;
         public JTextField privateAlbumDirectoryField;
         public JButton privateAlbumOpenFolderButton;
+        public JComboBox<String> homeAlbumRotateCombo;
+        public JToggleButton homeAlbumRotateRandomSwitch;
         // 中繼 Proxy
         public JCheckBox relayEnabledCheckBox;
         public JSpinner relayPortSpinner;
