@@ -126,19 +126,23 @@
     </div>
     </div>
   </section>
-  <section id="journalBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="心得動態牆">
+  <section id="journalBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="留言板">
     <div class="roadmap-panel maple-window home-journal-panel">
       <header class="maple-win-title roadmap-win-head">
-        <h2>心得</h2>
+        <h2>留言板</h2>
         <button type="button" class="roadmap-close-x" data-journal-close aria-label="關閉">×</button>
       </header>
       <div class="journal-body">
         <p class="journal-status" data-journal-status aria-live="polite"></p>
-        <form class="journal-compose" data-journal-compose hidden>
-          <textarea name="body" class="journal-input" rows="4" maxlength="1000" required placeholder="寫下心得…"></textarea>
-          <input type="text" name="tags" class="journal-input" maxlength="120" placeholder="標籤（逗號分隔，可留空）" />
-          <input type="file" name="image" accept="image/jpeg,image/png,image/webp" />
-          <button type="submit" class="btn btn-primary">發佈</button>
+        <form class="journal-compose" data-journal-compose>
+          <p class="journal-compose-who" data-journal-who hidden>站長</p>
+          <input type="text" name="nickname" class="journal-input" data-journal-nickname maxlength="12" placeholder="暱稱（可留空）" autocomplete="nickname" />
+          <input type="text" name="website" class="journal-hp" data-journal-hp tabindex="-1" autocomplete="off" aria-hidden="true" />
+          <textarea name="body" class="journal-input" data-journal-body rows="3" maxlength="280" required placeholder="寫點什麼…"></textarea>
+          <div class="journal-compose-row">
+            <span class="journal-count" data-journal-count>0 / 280</span>
+            <button type="submit" class="btn btn-primary">發佈</button>
+          </div>
         </form>
         <div class="journal-list" data-journal-list></div>
         <button type="button" class="btn btn-ghost journal-more" data-journal-more hidden>載入更多</button>

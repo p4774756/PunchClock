@@ -1,8 +1,8 @@
-/** 心得牆純邏輯（可 node:test）。 */
+/** 留言板純邏輯（可 node:test）。 */
 
 export const NICKNAME_MAX = 12;
 export const COMMENT_MAX = 200;
-export const BODY_MAX = 1000;
+export const BODY_MAX = 280;
 export const ANONYMOUS = '路過的旅人';
 
 const LINK_RE = /(https?:\/\/|www\.|\[[^\]]+\]\([^)]+\))/i;

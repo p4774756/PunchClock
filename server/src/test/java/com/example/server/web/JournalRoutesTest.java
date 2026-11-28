@@ -64,52 +64,68 @@ public class JournalRoutesTest {
     }
 
     @Test
-    public void guestsCanReadAndCommentButCannotPost() throws Exception {
+    public void guestsAndOwnerCanPostCommentsPaused() throws Exception {
         HttpResponse<String> list = send("GET", "/api/journal", null, null, (String[]) null);
         assertEquals(200, list.statusCode());
 
-        HttpResponse<String> denied = send(
+        HttpResponse<String> guest = send(
                 "POST", "/api/journal", "application/json",
-                "{\"body\":\"訪客\"}".getBytes(StandardCharsets.UTF_8),
+                "{\"body\":\"訪客短文\",\"nickname\":\"小明\"}".getBytes(StandardCharsets.UTF_8),
                 (String[]) null);
-        assertEquals(401, denied.statusCode());
-        assertTrue(denied.body().contains("未登入或權限不足"));
+        assertEquals(201, guest.statusCode());
+        assertTrue(guest.body().contains("小明"));
+        assertTrue(guest.body().contains("\"owner\":false"));
+        String guestId = idOf(guest.body());
 
         HttpResponse<String> created = send(
                 "POST", "/api/journal", "application/json",
                 "{\"body\":\"站長文\"}".getBytes(StandardCharsets.UTF_8),
                 "Cookie", adminCookie);
         assertEquals(201, created.statusCode());
-        String id = idOf(created.body());
+        assertTrue(created.body().contains("站長"));
+        assertTrue(created.body().contains("\"owner\":true"));
+        String ownerId = idOf(created.body());
 
         HttpResponse<String> comment = send(
-                "POST", "/api/journal/" + id + "/comments", "application/json",
+                "POST", "/api/journal/" + ownerId + "/comments", "application/json",
                 "{\"nickname\":\"小明\",\"body\":\"讚\"}".getBytes(StandardCharsets.UTF_8),
                 (String[]) null);
-        assertEquals(201, comment.statusCode());
-        assertFalse(comment.body().contains("<script>"));
+        assertEquals(410, comment.statusCode());
+        assertTrue(comment.body().contains("留言功能暫停"));
 
         HttpResponse<String> after = send("GET", "/api/journal", null, null, (String[]) null);
-        assertTrue(after.body().contains("讚"));
+        assertTrue(after.body().contains("訪客短文"));
+        assertTrue(after.body().contains("站長文"));
+
+        HttpResponse<String> guestDelete = send("DELETE", "/api/journal/" + guestId, null, null, (String[]) null);
+        assertEquals(401, guestDelete.statusCode());
+
+        HttpResponse<String> ownerPatchGuest = send(
+                "PATCH", "/api/journal/" + guestId, "application/json",
+                "{\"body\":\"改掉\"}".getBytes(StandardCharsets.UTF_8),
+                "Cookie", adminCookie);
+        assertEquals(403, ownerPatchGuest.statusCode());
+
+        HttpResponse<String> ownerDelete = send(
+                "DELETE", "/api/journal/" + guestId, null, null,
+                "Cookie", adminCookie);
+        assertEquals(200, ownerDelete.statusCode());
+        assertTrue(ownerDelete.body().contains("已刪除"));
     }
 
     @Test
-    public void commentRateLimitReturns429() throws Exception {
-        HttpResponse<String> created = send(
-                "POST", "/api/journal", "application/json",
-                "{\"body\":\"限流\"}".getBytes(StandardCharsets.UTF_8),
-                "Cookie", adminCookie);
-        String id = idOf(created.body());
+    public void visitorPostRateLimitReturns429() throws Exception {
         HttpResponse<String> ok = send(
-                "POST", "/api/journal/" + id + "/comments", "application/json",
-                "{\"body\":\"一\"}".getBytes(StandardCharsets.UTF_8),
+                "POST", "/api/journal", "application/json",
+                "{\"body\":\"一\",\"nickname\":\"甲\"}".getBytes(StandardCharsets.UTF_8),
                 (String[]) null);
         assertEquals(201, ok.statusCode());
         HttpResponse<String> blocked = send(
-                "POST", "/api/journal/" + id + "/comments", "application/json",
-                "{\"body\":\"二\"}".getBytes(StandardCharsets.UTF_8),
+                "POST", "/api/journal", "application/json",
+                "{\"body\":\"二\",\"nickname\":\"甲\"}".getBytes(StandardCharsets.UTF_8),
                 (String[]) null);
         assertEquals(429, blocked.statusCode());
+        assertTrue(blocked.body().contains("發文太頻繁"));
     }
 
     @Test

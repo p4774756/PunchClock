@@ -731,7 +731,7 @@ export function addWindowSillHandheld(root, sillY, sillZ, mugX) {
   return { group, body, screen, glow, pick };
 }
 
-/** 牆上心得佈告欄（靠後牆右側，不擋窗景與左畫）。 */
+/** 牆上留言板（靠後牆右側，不擋窗景與左畫）。 */
 export function addJournalBoard(root, x, y, z, lookTarget) {
   const group = new THREE.Group();
   group.name = 'journalBoard';
@@ -748,13 +748,10 @@ export function addJournalBoard(root, x, y, z, lookTarget) {
   ctx.lineWidth = 8;
   ctx.strokeRect(10, 10, 236, 172);
   ctx.fillStyle = '#1f4d73';
-  ctx.font = 'bold 44px sans-serif';
+  ctx.font = 'bold 40px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('心得', 128, 78);
-  ctx.fillStyle = '#5c6570';
-  ctx.font = '22px sans-serif';
-  ctx.fillText('動態牆', 128, 124);
+  ctx.fillText('留言板', 128, 96);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.needsUpdate = true;

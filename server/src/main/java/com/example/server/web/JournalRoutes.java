@@ -16,7 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** 心得動態牆 API。讀取與訪客留言公開；發文與管理需站長。 */
+/** 留言板 API。讀取與發短文公開；刪除與編輯自己的短文需站長。評論新增已暫停。 */
 public final class JournalRoutes {
 
     private static final Gson GSON = new Gson();
@@ -59,17 +59,18 @@ public final class JournalRoutes {
     }
 
     private void create(Context ctx) {
-        if (!authService.isAuth(ctx)) {
-            ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
-            return;
-        }
         ParsedPostForm form = parsePostForm(ctx);
         if (form.errorStatus > 0) {
             ctx.status(form.errorStatus).json(Map.of("success", false, "message", form.errorMessage));
             return;
         }
-        JournalStore.Result result = store.createPost(
-                form.body, form.tags, form.image, System.currentTimeMillis());
+        JournalStore.Result result;
+        if (authService.isAuth(ctx)) {
+            result = store.createPost(form.body, form.tags, form.image, System.currentTimeMillis());
+        } else {
+            result = store.createVisitorPost(
+                    form.body, form.nickname, form.honeypot, GraffitiRoutes.clientIp(ctx), System.currentTimeMillis());
+        }
         respondPost(ctx, result, HttpStatus.CREATED);
     }
 
@@ -79,6 +80,15 @@ public final class JournalRoutes {
             return;
         }
         String id = ctx.pathParam("id");
+        JournalStore.Post existing = store.find(id);
+        if (existing == null) {
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這則留言"));
+            return;
+        }
+        if (!existing.owner) {
+            ctx.status(HttpStatus.FORBIDDEN).json(Map.of("success", false, "message", "只能編輯自己的短文"));
+            return;
+        }
         ParsedPostForm form = parsePostForm(ctx);
         if (form.errorStatus > 0) {
             ctx.status(form.errorStatus).json(Map.of("success", false, "message", form.errorMessage));
@@ -98,10 +108,10 @@ public final class JournalRoutes {
         }
         String id = ctx.pathParam("id");
         if (!store.deletePost(id)) {
-            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這篇心得"));
+            ctx.status(HttpStatus.NOT_FOUND).json(Map.of("success", false, "message", "找不到這則留言"));
             return;
         }
-        ctx.json(Map.of("success", true, "message", "已刪除心得"));
+        ctx.json(Map.of("success", true, "message", "已刪除"));
     }
 
     private void image(Context ctx) {
@@ -128,22 +138,7 @@ public final class JournalRoutes {
     }
 
     private void comment(Context ctx) {
-        String postId = ctx.pathParam("id");
-        Map<String, Object> body = readJsonBody(ctx);
-        String nickname = stringField(body, "nickname");
-        String text = stringField(body, "body");
-        String honeypot = stringField(body, "website");
-        JournalStore.Result result = store.addComment(
-                postId, nickname, text, honeypot, GraffitiRoutes.clientIp(ctx), System.currentTimeMillis());
-        if (!result.ok) {
-            ctx.status(result.status).json(Map.of("success", false, "message", result.message));
-            return;
-        }
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("success", true);
-        payload.put("message", result.message);
-        payload.put("comment", commentJson(result.comment));
-        ctx.status(HttpStatus.CREATED).json(payload);
+        ctx.status(HttpStatus.GONE).json(Map.of("success", false, "message", JournalStore.COMMENTS_PAUSED));
     }
 
     private void deleteComment(Context ctx) {
@@ -178,6 +173,8 @@ public final class JournalRoutes {
         try {
             if (type.startsWith("multipart/")) {
                 form.body = ctx.formParam("body");
+                form.nickname = ctx.formParam("nickname");
+                form.honeypot = ctx.formParam("website");
                 form.tags = splitTags(ctx.formParam("tags"));
                 UploadedFile file = ctx.uploadedFile("image");
                 if (file != null) {
@@ -188,6 +185,8 @@ public final class JournalRoutes {
             } else {
                 Map<String, Object> json = readJsonBody(ctx);
                 form.body = stringField(json, "body");
+                form.nickname = stringField(json, "nickname");
+                form.honeypot = stringField(json, "website");
                 Object tags = json.get("tags");
                 if (tags instanceof List) {
                     List<?> raw = (List<?>) tags;
@@ -217,6 +216,8 @@ public final class JournalRoutes {
         Map<String, Object> json = new LinkedHashMap<>();
         json.put("id", post.id);
         json.put("body", post.body);
+        json.put("authorName", post.authorName == null ? "" : post.authorName);
+        json.put("owner", post.owner);
         json.put("tags", post.tags == null ? List.of() : post.tags);
         json.put("createdAt", post.createdAt);
         json.put("updatedAt", post.updatedAt);
@@ -307,6 +308,8 @@ public final class JournalRoutes {
 
     private static final class ParsedPostForm {
         String body;
+        String nickname;
+        String honeypot;
         List<String> tags = new ArrayList<>();
         byte[] image;
         int errorStatus;
