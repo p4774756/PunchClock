@@ -11,6 +11,8 @@ public final class OfficeActiveStage {
     public static final String REVIEW = "審查中";
     public static final String FIX = "修正中";
     public static final String MERGE = "合併中";
+    /** PR 與 main 有衝突：CI 不會跑，不該顯示一直累加分鐘的「等 CI」。 */
+    public static final String CONFLICT = "有衝突";
 
     private OfficeActiveStage() {
     }
@@ -18,7 +20,7 @@ public final class OfficeActiveStage {
     public static String forRun(DevMachineStore.RunEntry run, boolean machineAgentRunning,
                                 String machineVerdict, String machineRole, PullRow pull) {
         if (run != null && run.stage != null) {
-            return run.stage;
+            return withConflict(run.stage, pull);
         }
         if (run != null && "review".equals(run.role)) {
             return REVIEW;
@@ -35,6 +37,9 @@ public final class OfficeActiveStage {
             return MERGE;
         }
         if (pull != null && pull.open && !pull.draft) {
+            if (pull.conflicting) {
+                return CONFLICT;
+            }
             if ("PASS".equals(verdict)) {
                 return MERGE;
             }
@@ -58,6 +63,9 @@ public final class OfficeActiveStage {
             return MERGE;
         }
         if (pull != null && pull.open && !pull.draft) {
+            if (pull.conflicting) {
+                return CONFLICT;
+            }
             if ("PASS".equals(machineVerdict)) {
                 return MERGE;
             }
@@ -68,12 +76,21 @@ public final class OfficeActiveStage {
 
     public static String forGithubItem(Item item, PullRow pull) {
         if (pull != null && pull.open && !pull.draft) {
-            return WAIT_CI;
+            return pull.conflicting ? CONFLICT : WAIT_CI;
         }
         if (item != null && DevStatusModels.STATUS_REVIEW.equals(item.status)) {
             return WAIT_CI;
         }
         return DEV;
+    }
+
+    /** 本機標的是「等 CI」或「合併中」，但 PR 其實有衝突時，改顯示「有衝突」。 */
+    public static String withConflict(String stage, PullRow pull) {
+        if (pull != null && pull.open && !pull.draft && pull.conflicting
+                && (WAIT_CI.equals(stage) || MERGE.equals(stage))) {
+            return CONFLICT;
+        }
+        return stage;
     }
 
     private static boolean agentDevOnRun(DevMachineStore.RunEntry run, String machineRole) {
