@@ -3,6 +3,7 @@ import { wireGameBoyModal } from './private-team-pocket.js';
 import {
   bubbleTextForStatus,
   completedTodayKeys,
+  fetchOfficePublicWithRetry,
   fetchSecretaryDevQueue,
   fillStatusCard,
   syncStatusBodyScroll,
@@ -854,17 +855,17 @@ export function mountPrivateTeamPage(opts) {
   }
   doc.addEventListener('keydown', onKeyDown);
 
+  /** 進度列永遠顯示：沒資料（載入中／失敗／今日還沒有任務）時用「今日完成 —」佔位，不再整列消失。 */
   function applyTaskBar(tiger) {
     if (!taskBarRow) return;
     const prog = taskProgressFromTiger(tiger);
+    taskBarRow.hidden = false;
     if (!prog) {
-      taskBarRow.hidden = true;
-      taskBarRow.removeAttribute('aria-label');
+      taskBarRow.setAttribute('aria-label', '今日完成 —');
       if (taskBarFill) taskBarFill.style.width = '0%';
-      if (taskBarCount) taskBarCount.textContent = '';
+      if (taskBarCount) taskBarCount.textContent = '—';
       return;
     }
-    taskBarRow.hidden = false;
     taskBarRow.setAttribute(
       'aria-label',
       '今日完成 ' + prog.completed + '／' + prog.total + '（不含排隊）'
@@ -900,17 +901,40 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
-  function refreshOfficePublic() {
-    if (!fetchFn) return;
-    fetchFn('/api/office/public')
-      .then((r) => (r.ok ? r.json() : null))
-      .catch(() => null)
-      .then((body) => {
-        const tiger = tigerFromPublic(body);
-        applyTiger(tiger || { status: '待命中', active: [], completedToday: [] });
-      });
+  let officeLoadedOnce = false;
+  let officeRecheckTimer = null;
+  let officeRecheckCount = 0;
+  function scheduleOfficeRecheck() {
+    // 失敗或今日資料還是空的（剛冷啟動／重新部署）：不要等 60 秒輪詢，短時間內再補抓，最多 4 次。
+    if (officeRecheckTimer != null || officeRecheckCount >= 4) return;
+    officeRecheckCount++;
+    officeRecheckTimer = (win.setTimeout || setTimeout)(() => {
+      officeRecheckTimer = null;
+      refreshOfficePublic();
+    }, 12_000);
   }
 
+  function refreshOfficePublic() {
+    if (!fetchFn) return;
+    fetchOfficePublicWithRetry(fetchFn, {
+      url: '/api/office/public',
+      sleep: (ms) => new Promise((resolve) => (win.setTimeout || setTimeout)(resolve, ms))
+    }).then((body) => {
+      const tiger = tigerFromPublic(body);
+      if (tiger) {
+        officeLoadedOnce = true;
+        applyTiger(tiger);
+        if (taskProgressFromTiger(tiger)) officeRecheckCount = 0;
+        else scheduleOfficeRecheck();
+        return;
+      }
+      // 全部重試都失敗：已有舊資料就保留（不要用空資料蓋掉進度列與狀態）；第一次就失敗才畫預設值。
+      if (!officeLoadedOnce) applyTiger({ status: '待命中', active: [], completedToday: [] });
+      scheduleOfficeRecheck();
+    });
+  }
+
+  applyTaskBar(null);
   refreshOfficePublic();
   refreshDevQueue();
   const poll = win.setInterval(() => {
@@ -934,6 +958,7 @@ export function mountPrivateTeamPage(opts) {
         unbindPageViewport = null;
       }
       win.clearInterval(poll);
+      if (officeRecheckTimer != null) (win.clearTimeout || clearTimeout)(officeRecheckTimer);
       doc.removeEventListener('keydown', onKeyDown);
       loginModal.destroy();
       closeAuthMenu();

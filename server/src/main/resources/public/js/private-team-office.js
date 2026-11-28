@@ -64,6 +64,28 @@ export function tigerFromPublic(body) {
   };
 }
 
+/**
+ * 讀 /api/office/public；失敗（斷線、非 2xx、Render 冷啟動回 HTML／503、success 非 true）會依序等待後重試。
+ * 回傳最後一次的 body；全部失敗回 null。sleep 可注入（單測用）。
+ */
+export async function fetchOfficePublicWithRetry(fetchFn, opts) {
+  const delays = (opts && opts.delays) || [1500, 4000, 9000];
+  const sleep = (opts && opts.sleep) || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  if (typeof fetchFn !== 'function') return null;
+  for (let i = 0; i <= delays.length; i++) {
+    let body = null;
+    try {
+      const r = await fetchFn((opts && opts.url) || '/api/office/public');
+      body = r && r.ok ? await r.json() : null;
+    } catch (_e) {
+      body = null;
+    }
+    if (tigerFromPublic(body)) return body;
+    if (i < delays.length) await sleep(delays[i]);
+  }
+  return null;
+}
+
 export function secretarySystemMetricsVisible(tiger) {
   if (!tiger || typeof tiger !== 'object') return false;
   return tiger.cpuPercent != null || tiger.ramPercent != null

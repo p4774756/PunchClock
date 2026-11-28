@@ -245,3 +245,27 @@ test('visualViewport 同步設定首頁高度與頂部偏移', () => {
   assert.ok(calls.length >= 2);
   unbind();
 });
+test('今日完成進度列沒資料時顯示「—」佔位、不再 hidden；讀取失敗會重試', async () => {
+  const pageSrc = readFileSync(new URL('../../main/resources/public/js/private-team-page.js', import.meta.url), 'utf8');
+  assert.match(pageSrc, /taskBarCount\.textContent = '—'/);
+  assert.doesNotMatch(pageSrc, /taskBarRow\.hidden = true/);
+  assert.match(pageSrc, /fetchOfficePublicWithRetry/);
+  assert.match(pageSrc, /scheduleOfficeRecheck/);
+  const office = await loadPublicModule('private-team-office.js');
+  const okBody = { success: true, characters: { tiger: { status: '工作中', active: [{}], completedToday: [{}] } } };
+  let calls = 0;
+  const waits = [];
+  const fetchFn = async () => {
+    calls++;
+    if (calls === 1) throw new Error('cold start');
+    if (calls === 2) return { ok: false, json: async () => ({}) };
+    if (calls === 3) return { ok: true, json: async () => { throw new Error('html'); } };
+    return { ok: true, json: async () => okBody };
+  };
+  const body = await office.fetchOfficePublicWithRetry(fetchFn, { sleep: async (ms) => waits.push(ms) });
+  assert.equal(body, okBody);
+  assert.equal(calls, 4);
+  assert.deepEqual(waits, [1500, 4000, 9000]);
+  const never = await office.fetchOfficePublicWithRetry(async () => ({ ok: false }), { sleep: async () => {}, delays: [1, 1] });
+  assert.equal(never, null);
+});
