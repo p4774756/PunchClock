@@ -941,12 +941,17 @@ public final class AnimeShell extends JPanel {
         java.awt.Rectangle content = contentBounds();
         int imgW = background.getWidth();
         int imgH = background.getHeight();
+        int sourceTop = HomeBubbleAnchor.sourceTopCropPx(homeIllustration, imgH);
+        int contentH = imgH - sourceTop;
+        BufferedImage slice = sourceTop == 0
+                ? background
+                : background.getSubimage(0, sourceTop, imgW, contentH);
         java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
-                content.width, content.height, imgW, imgH);
+                content.width, content.height, imgW, contentH);
         int x = content.x + draw.x;
         int y = content.y + draw.y;
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(background, x, y, draw.width, draw.height, null);
+        g.drawImage(slice, x, y, draw.width, draw.height, null);
         g.setColor(new Color(16, 10, 32, 48));
         g.fillRect(0, 0, getWidth(), getHeight());
     }

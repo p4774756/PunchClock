@@ -59,15 +59,32 @@ public final class HomeBubbleAnchor {
         return id != null && BY_ID.containsKey(id.trim().toLowerCase());
     }
 
+    /** 櫻花公園圖檔頂端約四分之一為 AI 填補糊帶，繪製前先略過。 */
+    private static final double CHERRY_TOP_PADDING_NORM = 0.25;
+
+    public static int sourceTopCropPx(HomeIllustration illustration, int imgH) {
+        if (illustration == HomeIllustration.CHERRY_PARK_D && imgH > 0) {
+            return (int) Math.round(imgH * CHERRY_TOP_PADDING_NORM);
+        }
+        return 0;
+    }
+
     public static Rectangle imageDrawRect(int panelW, int panelH, int imgW, int imgH) {
+        return imageDrawRect(panelW, panelH, imgW, imgH, 0);
+    }
+
+    public static Rectangle imageDrawRect(
+            int panelW, int panelH, int imgW, int imgH, int sourceTopPx) {
         if (panelW < 1 || panelH < 1 || imgW < 1 || imgH < 1) {
             return new Rectangle(0, 0, panelW, panelH);
         }
-        double scale = Math.max(panelW / (double) imgW, panelH / (double) imgH);
+        int crop = Math.max(0, Math.min(sourceTopPx, imgH - 1));
+        int contentH = imgH - crop;
+        double scale = Math.max(panelW / (double) imgW, panelH / (double) contentH);
         int dw = (int) Math.ceil(imgW * scale);
-        int dh = (int) Math.ceil(imgH * scale);
+        int dh = (int) Math.ceil(contentH * scale);
         int x = (panelW - dw) / 2;
-        int y = coverOffsetY(panelH, dh, imgH, scale);
+        int y = coverOffsetY(panelH, dh, contentH, scale);
         return new Rectangle(x, y, dw, dh);
     }
 
@@ -83,11 +100,22 @@ public final class HomeBubbleAnchor {
 
     public static Point imageNormToPanel(
             double normX, double normY, Rectangle drawRect, int imgW, int imgH) {
+        return imageNormToPanel(normX, normY, drawRect, imgW, imgH, 0);
+    }
+
+    public static Point imageNormToPanel(
+            double normX,
+            double normY,
+            Rectangle drawRect,
+            int imgW,
+            int imgH,
+            int sourceTopPx) {
         double scale = drawRect.width / (double) imgW;
         int ix = (int) Math.round(normX * imgW);
         int iy = (int) Math.round(normY * imgH);
         int px = drawRect.x + (int) Math.round(ix * scale);
-        int py = drawRect.y + (int) Math.round(iy * scale);
+        int crop = Math.max(0, Math.min(sourceTopPx, imgH - 1));
+        int py = drawRect.y + (int) Math.round((iy - crop) * scale);
         return new Point(px, py);
     }
 
@@ -100,9 +128,10 @@ public final class HomeBubbleAnchor {
             int boxH,
             Rectangle topRightAvoid) {
         Spec spec = specFor(illustration);
-        Rectangle draw = imageDrawRect(stage.width, stage.height, imgW, imgH);
-        Point mouth = imageNormToPanel(spec.mouthX, spec.mouthY, draw, imgW, imgH);
-        Point anchor = imageNormToPanel(spec.bubbleX, spec.bubbleY, draw, imgW, imgH);
+        int sourceTop = sourceTopCropPx(illustration, imgH);
+        Rectangle draw = imageDrawRect(stage.width, stage.height, imgW, imgH, sourceTop);
+        Point mouth = imageNormToPanel(spec.mouthX, spec.mouthY, draw, imgW, imgH, sourceTop);
+        Point anchor = imageNormToPanel(spec.bubbleX, spec.bubbleY, draw, imgW, imgH, sourceTop);
         int x = anchor.x - boxW / 2;
         int y = anchor.y - boxH - 8;
         if (mouth.x < anchor.x) {

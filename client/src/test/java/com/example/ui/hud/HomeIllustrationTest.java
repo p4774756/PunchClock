@@ -67,7 +67,9 @@ public class HomeIllustrationTest {
                 for (int[] shell : shells) {
                     int panelH = shell[1] - ShellDimensions.TAB_BAR_HEIGHT;
                     int panelW = shell[0];
-                    java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(panelW, panelH, imgW, imgH);
+                    int crop = HomeBubbleAnchor.sourceTopCropPx(illustration, imgH);
+                    java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
+                            panelW, panelH, imgW, imgH, crop);
                     assertTrue(draw.width >= panelW);
                     assertTrue(draw.height >= panelH);
                     assertTrue("top gap", draw.y <= 0);
@@ -80,16 +82,26 @@ public class HomeIllustrationTest {
     }
 
     @Test
-    public void verticalCropUsesUpperThirdAnchorNotTopAlign() throws Exception {
-        int panelW = ShellDimensions.DEFAULT_WIDTH;
-        int panelH = ShellDimensions.DEFAULT_HEIGHT - ShellDimensions.TAB_BAR_HEIGHT;
+    public void cherryParkSkipsTopPaddingBand() throws Exception {
+        int[][] shells = {{380, 520}, {417, 644}};
         try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(
                 HomeIllustration.CHERRY_PARK_D.resourcePath())) {
             var img = ImageIO.read(in);
-            java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
-                    panelW, panelH, img.getWidth(), img.getHeight());
-            assertTrue(draw.height > panelH);
-            assertTrue("should crop top, not pin y=0", draw.y < 0);
+            int imgW = img.getWidth();
+            int imgH = img.getHeight();
+            int crop = HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.CHERRY_PARK_D, imgH);
+            assertEquals(288, crop);
+            for (int[] shell : shells) {
+                int panelH = shell[1] - ShellDimensions.TAB_BAR_HEIGHT;
+                int panelW = shell[0];
+                java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
+                        panelW, panelH, imgW, imgH, crop);
+                assertTrue(draw.width >= panelW);
+                assertTrue(draw.height >= panelH);
+                double scale = draw.width / (double) imgW;
+                int visibleTopSrcY = (int) Math.round((-draw.y) / scale) + crop;
+                assertTrue("skip blur band", visibleTopSrcY >= crop);
+            }
         }
     }
 
