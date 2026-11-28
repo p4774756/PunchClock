@@ -145,9 +145,9 @@ test('secretarySpriteUrlForStatus 對應三張立繪', () => {
   assert.equal(secretarySpriteUrlForStatus('工作中 ×3'), '/assets/private-team/secretary-typing-a.webp');
   assert.equal(secretarySpriteUrlForStatus('三聖獸結界展開中'), '/assets/private-team/secretary-typing-a.webp');
   assert.equal(secretarySpriteUrlForStatus('青龍結界展開中'), '/assets/private-team/secretary-typing-a.webp');
-  assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-sofa.webp');
-  assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-sofa.webp');
-  assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sofa.webp');
+  assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-sofa-v2.webp');
+  assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-sofa-v2.webp');
+  assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sofa-v2.webp');
   assert.equal(
     secretarySpriteUrlForStatus('工作中', 'stage'),
     '/assets/private-team/secretary-stage-typing-a.webp'

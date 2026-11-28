@@ -12,7 +12,7 @@ const SPRITE_FILES = {
     read: 'secretary-read.webp',
     phone: 'secretary-phone.webp',
     sleep: 'secretary-sleep.webp',
-    sofa: 'secretary-sofa.webp',
+    sofa: 'secretary-sofa-v2.webp',
     clapA: 'secretary-clap-a.webp',
     clapB: 'secretary-clap-b.webp',
     avatar: 'secretary-avatar.webp'
@@ -52,6 +52,22 @@ export function parseSecretaryOutfitId(value) {
   const s = value == null ? '' : String(value).trim();
   if (s === 'stage') return 'stage';
   return 'default';
+}
+
+/** 服裝按鈕每按一次依這個順序切到下一套，最後一套回到第一套。 */
+export const SECRETARY_OUTFIT_CYCLE = ['default', 'stage'];
+
+export const SECRETARY_OUTFIT_LABELS = { default: '預設', stage: '舞台服' };
+
+export function secretaryOutfitLabel(outfitId) {
+  return SECRETARY_OUTFIT_LABELS[parseSecretaryOutfitId(outfitId)];
+}
+
+/** 目前服裝的下一套；無效或空值先當成預設。 */
+export function nextSecretaryOutfitId(currentId) {
+  const cur = parseSecretaryOutfitId(currentId);
+  const at = SECRETARY_OUTFIT_CYCLE.indexOf(cur);
+  return SECRETARY_OUTFIT_CYCLE[(at + 1) % SECRETARY_OUTFIT_CYCLE.length];
 }
 
 function spriteUrl(fileName) {

@@ -11,19 +11,104 @@ import { privateTeamSeededRand } from './private-team-scene-window.js';
 import { isLoungeTigerStatus, isWorkingTigerStatus, parseSecretaryOutfitId } from './private-team-scene-secretary.js';
 
 export const SECRETARY_TUB_POSITION = { x: 0.02, y: 0, z: 0.56 };
-export const SECRETARY_SOFA_POSITION = { x: 1.34, y: 0, z: -0.24 };
+export const SECRETARY_SOFA_POSITION = { x: 1.38, y: 0, z: -0.3 };
 export const SECRETARY_SHADOW_TUB = { x: 0.06, y: 0.072, z: -0.42 };
 /** 沙發姿勢的腳下陰影：相對沙發錨點的「世界」偏移（不隨立繪縮放／偏移移動）。 */
 export const SECRETARY_SHADOW_SOFA = { x: -0.03, y: 0.072, z: 0.16 };
 export const SECRETARY_SOFA_ROTATION_Y = -0.42;
 export const SECRETARY_BUBBLE_TUB = { x: 0.56, z: 0.72 };
-export const SECRETARY_BUBBLE_SOFA = { x: 1.46, z: 0.26 };
+export const SECRETARY_BUBBLE_SOFA = {
+  x: SECRETARY_SOFA_POSITION.x + 0.12,
+  z: SECRETARY_SOFA_POSITION.z + 0.5
+};
 
 /** 供單測推算沙發左緣與浴缸空隙（浴缸右緣約 x = 0.84） */
 /** 世界座標下的沙發左右縮放（避免加寬後碰到浴缸或右牆） */
 export const SOFA_WORLD_SCALE_X = 1.05;
 export const SOFA_HALF_WIDTH_X = 0.36;
 export const SOFA_ARM_RADIUS = 0.06;
+/** 沙發 Z 方向縮放與前後半深（含前緣滾邊），供淨空檢查。 */
+export const SOFA_WORLD_SCALE_Z = 1.12;
+export const SOFA_HALF_DEPTH_Z = 0.27;
+
+/**
+ * 休憩區家具佔地（世界座標，XZ 平面）。浴缸數字對應 private-team-scene.js 的
+ * TUB_CX／TUB_CZ／TUB_HW／TUB_HD 再加外緣滾邊與地板收邊；單測會對照原始碼避免漂移。
+ */
+export const LOUNGE_TUB_FOOTPRINT = { cx: 0, cz: 0.64, hw: 0.88, hd: 0.56 };
+/** 地板外緣（FLOOR_HALF = 1.8）。家具要留在裡面。 */
+export const LOUNGE_FLOOR_HALF = 1.8;
+/** 地毯：比沙發略大，且左緣要留在浴缸右緣外面。 */
+export const LOUNGE_RUG = { cx: 1.38, cz: -0.2, w: 0.84, d: 0.9 };
+/** 沙發旁落地燈，相對沙發錨點。 */
+export const LOUNGE_FLOOR_LAMP_OFFSET = { x: -0.52, z: -0.52 };
+export const LOUNGE_FLOOR_LAMP_RADIUS = 0.17;
+/** 龜背芋盆栽放在右後角（原本卡在浴缸與沙發之間的窄縫）。 */
+export const LOUNGE_MONSTERA_POSITION = { x: 1.62, z: -1.38 };
+export const LOUNGE_MONSTERA_RADIUS = 0.16;
+/** 後窗胡桃木矮櫃（對應 addLoungeFurnishings 的 sbX／sbZ／sbHalfW）。 */
+export const LOUNGE_SIDEBOARD_FOOTPRINT = { cx: 0.86, cz: -1.42, hw: 0.47, hd: 0.26 };
+
+/** 沙發矩形佔地（隨沙發錨點）。 */
+export function loungeSofaFootprint() {
+  const hw = SOFA_HALF_WIDTH_X * SOFA_WORLD_SCALE_X;
+  return {
+    cx: SECRETARY_SOFA_POSITION.x,
+    cz: SECRETARY_SOFA_POSITION.z,
+    hw,
+    hd: SOFA_HALF_DEPTH_Z
+  };
+}
+
+/**
+ * 秘書在浴缸與沙發之間移動時走的路線（世界座標）：從浴缸右緣外側起步，
+ * 沿著前方的空地走到沙發座墊前。目前場景是直接換位置，不播放走路動畫；
+ * 路線留作淨空基準，之後有走路動畫就照這幾點走。
+ */
+export const SECRETARY_LOUNGE_ROUTE = [
+  { name: 'tubSide', x: 1.12, z: 0.74 },
+  { name: 'passage', x: 1.14, z: 0.42 },
+  { name: 'sofaFront', x: 1.34, z: 0.16 }
+];
+/** 路線上的身體半徑（約 1 個人的肩寬一半）。 */
+export const SECRETARY_ROUTE_BODY_RADIUS = 0.12;
+
+/** 點到軸對齊矩形的最短距離（在矩形內為 0）。 */
+export function distancePointToRect(px, pz, rect) {
+  const dx = Math.max(Math.abs(px - rect.cx) - rect.hw, 0);
+  const dz = Math.max(Math.abs(pz - rect.cz) - rect.hd, 0);
+  return Math.hypot(dx, dz);
+}
+
+/** 兩個軸對齊矩形之間的空隙（重疊回傳 0）。 */
+export function rectGap(a, b) {
+  const dx = Math.max(Math.abs(a.cx - b.cx) - (a.hw + b.hw), 0);
+  const dz = Math.max(Math.abs(a.cz - b.cz) - (a.hd + b.hd), 0);
+  return Math.hypot(dx, dz);
+}
+
+/** 路線要避開的實體家具（地毯是貼地的，不算障礙）。 */
+export function loungeObstacleFootprints() {
+  const lamp = {
+    cx: SECRETARY_SOFA_POSITION.x + LOUNGE_FLOOR_LAMP_OFFSET.x,
+    cz: SECRETARY_SOFA_POSITION.z + LOUNGE_FLOOR_LAMP_OFFSET.z,
+    hw: LOUNGE_FLOOR_LAMP_RADIUS,
+    hd: LOUNGE_FLOOR_LAMP_RADIUS
+  };
+  const plant = {
+    cx: LOUNGE_MONSTERA_POSITION.x,
+    cz: LOUNGE_MONSTERA_POSITION.z,
+    hw: LOUNGE_MONSTERA_RADIUS,
+    hd: LOUNGE_MONSTERA_RADIUS
+  };
+  return {
+    tub: LOUNGE_TUB_FOOTPRINT,
+    sofa: loungeSofaFootprint(),
+    lamp,
+    plant,
+    sideboard: LOUNGE_SIDEBOARD_FOOTPRINT
+  };
+}
 
 /**
  * 舞台服沙發立繪是去背坐姿（沒有畫上沙發），需縮小並相對
@@ -52,14 +137,14 @@ function anchorOnlySofaPlacement() {
   const base = SECRETARY_SOFA_POSITION;
   return {
     position: {
-      x: finiteNumber(base.x, 1.34),
+      x: finiteNumber(base.x, 1.38),
       y: finiteNumber(base.y, 0),
-      z: finiteNumber(base.z, -0.24)
+      z: finiteNumber(base.z, -0.3)
     },
     scale: 1,
     bubble: {
-      x: finiteNumber(SECRETARY_BUBBLE_SOFA.x, 1.46),
-      z: finiteNumber(SECRETARY_BUBBLE_SOFA.z, 0.26),
+      x: finiteNumber(SECRETARY_BUBBLE_SOFA.x, 1.5),
+      z: finiteNumber(SECRETARY_BUBBLE_SOFA.z, 0.2),
       y: null
     }
   };
@@ -377,9 +462,9 @@ export function addLoungeFurnishings(root, texLoader, layout) {
     bumpScale: 1.2,
     color: 0xc9b3a0
   });
-  const rug = new THREE.Mesh(new THREE.PlaneGeometry(1.14, 0.96), rugMat);
+  const rug = new THREE.Mesh(new THREE.PlaneGeometry(LOUNGE_RUG.w, LOUNGE_RUG.d), rugMat);
   rug.rotation.x = -Math.PI / 2;
-  rug.position.set(1.28, 0.062, -0.22);
+  rug.position.set(LOUNGE_RUG.cx, 0.062, LOUNGE_RUG.cz);
   rug.name = '編織地毯';
   rug.renderOrder = 1;
   root.add(rug);
@@ -400,7 +485,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   sofaGrp.name = '焦糖棕皮沙發';
   sofaGrp.position.set(sofaSx, 0, sofaSz);
   // X 僅微放大以免碰到浴缸或右牆；Y/Z 加高加深，讓預設相機看出更大的沙發。
-  sofaGrp.scale.set(SOFA_WORLD_SCALE_X, 1.12, 1.12);
+  sofaGrp.scale.set(SOFA_WORLD_SCALE_X, 1.12, SOFA_WORLD_SCALE_Z);
 
   // 座框（含底部暗縫，讓三塊坐墊之間看得出分隔）
   const sofaBase = extrudedRoundedPlate(0.3, 0.2, 0.14, 0.04, leatherDark);
@@ -475,7 +560,11 @@ export function addLoungeFurnishings(root, texLoader, layout) {
 
   const sofaLamp = new THREE.Group();
   sofaLamp.name = 'sofaFloorLamp';
-  sofaLamp.position.set(sofaSx - 0.5, 0, sofaSz - 0.4);
+  sofaLamp.position.set(
+    sofaSx + LOUNGE_FLOOR_LAMP_OFFSET.x,
+    0,
+    sofaSz + LOUNGE_FLOOR_LAMP_OFFSET.z
+  );
   const sfBase = cyl(0.055, 0.062, 0.025, 10, COL.lampBase);
   sfBase.position.set(0, 0.012, 0);
   sofaLamp.add(sfBase);
@@ -491,7 +580,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   sofaLamp.add(sfBulb);
   root.add(sofaLamp);
 
-  addMonstera(root, sofaSx - 0.5, sofaSz + 0.24);
+  addMonstera(root, LOUNGE_MONSTERA_POSITION.x, LOUNGE_MONSTERA_POSITION.z);
 
   const walnutTex = makeWalnutWoodTexture();
   const walnutBodyMat = walnutMaterial(walnutTex, 0xdddddd);
