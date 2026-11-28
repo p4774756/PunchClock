@@ -44,8 +44,9 @@ export function privateTeamWindowPreviewToastLabel(mode) {
 
 const SCENE_LIGHTING_BY_PERIOD = {
   day: {
-    amb: 0.56,
-    dir: 0.48,
+    amb: 0.68,
+    hemi: 0.42,
+    dir: 0.58,
     point: 0.06,
     spot: 0.28,
     spotDistance: 7.8,
@@ -58,14 +59,15 @@ const SCENE_LIGHTING_BY_PERIOD = {
     ambColor: 0xe8f0ff,
     dirColor: 0xc8d8f8,
     background: 0xc8d4e8,
-    floorWash: 0.34,
-    wallWash: 0.26,
+    floorWash: 0.44,
+    wallWash: 0.34,
     tubWarm: 0.05,
     candleMul: 0.12
   },
   sunset: {
-    amb: 0.46,
-    dir: 0.44,
+    amb: 0.54,
+    hemi: 0.36,
+    dir: 0.52,
     point: 0.42,
     spot: 1.85,
     spotDistance: 7.8,
@@ -78,14 +80,15 @@ const SCENE_LIGHTING_BY_PERIOD = {
     ambColor: 0xffe8d0,
     dirColor: 0xffc888,
     background: 0x1a1428,
-    floorWash: 0.62,
-    wallWash: 0.44,
+    floorWash: 0.7,
+    wallWash: 0.52,
     tubWarm: 0.14,
     candleMul: 0.55
   },
   night: {
-    amb: 0.35,
-    dir: 0.42,
+    amb: 0.42,
+    hemi: 0.28,
+    dir: 0.48,
     point: 1.05,
     spot: 5.4,
     spotDistance: 7.8,

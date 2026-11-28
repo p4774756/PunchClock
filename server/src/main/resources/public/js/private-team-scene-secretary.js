@@ -20,7 +20,7 @@ export function isLoungeTigerStatus(status) {
   return s === '待命中' || s === '待機' || s === '休息中';
 }
 
-/** 沙發立繪無法載入時，沿用浴缸區既有立繪。 */
+/** 沙發立繪無法載入時，改用具站姿／坐姿立繪（仍留在休憩區，不回浴缸）。 */
 export function secretaryTubFallbackUrlForStatus(status) {
   const s = status == null ? '' : String(status).trim();
   if (s.startsWith('工作中')) return SECRETARY_SPRITE_URL_TYPING;

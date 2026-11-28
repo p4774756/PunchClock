@@ -236,7 +236,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.02;
+  renderer.toneMappingExposure = 1.2;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   function scenePixelRatio() {
@@ -346,9 +346,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   const lighting = privateTeamSceneLighting(windowVistaPeriod);
   scene.background = new THREE.Color(lighting.background);
   const amb = new THREE.AmbientLight(lighting.ambColor, lighting.amb);
-  const dir = new THREE.DirectionalLight(lighting.dirColor, lighting.dir + 0.06);
+  const hemi = new THREE.HemisphereLight(0xe4eeff, 0x6a7078, lighting.hemi);
+  const dir = new THREE.DirectionalLight(lighting.dirColor, lighting.dir + 0.08);
   dir.position.set(1.4, 6.2, -7.5);
-  scene.add(amb, dir);
+  scene.add(amb, hemi, dir);
 
   const texLoader = new THREE.TextureLoader();
   const wallTex = loadRepeatTex(texLoader, 'wall.webp', 2.2, 1.4);
@@ -360,9 +361,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   const marbleTex = makeMarbleFloorTexture(2.2, 2.2);
   const floorMat = new THREE.MeshStandardMaterial({
     map: marbleTex,
-    color: 0xb8babf,
-    roughness: 0.74,
-    metalness: 0.035
+    color: 0xd6dae2,
+    roughness: 0.46,
+    metalness: 0.06
   });
   const floor = extrudedRoundedPlate(FLOOR_HALF, FLOOR_HALF, 0.035, 0.08, floorMat);
   floor.position.y = 0;
@@ -879,7 +880,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   function addPicLampHead(xOff) {
     const mount = box(0.038, 0.024, 0.034, brassPic);
     mount.material.emissive = new THREE.Color(0xffc878);
-    mount.material.emissiveIntensity = 0.22;
+    mount.material.emissiveIntensity = 0.38;
     mount.position.set(xOff, posterFrameTopY + 0.01, 0.032);
     leftPosterGroup.add(mount);
     const arm = box(0.022, 0.052, 0.03, brassPicDk);
@@ -887,73 +888,50 @@ export function mountPrivateTeamScene(canvas, opts) {
     leftPosterGroup.add(arm);
     const shadeW = LEFT_POSTER_W * 0.22;
     const shade = box(shadeW, 0.042, 0.062, brassPic);
-    shade.material.emissive = new THREE.Color(0xffb868);
-    shade.material.emissiveIntensity = 0.42;
+    shade.material.emissive = new THREE.Color(0xffc888);
+    shade.material.emissiveIntensity = 0.88;
     shade.position.set(xOff, posterFrameTopY - 0.078, 0.052);
     shade.rotation.x = 0.42;
     leftPosterGroup.add(shade);
+    const bulbY = posterFrameTopY - 0.092;
+    const bulbZ = 0.06;
     const bulb = new THREE.Mesh(
       new THREE.SphereGeometry(0.015, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffe8c0, transparent: true, opacity: 0.88 })
+      new THREE.MeshBasicMaterial({ color: 0xffe8c0, transparent: true, opacity: 0.92 })
     );
-    bulb.position.set(xOff, posterFrameTopY - 0.092, 0.06);
+    bulb.position.set(xOff, bulbY, bulbZ);
     leftPosterGroup.add(bulb);
+
+    const picLampSpot = new THREE.SpotLight(0xffc888, 1.12, 3.6, Math.PI / 8.2, 0.38, 1.52);
+    picLampSpot.castShadow = false;
+    picLampSpot.position.set(xOff, bulbY, bulbZ);
+    const picLampSpotTarget = new THREE.Object3D();
+    picLampSpotTarget.position.set(xOff, LEFT_POSTER_H * 0.26, 0.022);
+    leftPosterGroup.add(picLampSpotTarget);
+    picLampSpot.target = picLampSpotTarget;
+    leftPosterGroup.add(picLampSpot);
+
+    const coneH = LEFT_POSTER_H * 0.36;
+    const coneR = shadeW * 0.92;
+    const picLampCone = new THREE.Mesh(
+      new THREE.ConeGeometry(coneR, coneH, 14, 1, true),
+      new THREE.MeshBasicMaterial({
+        map: lampGlowTexture(),
+        color: 0xffc888,
+        transparent: true,
+        opacity: 0.26,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        blending: THREE.AdditiveBlending
+      })
+    );
+    picLampCone.userData.posterPicLampCone = true;
+    picLampCone.position.set(xOff, bulbY - coneH * 0.46, bulbZ - 0.012);
+    picLampCone.rotation.x = 1.08;
+    leftPosterGroup.add(picLampCone);
   }
   addPicLampHead(-LEFT_POSTER_W * 0.3);
   addPicLampHead(LEFT_POSTER_W * 0.3);
-
-  const posterWallHalo = new THREE.Mesh(
-    new THREE.PlaneGeometry(LEFT_POSTER_W * 1.29, LEFT_POSTER_H * 1.65),
-    new THREE.MeshBasicMaterial({
-      color: 0xffb878,
-      transparent: true,
-      opacity: 0.085,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    })
-  );
-  posterWallHalo.position.set(0, 0.06, -0.006);
-  leftPosterGroup.add(posterWallHalo);
-
-  const posterConeWash = new THREE.Mesh(
-    new THREE.PlaneGeometry(LEFT_POSTER_W + 0.06, LEFT_POSTER_H * 0.72),
-    new THREE.MeshBasicMaterial({
-      map: lampGlowTexture(),
-      color: 0xffd090,
-      transparent: true,
-      opacity: 0.16,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    })
-  );
-  posterConeWash.position.set(0, LEFT_POSTER_H * 0.12, 0.018);
-  leftPosterGroup.add(posterConeWash);
-
-  const posterWarmWash = new THREE.Mesh(
-    new THREE.PlaneGeometry(LEFT_POSTER_W + 0.04, LEFT_POSTER_H + 0.08),
-    new THREE.MeshBasicMaterial({
-      color: 0xffc888,
-      transparent: true,
-      opacity: 0.14,
-      depthWrite: false,
-      blending: THREE.AdditiveBlending
-    })
-  );
-  posterWarmWash.position.set(0, -0.02, 0.021);
-  leftPosterGroup.add(posterWarmWash);
-
-  const posterPicLight = new THREE.PointLight(0xffc890, 0.42, 2.35, 1.9);
-  posterPicLight.position.set(0, posterFrameTopY - 0.055, 0.18);
-  leftPosterGroup.add(posterPicLight);
-
-  const posterSpot = new THREE.SpotLight(0xffc888, 0.36, 3.4, Math.PI / 3.4, 0.58, 1.65);
-  posterSpot.castShadow = false;
-  posterSpot.position.set(0, posterFrameTopY - 0.04, 0.16);
-  const posterSpotTarget = new THREE.Object3D();
-  posterSpotTarget.position.set(0, -LEFT_POSTER_H * 0.08, 0.022);
-  leftPosterGroup.add(posterSpotTarget);
-  posterSpot.target = posterSpotTarget;
-  leftPosterGroup.add(posterSpot);
 
   root.add(leftPosterGroup);
 
@@ -1075,8 +1053,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     windowVistaPeriod = period;
     amb.color.setHex(lt.ambColor);
     amb.intensity = lt.amb;
+    hemi.intensity = lt.hemi;
     dir.color.setHex(lt.dirColor);
-    dir.intensity = lt.dir + 0.06;
+    dir.intensity = lt.dir + 0.08;
     if (scene.background && scene.background.isColor) {
       scene.background.setHex(lt.background);
     }
@@ -1407,10 +1386,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(bubble);
 
   syncSecretaryPlacement = function syncSecretaryPlacementImpl() {
-    const wantLounge =
-      !dancePlayback &&
-      secretaryAtLoungePose(tigerStatus, secretarySofaSpriteOk) &&
-      isSecretarySofaSpriteUrl(statusBaseUrl);
+    const wantLounge = !dancePlayback && secretaryAtLoungePose(tigerStatus, true);
     secretaryInLoungePose = wantLounge;
     if (wantLounge) {
       secretaryRoot.position.set(

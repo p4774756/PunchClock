@@ -55,3 +55,31 @@ test('左牆海報靜態資源與場景掛載', () => {
   assert.match(src, /leftPosterGroup\.position\.set\(leftX \+ WALL_THICK \+ 0\.01, wallY, 0\)/);
   assert.match(src, /brassPic/);
 });
+
+test('左牆畫燈：兩盞向下 SpotLight、燈罩 emissive、可見光錐', () => {
+  const src = sceneSrc;
+  const start = src.indexOf("leftPosterGroup.name = 'leftWallPoster'");
+  const end = src.indexOf('root.add(leftPosterGroup)');
+  assert.ok(start >= 0 && end > start, '左牆海報區塊');
+  const block = src.slice(start, end);
+  assert.match(block, /function addPicLampHead/);
+  assert.equal((block.match(/^  addPicLampHead\(/gm) || []).length, 2, '應掛兩盞畫燈');
+  assert.match(
+    block,
+    /picLampSpot = new THREE\.SpotLight\(0xffc888[\s\S]*?Math\.PI \/ 8\.2/
+  );
+  assert.doesNotMatch(block, /\bposterSpot\b/);
+  assert.doesNotMatch(block, /\bposterPicLight\b/);
+  assert.doesNotMatch(block, /\bposterWarmWash\b/);
+  assert.doesNotMatch(block, /\bposterConeWash\b/);
+  const shadeEmissive = block.match(/shade\.material\.emissiveIntensity\s*=\s*([\d.]+)/g) || [];
+  assert.ok(shadeEmissive.length >= 1, '燈罩應設定 emissiveIntensity');
+  for (const line of shadeEmissive) {
+    const m = line.match(/=\s*([\d.]+)/);
+    assert.ok(m && Number(m[1]) >= 0.8, `燈罩 emissiveIntensity 應 >= 0.8，實際 ${m && m[1]}`);
+  }
+  assert.match(block, /ConeGeometry/);
+  assert.match(block, /posterPicLampCone/);
+  assert.match(block, /AdditiveBlending/);
+  assert.match(block, /LEFT_POSTER_H \* 0\.26/);
+});
