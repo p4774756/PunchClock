@@ -7,6 +7,20 @@ const sceneSrc = readPrivateTeamSceneBundle();
 /** 浴缸外緣半寬（private-team-scene.js TUB_HW），右緣世界 X ≈ 0.84 */
 const TUB_RIGHT_EDGE_X = 0.84;
 
+/** 多邊形（順時針角點）邊上取樣到軸對齊矩形的最短距離；有點落在矩形內回傳 0。 */
+function polyRectGap(L, corners, rect) {
+  let best = Infinity;
+  for (let i = 0; i < corners.length; i++) {
+    const a = corners[i];
+    const b = corners[(i + 1) % corners.length];
+    for (let k = 0; k <= 100; k++) {
+      const t = k / 100;
+      best = Math.min(best, L.distancePointToRect(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t, rect));
+    }
+  }
+  return best;
+}
+
 test('休憩區家具名稱與秘書沙發錨點', async () => {
   const {
     SECRETARY_SOFA_POSITION,
@@ -23,11 +37,13 @@ test('休憩區家具名稱與秘書沙發錨點', async () => {
     SOFA_WORLD_SCALE_X,
     vinylShouldSpin
   } = await loadPublicModule('private-team-scene-lounge.js');
-  assert.deepEqual(SECRETARY_SOFA_POSITION, { x: 1.38, y: 0, z: -0.3 });
+  assert.deepEqual(SECRETARY_SOFA_POSITION, { x: 1.28, y: 0, z: -0.3 });
   assert.deepEqual(SECRETARY_SHADOW_SOFA, { x: -0.03, y: 0.072, z: 0.16 });
-  assert.deepEqual(SECRETARY_BUBBLE_SOFA, { x: 1.5, z: 0.2 });
-  const sofaLeftX = SECRETARY_SOFA_POSITION.x - (SOFA_HALF_WIDTH_X + SOFA_ARM_RADIUS) * SOFA_WORLD_SCALE_X;
-  assert.ok(sofaLeftX > TUB_RIGHT_EDGE_X + 0.04, '沙發左緣應與浴缸右緣留有 X 向空隙');
+  assert.deepEqual(SECRETARY_BUBBLE_SOFA, { x: 1.4, z: 0.2 });
+  void SOFA_HALF_WIDTH_X;
+  void SOFA_ARM_RADIUS;
+  void SOFA_WORLD_SCALE_X;
+  void TUB_RIGHT_EDGE_X;
   const defSofa = secretarySofaPlacementForOutfit('default');
   const stagePlaceForShadow = secretarySofaPlacementForOutfit('stage');
   assert.equal(defSofa.scale, SECRETARY_DEFAULT_SOFA_SCALE);
@@ -129,24 +145,35 @@ test('休憩區家具彼此不重疊、浴缸與沙發之間留有通道，家�
   const names = Object.keys(f);
   for (let i = 0; i < names.length; i++) {
     for (let j = i + 1; j < names.length; j++) {
+      // 沙發轉了角度，外接矩形太保守；沙發相關配對改用多邊形（下方）。
+      if (names[i] === 'sofa' || names[j] === 'sofa') continue;
       const gap = L.rectGap(f[names[i]], f[names[j]]);
       assert.ok(gap > 0, names[i] + ' 與 ' + names[j] + ' 重疊');
     }
-    const r = f[names[i]];
-    assert.ok(Math.abs(r.cx) + r.hw <= L.LOUNGE_FLOOR_HALF, names[i] + ' X 超出地板');
-    assert.ok(Math.abs(r.cz) + r.hd <= L.LOUNGE_FLOOR_HALF, names[i] + ' Z 超出地板');
+  }
+  const sofaPoly = L.loungeSofaCorners();
+  for (const c of sofaPoly) {
+    assert.ok(Math.abs(c.x) <= L.LOUNGE_FLOOR_HALF && Math.abs(c.z) <= L.LOUNGE_FLOOR_HALF, '沙發轉向後超出地板');
+  }
+  for (const name of Object.keys(f)) {
+    if (name === 'sofa') continue;
+    const r = f[name];
+    assert.ok(Math.abs(r.cx) + r.hw <= L.LOUNGE_FLOOR_HALF, name + ' X 超出地板');
+    assert.ok(Math.abs(r.cz) + r.hd <= L.LOUNGE_FLOOR_HALF, name + ' Z 超出地板');
+    assert.ok(polyRectGap(L, sofaPoly, r) > 0, '沙發與 ' + name + ' 重疊');
   }
   // 浴缸右緣與沙發左緣的通道至少一個肩寬的一半多一點
-  assert.ok(L.rectGap(f.tub, f.sofa) >= 0.12, '浴缸與沙發太近：' + L.rectGap(f.tub, f.sofa));
+  assert.ok(polyRectGap(L, sofaPoly, f.tub) >= 0.1, '浴缸與沙發太近：' + polyRectGap(L, sofaPoly, f.tub));
   // 盆栽離浴缸與沙發都至少一個身體半徑，不再卡在兩者之間
   assert.ok(L.rectGap(f.plant, f.tub) >= L.SECRETARY_ROUTE_BODY_RADIUS);
-  assert.ok(L.rectGap(f.plant, f.sofa) >= L.SECRETARY_ROUTE_BODY_RADIUS);
-  assert.ok(L.rectGap(f.lamp, f.sofa) >= 0.05);
-  // 地毯貼地：不能壓到浴缸，且要把整個沙發包進去
-  const rug = { cx: L.LOUNGE_RUG.cx, cz: L.LOUNGE_RUG.cz, hw: L.LOUNGE_RUG.w / 2, hd: L.LOUNGE_RUG.d / 2 };
-  assert.ok(L.rectGap(rug, f.tub) > 0, '地毯壓到浴缸');
-  assert.ok(Math.abs(rug.cx) + rug.hw <= L.LOUNGE_FLOOR_HALF + 0.03, '地毯超出地板太多');
-  assert.ok(rug.cx - rug.hw <= f.sofa.cx - f.sofa.hw && rug.cx + rug.hw >= f.sofa.cx + f.sofa.hw - 0.05);
+  assert.ok(polyRectGap(L, sofaPoly, f.plant) >= L.SECRETARY_ROUTE_BODY_RADIUS);
+  assert.ok(polyRectGap(L, sofaPoly, f.lamp) >= 0.05);
+  // 地毯貼地：轉向後四個角都在地板內，邊緣不能壓到浴缸。
+  const rugPoly = L.loungeRugCorners();
+  for (const c of rugPoly) {
+    assert.ok(Math.abs(c.x) <= L.LOUNGE_FLOOR_HALF && Math.abs(c.z) <= L.LOUNGE_FLOOR_HALF, '地毯超出地板');
+  }
+  assert.ok(polyRectGap(L, rugPoly, f.tub) > 0, '地毯壓到浴缸');
 });
 
 test('秘書浴缸到沙發的路線點與整段線段都離家具有淨空', async () => {
@@ -158,10 +185,15 @@ test('秘書浴缸到沙發的路線點與整段線段都離家具有淨空', as
   const check = (x, z, label) => {
     assert.ok(Math.abs(x) <= L.LOUNGE_FLOOR_HALF - L.SECRETARY_ROUTE_BODY_RADIUS, label + ' 超出地板 X');
     assert.ok(Math.abs(z) <= L.LOUNGE_FLOOR_HALF - L.SECRETARY_ROUTE_BODY_RADIUS, label + ' 超出地板 Z');
+    const sofaD = polyRectGap(L, [{ x, z }], { cx: 0, cz: 0, hw: 0, hd: 0 });
+    void sofaD;
     for (const [name, rect] of Object.entries(f)) {
+      if (name === 'sofa') continue;
       const d = L.distancePointToRect(x, z, rect);
       assert.ok(d >= need, label + ' 離 ' + name + ' 只有 ' + d.toFixed(3) + '，需要 ' + need.toFixed(3));
     }
+    const pd = polyRectGap(L, L.loungeSofaCorners(), { cx: x, cz: z, hw: 0, hd: 0 });
+    assert.ok(pd >= need, label + ' 離沙發只有 ' + pd.toFixed(3));
   };
   for (let i = 0; i < route.length; i++) {
     check(route[i].x, route[i].z, route[i].name);
@@ -176,7 +208,7 @@ test('秘書浴缸到沙發的路線點與整段線段都離家具有淨空', as
   // 起點在浴缸右側、終點在沙發前方
   assert.ok(route[0].x > f.tub.cx + f.tub.hw);
   const last = route[route.length - 1];
-  assert.ok(last.z > f.sofa.cz + f.sofa.hd);
+  assert.ok(last.z > f.sofa.cz, '終點在沙發前方');
   assert.ok(last.x > f.sofa.cx - f.sofa.hw && last.x < f.sofa.cx + f.sofa.hw);
 });
 

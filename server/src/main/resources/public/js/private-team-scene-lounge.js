@@ -15,11 +15,17 @@ export const SECRETARY_TUB_POSITION = { x: 0.02, y: -0.44, z: 0.56 };
 /** 泡澡時秘書比例（原 1.0 比沙發上的她大一圈）；縮小後鍵盤／水面對齊點不變，所以根節點 y 要補償。 */
 export const SECRETARY_TUB_SCALE = 0.84;
 export const SECRETARY_TUB_ROOT_Y = SECRETARY_TUB_POSITION.y + 0.5 * (1 - SECRETARY_TUB_SCALE);
-export const SECRETARY_SOFA_POSITION = { x: 1.38, y: 0, z: -0.3 };
+export const SECRETARY_SOFA_POSITION = { x: 1.28, y: 0, z: -0.3 };
 export const SECRETARY_SHADOW_TUB = { x: 0.06, y: 0.072, z: -0.42 };
 /** 沙發姿勢的腳下陰影：相對沙發錨點的「世界」偏移（不隨立繪縮放／偏移移動）。 */
 export const SECRETARY_SHADOW_SOFA = { x: -0.03, y: 0.072, z: 0.16 };
 export const SECRETARY_SOFA_ROTATION_Y = -0.42;
+/**
+ * 沙發（連地毯、落地燈）整組繞「座位點」轉的角度：約 24 度，面向房間中央／水缸。
+ * 繞座位點轉，秘書立繪的位置完全不用動，坐姿仍然對得上座墊。
+ */
+export const SOFA_YAW = SECRETARY_SOFA_ROTATION_Y;
+export const SOFA_SEAT_PIVOT_OFFSET = { x: 0.05, z: 0.12 };
 export const SECRETARY_BUBBLE_TUB = { x: 0.56, z: 0.72 };
 export const SECRETARY_BUBBLE_SOFA = {
   x: SECRETARY_SOFA_POSITION.x + 0.12,
@@ -43,9 +49,10 @@ export const LOUNGE_TUB_FOOTPRINT = { cx: 0, cz: 0.64, hw: 0.88, hd: 0.56 };
 /** 地板外緣（FLOOR_HALF = 1.8）。家具要留在裡面。 */
 export const LOUNGE_FLOOR_HALF = 1.8;
 /** 地毯：比沙發略大，且左緣要留在浴缸右緣外面。 */
-export const LOUNGE_RUG = { cx: 1.38, cz: -0.2, w: 0.84, d: 0.9 };
+export const LOUNGE_RUG = { cx: 1.26, cz: -0.26, w: 0.74, d: 0.78 };
 /** 沙發旁落地燈，相對沙發錨點。 */
-export const LOUNGE_FLOOR_LAMP_OFFSET = { x: -0.60, z: -0.2 };
+/** 未旋轉時的位置；實際位置見 loungeFloorLampPosition()。 */
+export const LOUNGE_FLOOR_LAMP_OFFSET = { x: -0.68, z: -0.24 };
 export const LOUNGE_FLOOR_LAMP_RADIUS = 0.17;
 /** 龜背芋盆栽放在右後角（原本卡在浴缸與沙發之間的窄縫）。 */
 export const LOUNGE_MONSTERA_POSITION = { x: 1.62, z: -1.38 };
@@ -53,15 +60,65 @@ export const LOUNGE_MONSTERA_RADIUS = 0.16;
 /** 後窗胡桃木矮櫃（對應 addLoungeFurnishings 的 sbX／sbZ／sbHalfW）。 */
 export const LOUNGE_SIDEBOARD_FOOTPRINT = { cx: 0.86, cz: -1.42, hw: 0.47, hd: 0.26 };
 
-/** 沙發矩形佔地（隨沙發錨點）。 */
+/** 座位點（沙發旋轉的軸心，世界座標 XZ）。 */
+export function sofaSeatPivot() {
+  return {
+    x: SECRETARY_SOFA_POSITION.x + SOFA_SEAT_PIVOT_OFFSET.x,
+    z: SECRETARY_SOFA_POSITION.z + SOFA_SEAT_PIVOT_OFFSET.z
+  };
+}
+
+/** 把「未旋轉佈局」的世界座標點，繞座位點轉 SOFA_YAW（與 three.js 繞 Y 軸同方向）。 */
+export function rotateAboutSofaSeat(x, z) {
+  const pv = sofaSeatPivot();
+  const dx = x - pv.x;
+  const dz = z - pv.z;
+  const c = Math.cos(SOFA_YAW);
+  const s = Math.sin(SOFA_YAW);
+  return { x: pv.x + dx * c + dz * s, z: pv.z - dx * s + dz * c };
+}
+
+/** 沙發轉向後的外接矩形（保守，供淨空檢查）。 */
 export function loungeSofaFootprint() {
   const hw = SOFA_HALF_WIDTH_X * SOFA_WORLD_SCALE_X;
+  const hd = SOFA_HALF_DEPTH_Z;
+  const c = rotateAboutSofaSeat(SECRETARY_SOFA_POSITION.x, SECRETARY_SOFA_POSITION.z);
+  const ac = Math.abs(Math.cos(SOFA_YAW));
+  const as = Math.abs(Math.sin(SOFA_YAW));
   return {
-    cx: SECRETARY_SOFA_POSITION.x,
-    cz: SECRETARY_SOFA_POSITION.z,
-    hw,
-    hd: SOFA_HALF_DEPTH_Z
+    cx: c.x,
+    cz: c.z,
+    hw: hw * ac + hd * as,
+    hd: hw * as + hd * ac
   };
+}
+
+/** 沙發轉向後的四個角（世界座標 XZ，順時針），供精確淨空檢查。 */
+export function loungeSofaCorners() {
+  const hw = SOFA_HALF_WIDTH_X * SOFA_WORLD_SCALE_X;
+  const hd = SOFA_HALF_DEPTH_Z;
+  const out = [];
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    out.push(
+      rotateAboutSofaSeat(SECRETARY_SOFA_POSITION.x + sx * hw, SECRETARY_SOFA_POSITION.z + sz * hd)
+    );
+  }
+  return out;
+}
+
+/** 地毯轉向後的四個角（世界座標 XZ），供淨空檢查。 */
+export function loungeRugCorners() {
+  const out = [];
+  const base = { cx: LOUNGE_RUG.cx, cz: LOUNGE_RUG.cz };
+  const c0 = rotateAboutSofaSeat(base.cx, base.cz);
+  const c = Math.cos(SOFA_YAW);
+  const s = Math.sin(SOFA_YAW);
+  for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+    const dx = (sx * LOUNGE_RUG.w) / 2;
+    const dz = (sz * LOUNGE_RUG.d) / 2;
+    out.push({ x: c0.x + dx * c + dz * s, z: c0.z - dx * s + dz * c });
+  }
+  return out;
 }
 
 /**
@@ -72,7 +129,7 @@ export function loungeSofaFootprint() {
 export const SECRETARY_LOUNGE_ROUTE = [
   { name: 'tubSide', x: 1.12, z: 0.74 },
   { name: 'passage', x: 1.14, z: 0.42 },
-  { name: 'sofaFront', x: 1.34, z: 0.16 }
+  { name: 'sofaFront', x: 1.42, z: 0.26 }
 ];
 /** 路線上的身體半徑（約 1 個人的肩寬一半）。 */
 export const SECRETARY_ROUTE_BODY_RADIUS = 0.12;
@@ -91,11 +148,20 @@ export function rectGap(a, b) {
   return Math.hypot(dx, dz);
 }
 
+/** 落地燈世界位置：跟著沙發一起繞座位點轉，仍站在沙發左後側。 */
+export function loungeFloorLampPosition() {
+  return rotateAboutSofaSeat(
+    SECRETARY_SOFA_POSITION.x + LOUNGE_FLOOR_LAMP_OFFSET.x,
+    SECRETARY_SOFA_POSITION.z + LOUNGE_FLOOR_LAMP_OFFSET.z
+  );
+}
+
 /** 路線要避開的實體家具（地毯是貼地的，不算障礙）。 */
 export function loungeObstacleFootprints() {
+  const lampPos = loungeFloorLampPosition();
   const lamp = {
-    cx: SECRETARY_SOFA_POSITION.x + LOUNGE_FLOOR_LAMP_OFFSET.x,
-    cz: SECRETARY_SOFA_POSITION.z + LOUNGE_FLOOR_LAMP_OFFSET.z,
+    cx: lampPos.x,
+    cz: lampPos.z,
     hw: LOUNGE_FLOOR_LAMP_RADIUS,
     hd: LOUNGE_FLOOR_LAMP_RADIUS
   };
@@ -468,7 +534,10 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   });
   const rug = new THREE.Mesh(new THREE.PlaneGeometry(LOUNGE_RUG.w, LOUNGE_RUG.d), rugMat);
   rug.rotation.x = -Math.PI / 2;
-  rug.position.set(LOUNGE_RUG.cx, 0.062, LOUNGE_RUG.cz);
+  const rugPos = rotateAboutSofaSeat(LOUNGE_RUG.cx, LOUNGE_RUG.cz);
+  rug.position.set(rugPos.x, 0.062, rugPos.z);
+  // 平放的平面：繞局部 Z 轉等於繞世界 Y 轉，跟沙發同角度。
+  rug.rotation.z = SOFA_YAW;
   rug.name = '編織地毯';
   rug.renderOrder = 1;
   root.add(rug);
@@ -487,7 +556,9 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   const sofaSz = SECRETARY_SOFA_POSITION.z;
   const sofaGrp = new THREE.Group();
   sofaGrp.name = '焦糖棕皮沙發';
-  sofaGrp.position.set(sofaSx, 0, sofaSz);
+  const sofaPos = rotateAboutSofaSeat(sofaSx, sofaSz);
+  sofaGrp.position.set(sofaPos.x, 0, sofaPos.z);
+  sofaGrp.rotation.y = SOFA_YAW;
   // X 僅微放大以免碰到浴缸或右牆；Y/Z 加高加深，讓預設相機看出更大的沙發。
   sofaGrp.scale.set(SOFA_WORLD_SCALE_X, 1.12, SOFA_WORLD_SCALE_Z);
 
@@ -564,11 +635,8 @@ export function addLoungeFurnishings(root, texLoader, layout) {
 
   const sofaLamp = new THREE.Group();
   sofaLamp.name = 'sofaFloorLamp';
-  sofaLamp.position.set(
-    sofaSx + LOUNGE_FLOOR_LAMP_OFFSET.x,
-    0,
-    sofaSz + LOUNGE_FLOOR_LAMP_OFFSET.z
-  );
+  const sofaLampPos = loungeFloorLampPosition();
+  sofaLamp.position.set(sofaLampPos.x, 0, sofaLampPos.z);
   const sfBase = cyl(0.055, 0.062, 0.025, 10, COL.lampBase);
   sfBase.position.set(0, 0.012, 0);
   sofaLamp.add(sfBase);
