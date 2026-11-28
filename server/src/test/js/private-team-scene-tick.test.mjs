@@ -9,7 +9,7 @@ const {
   privateTeamSceneAnimationPaused
 } = await loadPublicModule('private-team-scene-controls.js');
 
-const { MONITOR_SCREEN_PULSE_STEPS, quantizeMonitorScreenPulse } = await loadPublicModule(
+const { HOLOGRAM_HUD_REDRAW_MS, shouldRedrawHologramHud } = await loadPublicModule(
   'private-team-scene-room.js'
 );
 
@@ -34,10 +34,9 @@ test('modal 與分頁 hidden 合取暫停', () => {
   assert.equal(privateTeamSceneAnimationPaused(true, true), true);
 });
 
-test('螢幕 pulse 量化避免同一步重畫', () => {
-  const step = 1 / MONITOR_SCREEN_PULSE_STEPS;
-  const a = quantizeMonitorScreenPulse(3 * step + 0.001);
-  const b = quantizeMonitorScreenPulse(3 * step + step * 0.4);
-  assert.equal(a, b);
-  assert.notEqual(quantizeMonitorScreenPulse(0), quantizeMonitorScreenPulse(step));
+test('全息 HUD 貼圖重繪節流約每秒', () => {
+  assert.equal(HOLOGRAM_HUD_REDRAW_MS, 1000);
+  assert.equal(shouldRedrawHologramHud(0, 200), true);
+  assert.equal(shouldRedrawHologramHud(100, 500), false);
+  assert.equal(shouldRedrawHologramHud(100, 1101), true);
 });

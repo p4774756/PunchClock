@@ -358,42 +358,128 @@ export function addBathPillow(parent) {
   parent.add(group);
 }
 
-export const MONITOR_SCREEN_PULSE_STEPS = 28;
+export const HOLOGRAM_HUD_REDRAW_MS = 1000;
 
-export function quantizeMonitorScreenPulse(pulse) {
-  const p = Number(pulse);
-  if (!Number.isFinite(p)) return 0;
-  return Math.round(p * MONITOR_SCREEN_PULSE_STEPS) / MONITOR_SCREEN_PULSE_STEPS;
+export function shouldRedrawHologramHud(lastRedrawMs, nowMs) {
+  const last = Number(lastRedrawMs);
+  const now = Number(nowMs);
+  if (!Number.isFinite(now)) return false;
+  if (!Number.isFinite(last) || last <= 0) return true;
+  return now - last >= HOLOGRAM_HUD_REDRAW_MS;
 }
 
-export function makeScreenPainter() {
+function hologramWorkStatusLabel(status) {
+  const s = status == null ? '' : String(status).trim();
+  if (s.startsWith('工作中') || s.endsWith('結界展開中')) return '工作中';
+  if (s === '休息中') return '休息中';
+  return '待命中';
+}
+
+function formatHudPercent(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return '--';
+  return Math.round(Math.min(100, Math.max(0, v))) + '%';
+}
+
+export function makeHologramPanelPainter() {
   const canvas = document.createElement('canvas');
-  canvas.width = 160;
-  canvas.height = 110;
+  canvas.width = 256;
+  canvas.height = 184;
   const ctx = canvas.getContext('2d');
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshBasicMaterial({ map: tex });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.38), mat);
-  mesh.position.z = 0.04;
-  let lastDrawnPulse = null;
-  function draw(pulse) {
-    const q = quantizeMonitorScreenPulse(pulse);
-    if (q === lastDrawnPulse) return;
-    lastDrawnPulse = q;
-    ctx.fillStyle = '#121a2c';
-    ctx.fillRect(0, 0, 160, 110);
-    const glow = '#b9e2ff';
-    ctx.fillStyle = 'rgba(94, 186, 255, ' + (0.45 + q * 0.45) + ')';
-    ctx.fillRect(12, 14, 136, 82);
-    ctx.fillStyle = glow;
-    const slide = (q * MONITOR_SCREEN_PULSE_STEPS) | 0;
-    ctx.fillRect(22, 26, 48 + slide, 10);
-    ctx.fillRect(22, 46, 90, 8);
-    ctx.fillRect(22, 64, 62 + (18 - slide / 2), 8);
+
+  let hudData = {
+    cpuPercent: null,
+    ramPercent: null,
+    status: '待命中',
+    issueLine: ''
+  };
+  let lastDataSnap = '';
+  let lastRedrawMs = 0;
+  let lastScanSlot = -1;
+  let hudDirty = true;
+
+  function drawHud(scanSlot, reducedMotion) {
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, 'rgba(12, 32, 58, 0.42)');
+    bg.addColorStop(1, 'rgba(8, 22, 42, 0.18)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(8, 8, w - 16, h - 16);
+
+    const edgeGrad = ctx.createLinearGradient(8, 8, w - 8, h - 8);
+    edgeGrad.addColorStop(0, 'rgba(120, 220, 255, 0.95)');
+    edgeGrad.addColorStop(0.5, 'rgba(60, 180, 255, 0.55)');
+    edgeGrad.addColorStop(1, 'rgba(120, 220, 255, 0.9)');
+    ctx.strokeStyle = edgeGrad;
+    ctx.lineWidth = 2.4;
+    ctx.strokeRect(10, 10, w - 20, h - 20);
+
+    if (!reducedMotion) {
+      const scanY = 14 + ((scanSlot % 20) * (h - 28)) / 20;
+      ctx.fillStyle = 'rgba(140, 228, 255, 0.14)';
+      ctx.fillRect(12, scanY, w - 24, 2);
+      for (let i = 0; i < 6; i++) {
+        const ly = 18 + i * 26;
+        ctx.fillStyle = 'rgba(70, 160, 220, 0.06)';
+        ctx.fillRect(14, ly, w - 28, 1);
+      }
+    }
+
+    ctx.font = '600 15px sans-serif';
+    ctx.fillStyle = '#b8ecff';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText('CPU ' + formatHudPercent(hudData.cpuPercent), 22, 28);
+    ctx.fillText('RAM ' + formatHudPercent(hudData.ramPercent), 22, 58);
+
+    ctx.font = '500 15px sans-serif';
+    ctx.fillStyle = '#e0f4ff';
+    const work = hologramWorkStatusLabel(hudData.status);
+    ctx.fillText('狀態 ' + work, 22, 92);
+
+    const issue =
+      hudData.issueLine == null || String(hudData.issueLine).trim() === ''
+        ? '—'
+        : String(hudData.issueLine).trim();
+    ctx.font = '500 14px sans-serif';
+    ctx.fillStyle = '#8fd4ff';
+    ctx.fillText('目前 ' + issue, 22, 124);
     tex.needsUpdate = true;
   }
-  return { mesh, draw };
+
+  function setHudData(data) {
+    if (!data || typeof data !== 'object') return;
+    const next = {
+      cpuPercent: data.cpuPercent,
+      ramPercent: data.ramPercent,
+      status: data.status == null ? hudData.status : String(data.status).trim() || '待命中',
+      issueLine: data.issueLine == null ? '' : String(data.issueLine)
+    };
+    const snap = JSON.stringify(next);
+    if (snap !== lastDataSnap) {
+      lastDataSnap = snap;
+      hudData = next;
+      hudDirty = true;
+    }
+  }
+
+  function tickRedraw(nowMs, reducedMotion) {
+    const now = Number(nowMs);
+    if (!Number.isFinite(now)) return;
+    const scanSlot = reducedMotion ? 0 : Math.floor(now / HOLOGRAM_HUD_REDRAW_MS);
+    if (!hudDirty && !shouldRedrawHologramHud(lastRedrawMs, now) && scanSlot === lastScanSlot) return;
+    hudDirty = false;
+    lastRedrawMs = now;
+    lastScanSlot = scanSlot;
+    drawHud(scanSlot, reducedMotion);
+  }
+
+  drawHud(0, true);
+  return { tex, setHudData, tickRedraw };
 }
 
 export function makeBubbleDrawer() {
@@ -485,24 +571,76 @@ export function spriteAspectFromTexture(tex) {
 
 export function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
   const group = new THREE.Group();
+  group.name = 'hologramMonitor';
   group.userData.pickRole = 'monitor';
   const s = scale == null ? 1 : scale;
   const trayY = traySurfaceY == null ? PRIVATE_TEAM_TRAY_SURFACE_Y : traySurfaceY;
-  group.position.set(x, 0.86, z);
+  const baseY = 0.94;
+  group.position.set(x, baseY, z);
   group.scale.set(s, s, s);
-  const bezel = box(0.58, 0.42, 0.05, COL.screen);
-  const painter = makeScreenPainter();
-  const mountLocalY = trayY - group.position.y;
-  const bezelBottom = -0.21;
-  const standBottom = mountLocalY + 0.008;
-  const standH = Math.max(0.08, bezelBottom - standBottom);
-  const stand = box(0.09, standH, 0.07, COL.screenStand);
-  stand.position.y = (bezelBottom + standBottom) / 2;
-  const basePlate = box(0.15, 0.018, 0.11, COL.screenStand);
-  basePlate.position.y = standBottom - 0.009;
-  const bracket = box(0.04, standH * 0.55, 0.05, COL.screenStand);
-  bracket.position.set(0, standBottom + standH * 0.22, 0.04);
-  group.add(bezel, painter.mesh, stand, basePlate, bracket);
+
+  const painter = makeHologramPanelPainter();
+  const panelMat = new THREE.MeshBasicMaterial({
+    map: painter.tex,
+    transparent: true,
+    opacity: 0.9,
+    depthWrite: false,
+    toneMapped: false
+  });
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.43), panelMat);
+  panel.name = 'hologramPanel';
+  panel.renderOrder = 5;
+
+  const edgeMat = new THREE.MeshBasicMaterial({
+    color: 0x5ec8ff,
+    transparent: true,
+    opacity: 0.38,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide
+  });
+  const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 0.47), edgeMat);
+  edge.name = 'hologramEdgeGlow';
+  edge.position.z = -0.004;
+  edge.renderOrder = 4;
+
+  const mountLocalY = trayY - baseY;
+  const emitter = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.036, 0.048, 0.014, 10),
+    new THREE.MeshLambertMaterial({
+      color: 0x183858,
+      emissive: 0x1a88cc,
+      emissiveIntensity: 0.55
+    })
+  );
+  emitter.name = 'hologramEmitter';
+  emitter.position.set(0, mountLocalY + 0.008, 0.04);
+
+  const beamH = Math.max(0.12, -mountLocalY - 0.06);
+  const beamMat = new THREE.MeshBasicMaterial({
+    color: 0x6ecfff,
+    transparent: true,
+    opacity: 0.11,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide
+  });
+  const beam = new THREE.Mesh(new THREE.PlaneGeometry(0.018, beamH), beamMat);
+  beam.name = 'hologramBeam';
+  beam.position.set(0, mountLocalY + beamH * 0.42 + 0.02, 0.03);
+  beam.renderOrder = 3;
+
+  const pickMat = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  });
+  const pick = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.48), pickMat);
+  pick.position.z = 0.015;
+  pick.renderOrder = 6;
+  pick.userData.pickRole = 'monitor';
+
+  group.add(emitter, beam, edge, panel, pick);
   group.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
   root.add(group);
 
@@ -510,7 +648,15 @@ export function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
   screenGlow.position.set(0, 0.05, 0.12);
   group.add(screenGlow);
 
-  return { painter, screenGlow, group, bezel };
+  return {
+    painter,
+    screenGlow,
+    group,
+    panel,
+    edge,
+    animBase: { x, y: baseY, z },
+    floatSeed: privateTeamSeededRand(Math.round(x * 1000) * 31 + Math.round(z * 1000))() * Math.PI * 2
+  };
 }
 
 export function makeHandheldPreviewLcdTexture() {
