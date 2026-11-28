@@ -300,6 +300,10 @@ export function mountPrivateTeamPage(opts) {
     typeof pageHooks.openDownload === 'function' ? pageHooks.openDownload : null;
   const closeDownload =
     typeof pageHooks.closeDownload === 'function' ? pageHooks.closeDownload : null;
+  const openJournal =
+    typeof pageHooks.openJournal === 'function' ? pageHooks.openJournal : null;
+  const closeJournal =
+    typeof pageHooks.closeJournal === 'function' ? pageHooks.closeJournal : null;
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -323,6 +327,7 @@ export function mountPrivateTeamPage(opts) {
       taskHudMarkup() +
       '</div>' +
       '<div class="pt-hud-br">' +
+      '<a href="/?open=journal" class="pt-hud-journal" data-pt-open-journal>心得牆</a>' +
       '<button type="button" class="pt-hud-outfit" data-pt-secretary-outfit-btn aria-label="秘書服裝：預設，點一下換成舞台服" title="換服裝">' +
       '<span class="pt-hud-outfit-cap" aria-hidden="true">服裝</span>' +
       '<span class="pt-hud-outfit-name" aria-hidden="true" data-pt-secretary-outfit-name>預設</span>' +
@@ -555,18 +560,25 @@ export function mountPrivateTeamPage(opts) {
       pocketModal.open(canvas);
       return;
     }
+    if (target === 'journal') {
+      closeStatusCard();
+      closeAuthMenu();
+      if (openJournal) openJournal();
+      return;
+    }
     openStatusCard();
   }
 
   let tasksOpen = false;
   let downloadOpen = false;
+  let journalOpen = false;
   let pocketOpen = false;
 
   let scene = createScenePlaceholder();
   let sceneMounted = false;
 
   function syncSceneOverlay() {
-    const sceneBlocked = tasksOpen || downloadOpen || pocketOpen;
+    const sceneBlocked = tasksOpen || downloadOpen || journalOpen || pocketOpen;
     stage.classList.toggle('pt-roadmap-open', sceneBlocked);
     stage.classList.toggle('pt-pocket-open', pocketOpen);
     scene.setSceneInputEnabled(!sceneBlocked && !loginOpen);
@@ -591,6 +603,18 @@ export function mountPrivateTeamPage(opts) {
       closeAuthMenu();
       loginModal.close({ fromManager: true, silent: true });
       if (tasksOpen && closeTasks) closeTasks();
+    }
+  }
+
+  function setJournalOpen(open) {
+    journalOpen = !!open;
+    syncSceneOverlay();
+    if (journalOpen) {
+      closeStatusCard();
+      closeAuthMenu();
+      loginModal.close({ fromManager: true, silent: true });
+      if (tasksOpen && closeTasks) closeTasks();
+      if (closeDownload) closeDownload();
     }
   }
 
@@ -743,6 +767,17 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
+  const journalLink = hud.querySelector('[data-pt-open-journal]');
+  if (journalLink && openJournal) {
+    journalLink.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeStatusCard();
+      closeAuthMenu();
+      openJournal(journalLink);
+    });
+  }
+
   doc.addEventListener('click', (ev) => {
     if (authMenu && authMenuOpen) {
       if (!authWrap || (!authWrap.contains(ev.target) && !(taskBtn && taskBtn.contains(ev.target)))) {
@@ -797,6 +832,7 @@ export function mountPrivateTeamPage(opts) {
     if (
       !tasksOpen &&
       !downloadOpen &&
+      !journalOpen &&
       !pocketOpen &&
       !cardOpen &&
       (ev.key === 'Enter' || ev.key === ' ') &&
@@ -876,6 +912,7 @@ export function mountPrivateTeamPage(opts) {
   return {
     setTasksOpen,
     setDownloadOpen,
+    setJournalOpen,
     getLoginModal() {
       return loginModal;
     },
