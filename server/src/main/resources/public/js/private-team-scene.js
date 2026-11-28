@@ -789,12 +789,18 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlightLeftWall.name = 'windowMoonlightLeftWall';
   root.add(windowMoonlightLeftWall);
 
-  const LEFT_POSTER_W = 1.31;
-  const LEFT_POSTER_H = (LEFT_POSTER_W * 9) / 16;
+  const LEFT_POSTER_MARGIN = 0.07;
+  let LEFT_POSTER_W = FLOOR_SIZE * (1 - 2 * LEFT_POSTER_MARGIN);
+  let LEFT_POSTER_H = (LEFT_POSTER_W * 9) / 16;
+  const leftPosterWallMaxH = wallH * (1 - 2 * LEFT_POSTER_MARGIN);
+  if (LEFT_POSTER_H > leftPosterWallMaxH) {
+    LEFT_POSTER_H = leftPosterWallMaxH;
+    LEFT_POSTER_W = (LEFT_POSTER_H * 16) / 9;
+  }
   const leftPosterFrameW = 0.028;
   const leftPosterGroup = new THREE.Group();
   leftPosterGroup.name = 'leftWallPoster';
-  leftPosterGroup.position.set(leftX + WALL_THICK + 0.01, glassY, -0.32);
+  leftPosterGroup.position.set(leftX + WALL_THICK + 0.01, wallY, 0);
   leftPosterGroup.rotation.y = Math.PI / 2;
   leftPosterGroup.userData.pickRole = 'leftPoster';
 
@@ -897,7 +903,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   addPicLampHead(LEFT_POSTER_W * 0.3);
 
   const posterWallHalo = new THREE.Mesh(
-    new THREE.PlaneGeometry(LEFT_POSTER_W + 0.38, LEFT_POSTER_H + 0.48),
+    new THREE.PlaneGeometry(LEFT_POSTER_W * 1.29, LEFT_POSTER_H * 1.65),
     new THREE.MeshBasicMaterial({
       color: 0xffb878,
       transparent: true,
@@ -936,11 +942,11 @@ export function mountPrivateTeamScene(canvas, opts) {
   posterWarmWash.position.set(0, -0.02, 0.021);
   leftPosterGroup.add(posterWarmWash);
 
-  const posterPicLight = new THREE.PointLight(0xffc890, 0.42, 1.05, 1.9);
+  const posterPicLight = new THREE.PointLight(0xffc890, 0.42, 2.35, 1.9);
   posterPicLight.position.set(0, posterFrameTopY - 0.055, 0.18);
   leftPosterGroup.add(posterPicLight);
 
-  const posterSpot = new THREE.SpotLight(0xffc888, 0.36, 2.1, Math.PI / 3.4, 0.58, 1.65);
+  const posterSpot = new THREE.SpotLight(0xffc888, 0.36, 3.4, Math.PI / 3.4, 0.58, 1.65);
   posterSpot.castShadow = false;
   posterSpot.position.set(0, posterFrameTopY - 0.04, 0.16);
   const posterSpotTarget = new THREE.Object3D();
