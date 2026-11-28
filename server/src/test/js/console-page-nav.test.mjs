@@ -95,6 +95,9 @@ test('首頁裝置浮動視窗結構', () => {
   assert.match(html, /data-label="裝置"/);
   assert.match(html, /PUNCHCLOCK_USERNAME/);
   assert.match(html, /id="clientContainer"/);
-  assert.match(html, /dashboard\.css/);
-  assert.match(html, /dashboard\.js/);
+  // #765：dashboard.css/js 改為開啟裝置面板時才由 home-dashboard-loader 延後載入。
+  assert.doesNotMatch(html, /dashboard\.css/);
+  assert.doesNotMatch(html, /dashboard\.js/);
+  const panel = readFileSync(join(publicRoot, 'js/home-tasks-panel.js'), 'utf8');
+  assert.match(panel, /home-dashboard-loader/);
 });
