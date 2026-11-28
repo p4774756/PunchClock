@@ -19,7 +19,11 @@ const {
   secretaryStandbyIdleUrlsForOutfit,
   secretaryCelebrateStepsForOutfit,
   secretaryAvatarUrlForOutfit,
-  secretaryEquivalentSpriteUrl
+  secretaryEquivalentSpriteUrl,
+  SECRETARY_OUTFIT_CYCLE,
+  SECRETARY_OUTFIT_LABELS,
+  secretaryOutfitLabel,
+  nextSecretaryOutfitId
 } = await loadPublicModule('private-team-secretary-outfit.js');
 
 const { secretarySpriteUrlForStatus } = await loadPublicModule('private-team-office.js');
@@ -130,14 +134,76 @@ test('舞台服靜態資源存在且 WebP 尺寸正確', () => {
 
 test('首頁服裝控制與儲存鍵接線', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
-  assert.match(js, /data-pt-secretary-outfit-select/);
+  const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
+  // 單一切換按鈕，取代舊的下拉選單
+  assert.match(js, /<button type="button" class="pt-hud-outfit" data-pt-secretary-outfit-btn/);
+  assert.match(js, /data-pt-secretary-outfit-name/);
+  assert.doesNotMatch(js, /data-pt-secretary-outfit-select/);
+  assert.doesNotMatch(js, /<select/);
   assert.match(js, /服裝/);
   assert.match(js, /舞台服/);
   assert.match(js, /預設/);
+  // 每按一次切到下一套，並走原本的儲存與場景更新
+  assert.match(js, /nextSecretaryOutfitId\(secretaryOutfitId\)/);
+  assert.match(js, /outfitBtn\.addEventListener\('click'/);
   assert.match(js, /writeSecretaryOutfitToStorage/);
   assert.match(js, /readSecretaryOutfitFromStorage/);
   assert.match(js, /data-pt-secretary-avatar/);
   assert.match(js, /setSecretaryOutfit/);
+  // 讀屏：按鈕 aria-label 帶目前與下一套，切換後有 polite 播報
+  assert.match(js, /setAttribute\('aria-label', '秘書服裝：'/);
+  assert.match(js, /aria-live="polite"/);
+  assert.match(js, /role="status"/);
+  // 觸控面積 44px 以上、跟下載鈕同一套邊框樣式
+  const block = css.slice(css.indexOf('.pt-hud-outfit {'), css.indexOf('.pt-hud-outfit:active'));
+  assert.match(block, /min-height: (4[4-9]|[5-9][0-9])px/);
+  assert.match(block, /min-width: (4[4-9]|[5-9][0-9])px/);
+  assert.match(block, /border: 3px solid var\(--maple-navy/);
+  assert.match(block, /background: var\(--maple-blue/);
+  assert.match(css, /\.pt-hud-outfit:focus-visible/);
+  assert.equal(SECRETARY_OUTFIT_STORAGE_KEY, 'punchclock.office.secretaryOutfit');
+});
+
+test('服裝按鈕每按一次的切換順序與標籤', () => {
+  assert.deepEqual([...SECRETARY_OUTFIT_CYCLE], ['default', 'stage']);
+  assert.deepEqual({ ...SECRETARY_OUTFIT_LABELS }, { default: '預設', stage: '舞台服' });
+  assert.equal(nextSecretaryOutfitId('default'), 'stage');
+  assert.equal(nextSecretaryOutfitId('stage'), 'default');
+  // 無效或空值先視為預設，下一套就是舞台服
+  for (const bad of [undefined, null, '', 'nope', 0, {}, ' STAGE ']) {
+    assert.equal(nextSecretaryOutfitId(bad), 'stage', String(bad));
+  }
+  assert.equal(secretaryOutfitLabel('stage'), '舞台服');
+  assert.equal(secretaryOutfitLabel('whatever'), '預設');
+  // 連按會繞回來，且每個 id 都是既有服裝
+  let cur = 'default';
+  const seen = [];
+  for (let i = 0; i < 5; i++) {
+    cur = nextSecretaryOutfitId(cur);
+    seen.push(cur);
+    assert.equal(parseSecretaryOutfitId(cur), cur);
+  }
+  assert.deepEqual(seen, ['stage', 'default', 'stage', 'default', 'stage']);
+});
+
+test('服裝按鈕切換後寫入同一個儲存鍵，重讀得到同一套，壞值回到預設', () => {
+  const store = new Map();
+  const storage = {
+    getItem: (k) => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v))
+  };
+  let cur = readSecretaryOutfitFromStorage(storage);
+  assert.equal(cur, 'default');
+  cur = nextSecretaryOutfitId(cur);
+  writeSecretaryOutfitToStorage(storage, cur);
+  assert.equal(store.get('punchclock.office.secretaryOutfit'), 'stage');
+  assert.equal(readSecretaryOutfitFromStorage(storage), 'stage');
+  cur = nextSecretaryOutfitId(readSecretaryOutfitFromStorage(storage));
+  writeSecretaryOutfitToStorage(storage, cur);
+  assert.equal(readSecretaryOutfitFromStorage(storage), 'default');
+  store.set('punchclock.office.secretaryOutfit', 'broken');
+  assert.equal(readSecretaryOutfitFromStorage(storage), 'default');
+  assert.equal(store.get('punchclock.office.secretaryOutfit'), 'default');
 });
 
 test('首頁進入口走版本化 JS 根路徑，相對模組才能一起換 URL', () => {

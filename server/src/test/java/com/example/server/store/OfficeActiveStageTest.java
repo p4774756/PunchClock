@@ -16,6 +16,11 @@ public class OfficeActiveStageTest {
                 new HashSet<>(Collections.singletonList(issue)));
     }
 
+    private static PullRow conflictingPr(int n, int issue) {
+        return new PullRow(n, "pr", true, false, false, 0, 0, null, null,
+                new HashSet<>(Collections.singletonList(issue)), true);
+    }
+
     private static DevMachineStore.RunEntry run(int issue, int round, String role, String model, String verdict,
                                                 String stage) {
         return new DevMachineStore.RunEntry(issue, round, "ai/issue-" + issue, 1L, null, null,
@@ -68,5 +73,46 @@ public class OfficeActiveStageTest {
     public void githubItemWithOpenPrIsWaitCi() {
         Item item = new Item("i7", 7, 14, "title", DevStatusModels.STATUS_REVIEW, 1L, "u", "u");
         assertEquals(OfficeActiveStage.WAIT_CI, OfficeActiveStage.forGithubItem(item, openPr(14, 7)));
+    }
+
+    @Test
+    public void conflictingOpenPrShowsConflictNotWaitCi() {
+        DevMachineStore.RunEntry run = run(6, 0, "dev", null, null, null);
+        assertEquals(OfficeActiveStage.CONFLICT,
+                OfficeActiveStage.forRun(run, false, null, null, conflictingPr(13, 6)));
+        assertEquals(OfficeActiveStage.CONFLICT,
+                OfficeActiveStage.forMachineFields(false, null, null, conflictingPr(13, 6)));
+        assertEquals(OfficeActiveStage.CONFLICT,
+                OfficeActiveStage.forGithubItem(null, conflictingPr(13, 6)));
+    }
+
+    @Test
+    public void conflictBeatsPassVerdictMerge() {
+        DevMachineStore.RunEntry run = run(7, 1, "dev", null, "PASS", null);
+        assertEquals(OfficeActiveStage.CONFLICT,
+                OfficeActiveStage.forRun(run, false, "PASS", null, conflictingPr(14, 7)));
+    }
+
+    @Test
+    public void conflictOverridesLiteralWaitCiButNotReview() {
+        assertEquals(OfficeActiveStage.CONFLICT,
+                OfficeActiveStage.forRun(run(8, 0, "dev", null, null, OfficeActiveStage.WAIT_CI),
+                        false, null, null, conflictingPr(15, 8)));
+        assertEquals(OfficeActiveStage.REVIEW,
+                OfficeActiveStage.forRun(run(9, 1, "review", null, null, OfficeActiveStage.REVIEW),
+                        false, null, null, conflictingPr(16, 9)));
+    }
+
+    @Test
+    public void agentFixingConflictStaysDeveloping() {
+        DevMachineStore.RunEntry run = run(10, 2, "dev", "composer-2.5", null, null);
+        assertEquals(OfficeActiveStage.DEV,
+                OfficeActiveStage.forRun(run, true, null, "dev", conflictingPr(17, 10)));
+    }
+
+    @Test
+    public void nonConflictingOpenPrStillWaitCi() {
+        assertEquals(OfficeActiveStage.WAIT_CI,
+                OfficeActiveStage.forRun(run(11, 0, "dev", null, null, null), false, null, null, openPr(18, 11)));
     }
 }

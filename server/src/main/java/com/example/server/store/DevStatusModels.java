@@ -62,10 +62,19 @@ public final class DevStatusModels {
         public final Long mergedAt;
         public final Long closedAt;
         public final Set<Integer> closesIssues;
+        /** 與 base 分支有衝突（mergeable=false／mergeable_state=dirty）；CI 不會跑。 */
+        public final boolean conflicting;
 
         public PullRow(int number, String title, boolean open, boolean draft, boolean merged,
                        long createdAt, long updatedAt, Long mergedAt, Long closedAt,
                        Set<Integer> closesIssues) {
+            this(number, title, open, draft, merged, createdAt, updatedAt, mergedAt, closedAt,
+                    closesIssues, false);
+        }
+
+        public PullRow(int number, String title, boolean open, boolean draft, boolean merged,
+                       long createdAt, long updatedAt, Long mergedAt, Long closedAt,
+                       Set<Integer> closesIssues, boolean conflicting) {
             this.number = number;
             this.title = title == null ? "" : title;
             this.open = open;
@@ -78,6 +87,15 @@ public final class DevStatusModels {
             this.closesIssues = closesIssues == null
                     ? Collections.emptySet()
                     : Collections.unmodifiableSet(new LinkedHashSet<>(closesIssues));
+            this.conflicting = conflicting;
+        }
+
+        public PullRow withConflicting(boolean value) {
+            if (value == conflicting) {
+                return this;
+            }
+            return new PullRow(number, title, open, draft, merged, createdAt, updatedAt, mergedAt,
+                    closedAt, closesIssues, value);
         }
     }
 

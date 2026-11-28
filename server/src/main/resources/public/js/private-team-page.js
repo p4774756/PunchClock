@@ -16,6 +16,8 @@ import {
   writeSecretaryOutfitToStorage,
   secretaryAvatarUrlForOutfit,
   parseSecretaryOutfitId,
+  nextSecretaryOutfitId,
+  secretaryOutfitLabel,
   SECRETARY_OUTFIT_STORAGE_KEY
 } from './private-team-secretary-outfit.js';
 
@@ -298,6 +300,10 @@ export function mountPrivateTeamPage(opts) {
     typeof pageHooks.openDownload === 'function' ? pageHooks.openDownload : null;
   const closeDownload =
     typeof pageHooks.closeDownload === 'function' ? pageHooks.closeDownload : null;
+  const openJournal =
+    typeof pageHooks.openJournal === 'function' ? pageHooks.openJournal : null;
+  const closeJournal =
+    typeof pageHooks.closeJournal === 'function' ? pageHooks.closeJournal : null;
 
   let canvas = stage.querySelector('[data-private-team-canvas]');
   if (!canvas) {
@@ -321,12 +327,12 @@ export function mountPrivateTeamPage(opts) {
       taskHudMarkup() +
       '</div>' +
       '<div class="pt-hud-br">' +
-      '<div class="pt-hud-outfit" data-pt-secretary-outfit>' +
-      '<label class="pt-hud-outfit-label" for="pt-secretary-outfit-select">服裝</label>' +
-      '<select id="pt-secretary-outfit-select" class="pt-hud-outfit-select" data-pt-secretary-outfit-select aria-label="秘書服裝">' +
-      '<option value="default">預設</option>' +
-      '<option value="stage">舞台服</option>' +
-      '</select></div>' +
+      '<a href="/?open=journal" class="pt-hud-journal" data-pt-open-journal>心得牆</a>' +
+      '<button type="button" class="pt-hud-outfit" data-pt-secretary-outfit-btn aria-label="秘書服裝：預設，點一下換成舞台服" title="換服裝">' +
+      '<span class="pt-hud-outfit-cap" aria-hidden="true">服裝</span>' +
+      '<span class="pt-hud-outfit-name" aria-hidden="true" data-pt-secretary-outfit-name>預設</span>' +
+      '</button>' +
+      '<span class="pt-hud-sr-only" role="status" aria-live="polite" data-pt-secretary-outfit-status></span>' +
       '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App" title="下載 App">' + DL_SVG +
       '</button></div>' +
       '<p class="pt-hud-deploy-ver" data-pt-deploy-ver hidden aria-hidden="true"></p>';
@@ -554,18 +560,25 @@ export function mountPrivateTeamPage(opts) {
       pocketModal.open(canvas);
       return;
     }
+    if (target === 'journal') {
+      closeStatusCard();
+      closeAuthMenu();
+      if (openJournal) openJournal();
+      return;
+    }
     openStatusCard();
   }
 
   let tasksOpen = false;
   let downloadOpen = false;
+  let journalOpen = false;
   let pocketOpen = false;
 
   let scene = createScenePlaceholder();
   let sceneMounted = false;
 
   function syncSceneOverlay() {
-    const sceneBlocked = tasksOpen || downloadOpen || pocketOpen;
+    const sceneBlocked = tasksOpen || downloadOpen || journalOpen || pocketOpen;
     stage.classList.toggle('pt-roadmap-open', sceneBlocked);
     stage.classList.toggle('pt-pocket-open', pocketOpen);
     scene.setSceneInputEnabled(!sceneBlocked && !loginOpen);
@@ -593,11 +606,32 @@ export function mountPrivateTeamPage(opts) {
     }
   }
 
+  function setJournalOpen(open) {
+    journalOpen = !!open;
+    syncSceneOverlay();
+    if (journalOpen) {
+      closeStatusCard();
+      closeAuthMenu();
+      loginModal.close({ fromManager: true, silent: true });
+      if (tasksOpen && closeTasks) closeTasks();
+      if (closeDownload) closeDownload();
+    }
+  }
+
   function syncSecretaryOutfitHud() {
     const avatarImg = hud && hud.querySelector ? hud.querySelector('[data-pt-secretary-avatar]') : null;
     if (avatarImg) avatarImg.src = secretaryAvatarUrlForOutfit(secretaryOutfitId);
-    const outfitSelect = hud && hud.querySelector ? hud.querySelector('[data-pt-secretary-outfit-select]') : null;
-    if (outfitSelect) outfitSelect.value = parseSecretaryOutfitId(secretaryOutfitId);
+    const outfitBtn = hud && hud.querySelector ? hud.querySelector('[data-pt-secretary-outfit-btn]') : null;
+    if (outfitBtn) {
+      const cur = parseSecretaryOutfitId(secretaryOutfitId);
+      const curLabel = secretaryOutfitLabel(cur);
+      const nextLabel = secretaryOutfitLabel(nextSecretaryOutfitId(cur));
+      const nameEl = outfitBtn.querySelector('[data-pt-secretary-outfit-name]');
+      if (nameEl) nameEl.textContent = curLabel;
+      outfitBtn.setAttribute('data-outfit', cur);
+      outfitBtn.setAttribute('aria-label', '秘書服裝：' + curLabel + '，點一下換成' + nextLabel);
+      outfitBtn.setAttribute('title', '換成' + nextLabel);
+    }
   }
 
   function applySecretaryOutfitChoice(nextRaw) {
@@ -704,18 +738,21 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
-  const outfitSelect = hud.querySelector('[data-pt-secretary-outfit-select]');
-  if (outfitSelect) {
+  const outfitBtn = hud.querySelector('[data-pt-secretary-outfit-btn]');
+  if (outfitBtn) {
     syncSecretaryOutfitHud();
     const stopSceneDrag = (ev) => {
       if (ev.stopPropagation) ev.stopPropagation();
     };
-    outfitSelect.addEventListener('pointerdown', stopSceneDrag);
-    outfitSelect.addEventListener('mousedown', stopSceneDrag);
-    outfitSelect.addEventListener('click', stopSceneDrag);
-    outfitSelect.addEventListener('change', (ev) => {
+    outfitBtn.addEventListener('pointerdown', stopSceneDrag);
+    outfitBtn.addEventListener('mousedown', stopSceneDrag);
+    /* 原生 button：Enter／空白鍵也會觸發 click，每按一次切到下一套。 */
+    outfitBtn.addEventListener('click', (ev) => {
       stopSceneDrag(ev);
-      applySecretaryOutfitChoice(outfitSelect.value);
+      if (ev.preventDefault) ev.preventDefault();
+      applySecretaryOutfitChoice(nextSecretaryOutfitId(secretaryOutfitId));
+      const live = hud.querySelector('[data-pt-secretary-outfit-status]');
+      if (live) live.textContent = '已換成' + secretaryOutfitLabel(secretaryOutfitId);
     });
   }
 
@@ -727,6 +764,17 @@ export function mountPrivateTeamPage(opts) {
       closeStatusCard();
       closeAuthMenu();
       openDownload(downloadBtn);
+    });
+  }
+
+  const journalLink = hud.querySelector('[data-pt-open-journal]');
+  if (journalLink && openJournal) {
+    journalLink.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      closeStatusCard();
+      closeAuthMenu();
+      openJournal(journalLink);
     });
   }
 
@@ -784,6 +832,7 @@ export function mountPrivateTeamPage(opts) {
     if (
       !tasksOpen &&
       !downloadOpen &&
+      !journalOpen &&
       !pocketOpen &&
       !cardOpen &&
       (ev.key === 'Enter' || ev.key === ' ') &&
@@ -863,6 +912,7 @@ export function mountPrivateTeamPage(opts) {
   return {
     setTasksOpen,
     setDownloadOpen,
+    setJournalOpen,
     getLoginModal() {
       return loginModal;
     },

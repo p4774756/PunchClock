@@ -136,6 +136,7 @@ import {
   addMonitor,
   makeHandheldPreviewLcdTexture,
   addWindowSillHandheld,
+  addJournalBoard,
   addLowPolyPlant,
   applyUnderwaterTint,
   stripUnderwaterTint,
@@ -170,6 +171,19 @@ import {
 } from './private-team-scene-lounge.js';
 
 import { addPrivateTeamGalleryLighting } from './private-team-scene-gallery-lighting.js';
+
+import {
+  PRIVATE_TEAM_TUB_RIM_TOP_Y,
+  PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y,
+  PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY,
+  shouldLazyBuildFloorAquarium,
+  buildFloorAquarium,
+  tickFloorAquarium,
+  addSecretaryBathLegs,
+  syncSecretaryBathLegs,
+  applyTubFloorAquariumPeek,
+  privateTeamBathWaterSurfaceOpacity
+} from './private-team-scene-aquarium.js';
 
 export {
   SECRETARY_SPRITE_URL_TYPING,
@@ -415,7 +429,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     map: marbleTex,
     color: 0xd6dae2,
     roughness: 0.46,
-    metalness: 0.06
+    metalness: 0.06,
+    side: THREE.DoubleSide
   });
   const floor = extrudedRoundedPlateWithRectHole(
     FLOOR_HALF,
@@ -436,16 +451,22 @@ export function mountPrivateTeamScene(canvas, opts) {
   const TRAY_TOP_Y = PRIVATE_TEAM_TRAY_SURFACE_Y;
   const trayZ = 0.12;
   const WATER_Y = PRIVATE_TEAM_WATER_Y;
-  const RIM_TOP_Y = 0.62;
-  const WALL_T = 0.08;
+  const RIM_TOP_Y = PRIVATE_TEAM_TUB_RIM_TOP_Y;
+  const WALL_T = 0.05;
   const IN_HW = TUB_HW - WALL_T;
   const IN_HD = TUB_HD - WALL_T;
-  const TUB_BASE_Y = -0.018;
+  const TUB_BASE_Y = PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y;
   const outerH = RIM_TOP_Y - TUB_BASE_Y;
   const outerMidY = TUB_BASE_Y + outerH / 2;
   const tileTex = makeStoneTileTexture(8, 3);
   const tileSideTex = makeStoneTileTexture(8, 4);
-  const outerMat = new THREE.MeshLambertMaterial({ map: tileSideTex, color: COL.tub });
+  const glassSideMat = new THREE.MeshLambertMaterial({
+    map: tileSideTex,
+    color: 0xc0d8e4,
+    transparent: true,
+    opacity: 0.32,
+    depthWrite: false
+  });
   const innerMat = new THREE.MeshLambertMaterial({ color: COL.tubInner });
   const rimMat = new THREE.MeshLambertMaterial({ map: tileTex, color: COL.tubRim });
   const waterYUniform = { value: WATER_Y };
@@ -458,56 +479,31 @@ export function mountPrivateTeamScene(canvas, opts) {
   const frontZ = TUB_CZ + TUB_HD - WALL_T / 2;
   const backZTub = TUB_CZ - TUB_HD + WALL_T / 2;
   const tubFront = box(TUB_HW * 2, outerH, WALL_T, COL.tub);
-  tubFront.material = outerMat.clone();
+  tubFront.material = glassSideMat.clone();
   tubFront.position.set(TUB_CX, outerMidY, frontZ);
   tubFront.name = 'bathtubFront';
   root.add(tubFront);
   const tubBack = box(TUB_HW * 2, outerH, WALL_T, COL.tub);
-  tubBack.material = outerMat.clone();
+  tubBack.material = glassSideMat.clone();
   tubBack.position.set(TUB_CX, outerMidY, backZTub);
   tubBack.name = 'bathtubBack';
   root.add(tubBack);
   const tubLeft = box(WALL_T, outerH, TUB_HD * 2 - WALL_T * 2, COL.tub);
-  tubLeft.material = outerMat.clone();
+  tubLeft.material = glassSideMat.clone();
   tubLeft.position.set(TUB_CX - TUB_HW + WALL_T / 2, outerMidY, TUB_CZ);
   tubLeft.name = 'bathtubLeft';
   root.add(tubLeft);
   const tubRight = box(WALL_T, outerH, TUB_HD * 2 - WALL_T * 2, COL.tub);
-  tubRight.material = outerMat.clone();
+  tubRight.material = glassSideMat.clone();
   tubRight.position.set(TUB_CX + TUB_HW - WALL_T / 2, outerMidY, TUB_CZ);
   tubRight.name = 'bathtubRight';
   root.add(tubRight);
 
-  const rim = extrudedRoundedRing(TUB_HW + 0.03, TUB_HD + 0.03, IN_HW, IN_HD, 0.055, 0.07, rimMat);
-  rim.position.set(TUB_CX, RIM_TOP_Y - 0.045, TUB_CZ);
+  const rim = extrudedRoundedRing(TUB_HW + 0.03, TUB_HD + 0.03, IN_HW, IN_HD, 0.04, 0.06, rimMat);
+  rim.position.set(TUB_CX, RIM_TOP_Y - 0.028, TUB_CZ);
   rim.name = 'bathtubRim';
   root.add(rim);
-  const floorGrooveMat = new THREE.MeshLambertMaterial({ color: 0x7a8088 });
-  const tubFloorGroove = extrudedRoundedRing(
-    TUB_HW + 0.055,
-    TUB_HD + 0.05,
-    TUB_HW + 0.018,
-    TUB_HD + 0.015,
-    0.016,
-    0.055,
-    floorGrooveMat
-  );
-  tubFloorGroove.position.set(TUB_CX, 0.033, TUB_CZ);
-  tubFloorGroove.name = 'bathtubFloorGroove';
-  root.add(tubFloorGroove);
-  const tubMarbleLip = extrudedRoundedRing(
-    TUB_HW + 0.04,
-    TUB_HD + 0.038,
-    TUB_HW - 0.01,
-    TUB_HD - 0.01,
-    0.012,
-    0.05,
-    floorMat.clone()
-  );
-  tubMarbleLip.position.set(TUB_CX, 0.028, TUB_CZ);
-  tubMarbleLip.name = 'bathtubFloorLip';
-  root.add(tubMarbleLip);
-  const liningH = RIM_TOP_Y - 0.08;
+  const liningH = WATER_Y + 0.02 - 0.04;
   const liningY = 0.04 + liningH / 2;
   const liningT = 0.02;
   function addLining(name, w, h, d, x, y, z) {
@@ -525,7 +521,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const waterMat = new THREE.MeshLambertMaterial({
     color: COL.water,
     transparent: true,
-    opacity: 0.9,
+    opacity: PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY,
     depthWrite: false
   });
   const water = extrudedRoundedPlate(IN_HW - 0.02, IN_HD - 0.02, 0.012, 0.05, waterMat);
@@ -1110,6 +1106,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const monitorLook = new THREE.Vector3(0.02, 1.02, 0.72);
   const monitors = [addMonitor(root, monitorLook, -0.96, 0.94, 0.98, 0.02)];
+  const journalBoard = addJournalBoard(root, 1.12, 1.38, backZ + 0.07, monitorLook);
 
   const lampGroup = new THREE.Group();
   lampGroup.position.set(0.78, TRAY_TOP_Y + 0.016, 0.36);
@@ -1286,6 +1283,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
   shadow.renderOrder = 1;
   secretaryRoot.add(shadow);
+  addSecretaryBathLegs(secretaryRoot);
+  const bathLegsGroup = secretaryRoot.getObjectByName('secretaryBathLegs');
+  let floorAquariumState = null;
 
   let secretarySofaSpriteOk = false;
   let secretaryInLoungePose = false;
@@ -1659,6 +1659,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (poseChanged && secretarySprite && secretarySprite.material) {
         stripUnderwaterTint(secretarySprite.material);
       }
+      if (bathLegsGroup) bathLegsGroup.visible = false;
     } else {
       secretaryRoot.position.set(
         SECRETARY_TUB_POSITION.x,
@@ -1672,11 +1673,12 @@ export function mountPrivateTeamScene(canvas, opts) {
       if (poseChanged && secretarySprite && secretarySprite.material) {
         applyUnderwaterTint(secretarySprite.material, waterYUniform);
       }
+      if (bathLegsGroup) bathLegsGroup.visible = true;
     }
   };
   syncSecretaryPlacement();
 
-  const clickables = [windowSillHandheld.group, bubble, leftPosterGroup];
+  const clickables = [windowSillHandheld.group, bubble, leftPosterGroup, journalBoard.group];
   for (let wi = 0; wi < windowVistaClickables.length; wi++) {
     clickables.push(windowVistaClickables[wi]);
   }
@@ -2163,6 +2165,17 @@ export function mountPrivateTeamScene(canvas, opts) {
       refreshSecretaryDisplay();
     }
     const elapsed = (now - t0) / 1000;
+    if (
+      !floorAquariumState &&
+      shouldLazyBuildFloorAquarium(camera.position.y, pitchRadians)
+    ) {
+      floorAquariumState = buildFloorAquarium(root, WATER_Y);
+      applyTubFloorAquariumPeek(tubFloor);
+    }
+    if (floorAquariumState) {
+      tickFloorAquarium(floorAquariumState, elapsed, reducedMotion);
+    }
+    waterMat.opacity = privateTeamBathWaterSurfaceOpacity(pitchRadians);
     const breath = Math.sin(elapsed * 1.65) * 0.014;
     const typeNudge = Math.sin(elapsed * 7.2) * 0.008;
     const lean = Math.sin(elapsed * 7.2 + 0.4) * 0.018;
@@ -2185,6 +2198,9 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretarySprite.position.y = spriteBaseY + extraY;
       secretarySprite.rotation.z = leanZ;
       secretarySprite.lookAt(camera.position);
+      if (bathLegsGroup && !secretaryInLoungePose) {
+        syncSecretaryBathLegs(secretaryRoot, secretarySprite, SECRETARY_SPRITE_HEIGHT);
+      }
     }
 
     const bubbleFloatBase = (() => {

@@ -12,6 +12,7 @@ const SCENE_BUNDLE_FILES = [
   'private-team-scene-window.js',
   'private-team-scene-room.js',
   'private-team-scene-lounge.js',
+  'private-team-scene-aquarium.js',
   'private-team-scene-gallery-lighting.js'
 ];
 

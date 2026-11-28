@@ -58,6 +58,12 @@ test('彈窗 CSS 改由 home-panel-css-loader 延後載入', () => {
   assert.match(readFileSync(join(publicRoot, 'js/home-login-modal.js'), 'utf8'), /ensureHomeLoginCss/);
   assert.match(readFileSync(join(publicRoot, 'js/home-download-panel.js'), 'utf8'), /ensureHomeDownloadCss/);
   assert.match(readFileSync(join(publicRoot, 'js/home-tasks-panel.js'), 'utf8'), /ensureHomeRoadmapCss/);
+  const journalLoader = readFileSync(join(publicRoot, 'js/journal-loader.js'), 'utf8');
+  assert.match(journalLoader, /ensureHomeRoadmapCss/);
+  assert.ok(
+    journalLoader.indexOf('ensureHomeRoadmapCss(win, doc)') < journalLoader.indexOf("'/css/journal.css'"),
+    'journal.css 必須在共用 roadmap.css 之後載入'
+  );
 });
 
 test('3D 場景與 Three 延後載入，不擋首屏 HUD', () => {

@@ -25,8 +25,10 @@ const {
   phraseForActiveDisplay,
   renderActiveBlock,
   progressSegmentsForActive,
+  progressAriaLabelForActive,
   statusLineForActive,
   activeCiFailed,
+  activeStageForItem,
   titleForActiveDisplay,
   completedTodayKeys,
   hasNewCompletedToday,
@@ -143,9 +145,9 @@ test('secretarySpriteUrlForStatus 對應三張立繪', () => {
   assert.equal(secretarySpriteUrlForStatus('工作中 ×3'), '/assets/private-team/secretary-typing-a.webp');
   assert.equal(secretarySpriteUrlForStatus('三聖獸結界展開中'), '/assets/private-team/secretary-typing-a.webp');
   assert.equal(secretarySpriteUrlForStatus('青龍結界展開中'), '/assets/private-team/secretary-typing-a.webp');
-  assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-sofa.webp');
-  assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-sofa.webp');
-  assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sofa.webp');
+  assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-sofa-v2.webp');
+  assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-sofa-v2.webp');
+  assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sofa-v2.webp');
   assert.equal(
     secretarySpriteUrlForStatus('工作中', 'stage'),
     '/assets/private-team/secretary-stage-typing-a.webp'
@@ -291,7 +293,12 @@ test('renderActiveBlock 階段卡片 DOM', () => {
   assert.ok(flat.includes('"loading":"lazy"'));
   assert.ok(flat.includes('"alt":"青龍"'));
   assert.ok(flat.includes('pt-status-progress'));
-  assert.ok(flat.includes('開發中・12 分'));
+  assert.ok(flat.includes('pt-status-progress-connector'));
+  assert.ok(flat.includes('pt-status-progress-node current'));
+  assert.ok(flat.includes('"aria-label":"開發中・12 分"'));
+  assert.ok(flat.includes('12 分'));
+  assert.ok(!flat.includes('pt-status-stage-meta'));
+  assert.ok(!flat.includes('"BUTTON"'));
   assert.ok(flat.includes('#507'));
 });
 
@@ -342,8 +349,11 @@ test('progressSegmentsForActive 各階段與 CI 失敗', () => {
       return node;
     }
   }, { stage: '等 CI', round: 0, issue: 646 });
-  assert.ok(JSON.stringify(skipRendered).includes('略過審核'));
-  assert.ok(JSON.stringify(skipRendered).includes('\u2713 開發'));
+  const skipFlat = JSON.stringify(skipRendered);
+  assert.ok(skipFlat.includes('已略過'));
+  assert.ok(skipFlat.includes('pt-status-progress-node skipped'));
+  assert.ok(skipFlat.includes('pt-status-progress-node-mark'));
+  assert.ok(skipFlat.includes('pt-status-progress-node-icon'));
   const ciItem = { stage: '等 CI', round: 2, verdict: 'FAIL' };
   const ciFail = progressSegmentsForActive(ciItem);
   assert.equal(ciFail[2].state, 'fail');
@@ -355,6 +365,57 @@ test('progressSegmentsForActive 各階段與 CI 失敗', () => {
   );
   const merge = progressSegmentsForActive({ stage: '合併中', round: 2 });
   assert.deepEqual(merge.map((s) => s.state), ['done', 'done', 'done', 'current']);
+});
+
+test('renderStageProgress pipeline DOM：輪次、CI 失敗、aria', () => {
+  const doc = miniDoc();
+  const reviewBlock = renderActiveBlock(doc, {
+    stage: '審查中',
+    round: 2,
+    minutes: 12,
+    issue: 863
+  });
+  const reviewFlat = JSON.stringify(reviewBlock);
+  assert.ok(reviewFlat.includes('審核 第 2 輪'));
+  assert.ok(reviewFlat.includes('12 分'));
+  assert.ok(reviewFlat.includes('pt-status-progress-node-icon'));
+  assert.ok(reviewFlat.includes('pt-status-progress-connector is-flowing'));
+  assert.ok(!reviewFlat.includes('pt-status-progress-connector is-complete'));
+  assert.match(reviewFlat, /"aria-label":"審核中・第 2 輪・12 分"/);
+  assert.equal(progressAriaLabelForActive({ stage: '審查中', round: 2, minutes: 12 }), '審核中・第 2 輪・12 分');
+  assert.ok(!reviewFlat.includes('BUTTON'));
+
+  const devBlock = renderActiveBlock(miniDoc(), {
+    stage: '開發中',
+    minutes: 8,
+    issue: 863
+  });
+  const devFlat = JSON.stringify(devBlock);
+  assert.ok(devFlat.includes('8 分'));
+  assert.ok(devFlat.includes('pt-status-progress-connector is-flowing'));
+  assert.ok(devFlat.includes('pt-status-progress-node current'));
+
+  const ciFailBlock = renderActiveBlock(miniDoc(), {
+    stage: '等 CI',
+    round: 2,
+    verdict: 'FAIL',
+    issue: 9
+  });
+  const failFlat = JSON.stringify(ciFailBlock);
+  assert.ok(failFlat.includes('失敗'));
+  assert.ok(failFlat.includes('pt-status-progress-node fail'));
+  assert.ok(failFlat.includes('pt-status-progress-node-note'));
+  assert.ok(failFlat.includes('pt-status-progress-connector is-blocked'));
+  assert.ok(failFlat.includes('pt-status-progress-connector is-complete'));
+  assert.match(failFlat, /"aria-label":"CI 失敗，等待處理"/);
+
+  const mergeBlock = renderActiveBlock(miniDoc(), { stage: '合併中', round: 2, minutes: 5, issue: 1 });
+  const mergeFlat = JSON.stringify(mergeBlock);
+  assert.ok(mergeFlat.includes('pt-status-progress-connector is-complete'));
+  assert.ok(mergeFlat.includes('pt-status-progress-connector is-flowing'));
+  assert.ok(mergeFlat.includes('pt-status-progress-node current'));
+  assert.ok(mergeFlat.includes('5 分'));
+  assert.ok(mergeFlat.includes('合併'));
 });
 
 test('activeCiFailed 與狀態卡標題完整', () => {
@@ -625,4 +686,16 @@ test('fillStatusCard 休息中台詞不含猛虎', () => {
   const flat = JSON.stringify(body) + body.textContent;
   assert.ok(flat.includes('今天先休息，晚點再來看我。'));
   assert.doesNotMatch(flat, /猛虎/);
+});
+test('有衝突階段：CI 格標「有衝突」、不顯示等 CI 分鐘', () => {
+  const item = { stage: '有衝突', round: 0, minutes: 253 };
+  const segs = progressSegmentsForActive(item);
+  assert.deepEqual(segs.map((s) => s.label), ['開發', '審核', '有衝突', '合併']);
+  assert.equal(segs[2].state, 'current');
+  assert.equal(activeStageForItem(item), '有衝突');
+  assert.equal(activeCiFailed({ stage: '有衝突', verdict: 'FAIL' }), false);
+  assert.equal(statusLineForActive(item), '有衝突，待解決');
+  assert.ok(!statusLineForActive(item).includes('分'));
+  const normal = progressSegmentsForActive({ stage: '等 CI', round: 1 });
+  assert.equal(normal[2].label, 'CI');
 });

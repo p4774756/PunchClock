@@ -2,8 +2,9 @@
 
 import { createHomeTasksController } from './home-tasks-panel.js';
 import { createHomeDownloadController } from './home-download-panel.js';
+import { createHomeJournalController } from './home-journal-panel.js';
 import { createOfficeModalManager } from './office-modal.js';
-import { applyDownloadOpenParam, applyTasksOpenParam } from './dev-machines-format.js';
+import { applyDownloadOpenParam, applyJournalOpenParam, applyTasksOpenParam } from './dev-machines-format.js';
 import { mountPrivateTeamPage } from './private-team-page.js';
 import { wireLogoutLinks } from './admin-session.js';
 
@@ -21,12 +22,24 @@ const modalMgr = createOfficeModalManager({
     if (token === 'tasks') {
       if (window.PUNCHCLOCK_AUTHENTICATED) openTasksFromHud();
     } else if (token === 'download') download.open();
+    else if (token === 'journal') openJournalFromHud();
   }
 });
 
 function openExclusive(id, opener) {
   modalMgr.openExclusive(id, opener);
 }
+
+const journal = createHomeJournalController({
+  officeModal: modalMgr,
+  hooks: {
+    onChange: (state) => {
+      if (privateTeam && typeof privateTeam.setJournalOpen === 'function') {
+        privateTeam.setJournalOpen(state.open);
+      }
+    }
+  }
+});
 
 const download = createHomeDownloadController({
   officeModal: modalMgr,
@@ -54,6 +67,7 @@ const tasks = createHomeTasksController({
 
 modalMgr.register('tasks', tasks);
 modalMgr.register('download', download);
+modalMgr.register('journal', journal);
 
 function openDownloadFromHud(trigger) {
   openExclusive('download', () => download.open({ trigger }));
@@ -61,6 +75,10 @@ function openDownloadFromHud(trigger) {
 
 function openTasksFromHud() {
   openExclusive('tasks', () => tasks.open());
+}
+
+function openJournalFromHud(trigger) {
+  openExclusive('journal', () => journal.open({ trigger }));
 }
 
 privateTeam = mountPrivateTeamPage({
@@ -71,7 +89,9 @@ privateTeam = mountPrivateTeamPage({
     openTasks: () => openTasksFromHud(),
     closeTasks: () => tasks.close({ fromManager: true }),
     closeDownload: () => download.close({ fromManager: true, silent: true }),
-    openDownload: (trigger) => openDownloadFromHud(trigger)
+    openDownload: (trigger) => openDownloadFromHud(trigger),
+    openJournal: (trigger) => openJournalFromHud(trigger),
+    closeJournal: () => journal.close({ fromManager: true })
   }
 });
 
@@ -81,5 +101,6 @@ applyTasksOpenParam(window, () => {
   if (window.PUNCHCLOCK_AUTHENTICATED) openTasksFromHud();
 });
 applyDownloadOpenParam(window, () => openDownloadFromHud());
+applyJournalOpenParam(window, () => openJournalFromHud());
 
 wireLogoutLinks(window, document);

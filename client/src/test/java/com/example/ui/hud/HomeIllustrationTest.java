@@ -22,6 +22,8 @@ public class HomeIllustrationTest {
         assertEquals(HomeIllustration.CHERRY_PARK_D, HomeIllustration.fromId("d"));
         assertEquals(HomeIllustration.NIGHT_MARKET_E, HomeIllustration.fromId("e"));
         assertEquals(HomeIllustration.OVERTIME_F, HomeIllustration.fromId("f"));
+        assertEquals(HomeIllustration.CHEER_PURPLE_G, HomeIllustration.fromId("g"));
+        assertEquals(HomeIllustration.CHEER_RED_H, HomeIllustration.fromId("h"));
     }
 
     @Test
@@ -30,7 +32,9 @@ public class HomeIllustrationTest {
         assertEquals(HomeIllustration.CHERRY_PARK_D, HomeIllustration.POOL_C.next());
         assertEquals(HomeIllustration.NIGHT_MARKET_E, HomeIllustration.CHERRY_PARK_D.next());
         assertEquals(HomeIllustration.OVERTIME_F, HomeIllustration.NIGHT_MARKET_E.next());
-        assertEquals(HomeIllustration.ROOM_B, HomeIllustration.OVERTIME_F.next());
+        assertEquals(HomeIllustration.CHEER_PURPLE_G, HomeIllustration.OVERTIME_F.next());
+        assertEquals(HomeIllustration.CHEER_RED_H, HomeIllustration.CHEER_PURPLE_G.next());
+        assertEquals(HomeIllustration.ROOM_B, HomeIllustration.CHEER_RED_H.next());
     }
 
     @Test
@@ -40,6 +44,8 @@ public class HomeIllustrationTest {
         assertEquals(HomeIllustration.CHERRY_PARK_D, HomeIllustration.fromLabel("櫻花公園"));
         assertEquals(HomeIllustration.NIGHT_MARKET_E, HomeIllustration.fromLabel("台灣夜市"));
         assertEquals(HomeIllustration.OVERTIME_F, HomeIllustration.fromLabel("加班夜景"));
+        assertEquals(HomeIllustration.CHEER_PURPLE_G, HomeIllustration.fromLabel("加油女孩（紫衣）"));
+        assertEquals(HomeIllustration.CHEER_RED_H, HomeIllustration.fromLabel("加油女孩（紅衣）"));
         assertEquals(HomeIllustration.ROOM_B, HomeIllustration.fromLabel("bad"));
     }
 
@@ -116,6 +122,8 @@ public class HomeIllustrationTest {
         };
         assertEquals(0, HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.ROOM_B, 1152));
         assertEquals(0, HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.POOL_C, 1152));
+        assertEquals(0, HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.CHEER_PURPLE_G, 1152));
+        assertEquals(0, HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.CHEER_RED_H, 1152));
         for (HomeIllustration illustration : scenes) {
             try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(illustration.resourcePath())) {
                 var img = ImageIO.read(in);
@@ -159,6 +167,12 @@ public class HomeIllustrationTest {
         assertNotNull(AnimeShell.renderShellPreview(340, 440, false));
         shell.setHomeIllustration(HomeIllustration.CHERRY_PARK_D);
         assertNotNull(AnimeShell.renderShellPreview(380, 520, false));
+        shell.setHomeIllustration(HomeIllustration.CHEER_PURPLE_G);
+        assertEquals(HomeIllustration.CHEER_PURPLE_G, shell.homeIllustrationForTests());
+        assertNotNull(AnimeShell.renderShellPreview(380, 520, false));
+        shell.setHomeIllustration(HomeIllustration.CHEER_RED_H);
+        assertEquals(HomeIllustration.CHEER_RED_H, shell.homeIllustrationForTests());
+        assertNotNull(AnimeShell.renderShellPreview(340, 440, false));
     }
 
     @Test

@@ -126,6 +126,25 @@
     </div>
     </div>
   </section>
+  <section id="journalBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="心得動態牆">
+    <div class="roadmap-panel maple-window home-journal-panel">
+      <header class="maple-win-title roadmap-win-head">
+        <h2>心得</h2>
+        <button type="button" class="roadmap-close-x" data-journal-close aria-label="關閉">×</button>
+      </header>
+      <div class="journal-body">
+        <p class="journal-status" data-journal-status aria-live="polite"></p>
+        <form class="journal-compose" data-journal-compose hidden>
+          <textarea name="body" class="journal-input" rows="4" maxlength="1000" required placeholder="寫下心得…"></textarea>
+          <input type="text" name="tags" class="journal-input" maxlength="120" placeholder="標籤（逗號分隔，可留空）" />
+          <input type="file" name="image" accept="image/jpeg,image/png,image/webp" />
+          <button type="submit" class="btn btn-primary">發佈</button>
+        </form>
+        <div class="journal-list" data-journal-list></div>
+        <button type="button" class="btn btn-ghost journal-more" data-journal-more hidden>載入更多</button>
+      </div>
+    </div>
+  </section>
   <section id="downloadBoard" class="roadmap-board" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="下載桌面端">
     <div class="roadmap-panel maple-window home-download-panel">
       <header class="maple-win-title roadmap-win-head">
