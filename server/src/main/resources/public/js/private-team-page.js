@@ -117,6 +117,7 @@ function createScenePlaceholder() {
     setSceneAnimationPaused: noop,
     playSecretaryWave: noop,
     playSecretaryDance: noop,
+    playSecretaryDive: noop,
     noteTigerStatus: noop,
     setSecretarySprite: noop,
     setSecretaryOutfit: noop,
@@ -332,6 +333,7 @@ export function mountPrivateTeamPage(opts) {
       '</div>' +
       '<div class="pt-hud-br">' +
       '<a href="/?open=journal" class="pt-hud-journal" data-pt-open-journal>留言板</a>' +
+      '<button type="button" class="pt-hud-dive" data-pt-dive-btn aria-label="秘書跳水，跳進下方水缸" title="跳水">跳水</button>' +
       '<button type="button" class="pt-hud-outfit" data-pt-secretary-outfit-btn aria-label="秘書服裝：預設，點一下換成舞台服" title="換服裝">' +
       '<span class="pt-hud-outfit-cap" aria-hidden="true">服裝</span>' +
       '<span class="pt-hud-outfit-name" aria-hidden="true" data-pt-secretary-outfit-name>預設</span>' +
@@ -673,7 +675,8 @@ export function mountPrivateTeamPage(opts) {
         scene = mountPrivateTeamScene(canvas, {
           win,
           doc,
-          onActivate: onSceneActivate
+          onActivate: onSceneActivate,
+          onDiveChange: paintDiveBtn
         });
         canvas.__privateTeamScene = scene;
         scene.setSecretaryOutfit(secretaryOutfitId);
@@ -776,6 +779,30 @@ export function mountPrivateTeamPage(opts) {
       closeStatusCard();
       closeAuthMenu();
       openDownload(downloadBtn);
+    });
+  }
+
+  const diveBtn = hud.querySelector('[data-pt-dive-btn]');
+  function paintDiveBtn(active) {
+    if (!diveBtn) return;
+    diveBtn.textContent = active ? '上岸' : '跳水';
+    diveBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    diveBtn.setAttribute('aria-label', active ? '秘書上岸，回到沙發' : '秘書跳水，跳進下方水缸');
+    diveBtn.title = active ? '上岸' : '跳水';
+  }
+  if (diveBtn) {
+    const stopSceneDrag = (ev) => {
+      if (ev.stopPropagation) ev.stopPropagation();
+    };
+    diveBtn.addEventListener('pointerdown', stopSceneDrag);
+    diveBtn.addEventListener('mousedown', stopSceneDrag);
+    diveBtn.addEventListener('click', (ev) => {
+      stopSceneDrag(ev);
+      if (ev.preventDefault) ev.preventDefault();
+      closeStatusCard();
+      closeAuthMenu();
+      const now = typeof win.performance !== 'undefined' && win.performance.now ? win.performance.now() : Date.now();
+      scene.playSecretaryDive(now);
     });
   }
 

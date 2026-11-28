@@ -1,4 +1,6 @@
 import * as THREE from './vendor/three.module.min.js';
+import { DIVE_GEOM_DEFAULTS, diveIsUnderwater, diveSkipElapsedMs, secretaryDiveStateAt } from './private-team-scene-dive.js';
+import { createDiveFx } from './private-team-scene-dive-fx.js';
 import { POCKET_LCD_H, POCKET_LCD_W, drawPocketMaryPreviewLcd } from './private-team-pocket-lcd.js';
 import {
   SECRETARY_SPRITE_URL_TYPING,
@@ -1315,6 +1317,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   let overlayActive = null;
   let overlayPending = null;
   let dancePlayback = null;
+  let divePlayback = null;
+  let diveFx = null;
   let tigerStatus = '待命中';
   let standbySinceMs = performance.now();
   let lastIdleRotateMs = null;
@@ -1426,7 +1430,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   function refreshSecretaryDisplay() {
-    if (dancePlayback) return;
+    if (dancePlayback || divePlayback) return;
     if (overlayActive) {
       applySecretarySpriteUrl(overlayActive.url);
       return;
@@ -1452,6 +1456,112 @@ export function mountPrivateTeamScene(canvas, opts) {
     danceDisplayFrame = -1;
     const url = secretaryCelebrateFrameUrlAt(0, secretaryCelebrateSteps);
     if (url) applySecretarySpriteUrl(url);
+  }
+
+  function ensureFloorAquarium() {
+    if (floorAquariumState) return;
+    floorAquariumState = buildFloorAquarium(root, WATER_Y);
+    applyTubFloorAquariumPeek(tubFloor);
+    for (let li = 0; li < tubLinings.length; li++) tubLinings[li].visible = false;
+  }
+
+  function notifyDiveChange(active) {
+    if (onDiveChange) onDiveChange(!!active);
+  }
+
+  function diveSpriteUrl(kind) {
+    if (kind === 'yeah') return secretaryPack.yeah;
+    if (kind === 'wave') return secretaryPack.wave;
+    return secretaryPack.idle;
+  }
+
+  /** 跳水：第一次呼叫開始；播放中再呼叫＝直接上岸。 */
+  function playSecretaryDive(now) {
+    const t = Number.isFinite(now) ? now : performance.now();
+    if (divePlayback) {
+      const elapsed = t - divePlayback.startMs;
+      const next = diveSkipElapsedMs(elapsed, divePlayback.geom.fromLounge, divePlayback.geom.reduced);
+      divePlayback.startMs = t - next;
+      return 'skip';
+    }
+    if (!secretarySprite) return 'none';
+    if (dancePlayback) stopSecretaryDance();
+    overlayActive = null;
+    overlayPending = null;
+    if (!reducedMotion) ensureFloorAquarium();
+    const spriteH = SECRETARY_SPRITE_HEIGHT * SECRETARY_TUB_SCALE;
+    const geom = Object.assign({}, DIVE_GEOM_DEFAULTS, {
+      startX: secretaryRoot.position.x,
+      startZ: secretaryRoot.position.z,
+      fromLounge: secretaryInLoungePose,
+      reduced: reducedMotion,
+      waterY: WATER_Y,
+      spriteH
+    });
+    divePlayback = { startMs: t, geom, phase: '', sprite: '', lastBubbleMs: 0 };
+    stripUnderwaterTint(secretarySprite.material);
+    syncSecretaryPlacement();
+    if (!reducedMotion && !diveFx) diveFx = createDiveFx(root);
+    notifyDiveChange(true);
+    return 'start';
+  }
+
+  function endSecretaryDive() {
+    if (!divePlayback) return;
+    divePlayback = null;
+    if (diveFx) diveFx.clear();
+    bubble.visible = true;
+    shadow.visible = true;
+    if (secretarySprite && secretarySprite.material) {
+      secretarySprite.material.color.setRGB(1, 1, 1);
+      secretarySprite.material.opacity = 1;
+    }
+    refreshSecretaryDisplay();
+    syncSecretaryPlacement();
+    if (!secretaryInLoungePose && secretarySprite && secretarySprite.material) {
+      applyUnderwaterTint(secretarySprite.material, waterYUniform);
+    }
+    notifyDiveChange(false);
+  }
+
+  function tickSecretaryDive(now, dtMs) {
+    const dp = divePlayback;
+    if (!dp) return;
+    const st = secretaryDiveStateAt(now - dp.startMs, dp.geom);
+    if (st.done) {
+      endSecretaryDive();
+      return;
+    }
+    const s = SECRETARY_TUB_SCALE;
+    secretaryRoot.position.set(st.x, st.feetY - 0.02 * s, st.z);
+    secretaryRoot.scale.set(s, s, s);
+    secretaryRoot.rotation.y = 0;
+    bubble.visible = false;
+    shadow.visible = false;
+    if (bathLegsGroup) bathLegsGroup.visible = false;
+    if (st.sprite !== dp.sprite) {
+      dp.sprite = st.sprite;
+      applySecretarySpriteUrl(diveSpriteUrl(st.sprite));
+    }
+    if (secretarySprite && secretarySprite.material) {
+      secretarySprite.rotateZ(st.rotZ);
+      const m = secretarySprite.material;
+      m.color.setRGB(1 - 0.5 * st.submerge, 1 - 0.18 * st.submerge, 1 - 0.1 * st.submerge);
+      m.opacity = 1 - 0.18 * st.submerge;
+      m.transparent = true;
+    }
+    if (diveFx) {
+      if (st.phase !== dp.phase) {
+        if (st.phase === 'sink') diveFx.splash(st.x, WATER_Y, st.z, 18);
+        if (st.phase === 'hop') diveFx.splash(st.x, WATER_Y, st.z, 10);
+      }
+      if (diveIsUnderwater(st, dp.geom) && now - dp.lastBubbleMs > 170) {
+        dp.lastBubbleMs = now;
+        diveFx.bubble(st.x, st.feetY + dp.geom.spriteH * 0.8, st.z);
+      }
+      diveFx.tick(dtMs / 1000, WATER_Y);
+    }
+    dp.phase = st.phase;
   }
 
   function noteTigerStatus(status, now) {
@@ -1527,7 +1637,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       depthWrite: false,
       side: THREE.DoubleSide
     });
-    if (secretaryInLoungePose) {
+    if (secretaryInLoungePose || divePlayback) {
       stripUnderwaterTint(mat);
     } else {
       applyUnderwaterTint(mat, waterYUniform);
@@ -1555,7 +1665,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     const oldMap = secretarySprite.material.map;
     secretarySprite.material.map = tex;
     secretarySprite.material.needsUpdate = true;
-    if (secretaryInLoungePose) {
+    if (secretaryInLoungePose || divePlayback) {
       stripUnderwaterTint(secretarySprite.material);
     } else {
       applyUnderwaterTint(secretarySprite.material, waterYUniform);
@@ -1645,7 +1755,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   root.add(bubble);
 
   syncSecretaryPlacement = function syncSecretaryPlacementImpl() {
-    const wantLounge = !dancePlayback && secretaryAtLoungePose(tigerStatus, true);
+    const wantLounge = !dancePlayback && !divePlayback && secretaryAtLoungePose(tigerStatus, true);
     const poseChanged = secretaryInLoungePose !== wantLounge;
     secretaryInLoungePose = wantLounge;
     if (wantLounge) {
@@ -1685,7 +1795,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretaryRoot.rotation.y = 0;
       shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
       bubble.position.set(secretaryBubbleX, bubble.position.y, SECRETARY_BUBBLE_TUB.z);
-      if (poseChanged && secretarySprite && secretarySprite.material) {
+      if (poseChanged && secretarySprite && secretarySprite.material && !divePlayback) {
         applyUnderwaterTint(secretarySprite.material, waterYUniform);
       }
       if (bathLegsGroup) bathLegsGroup.visible = true;
@@ -1705,6 +1815,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   raycaster.params.Points.threshold = 0.08;
   const pointer = new THREE.Vector2();
   const onActivate = typeof (opts && opts.onActivate) === 'function' ? opts.onActivate : null;
+  const onDiveChange = typeof (opts && opts.onDiveChange) === 'function' ? opts.onDiveChange : null;
   let sceneInputEnabled = true;
   let monitorHovered = false;
   let monitorHighlightUntil = 0;
@@ -2154,7 +2265,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         standbySinceMs,
         now,
         lastIdleDanceMs,
-        dancing: false,
+        dancing: !!divePlayback,
         reducedMotion
       })
     ) {
@@ -2194,9 +2305,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       !floorAquariumState &&
       shouldLazyBuildFloorAquarium(camera.position.y, pitchRadians)
     ) {
-      floorAquariumState = buildFloorAquarium(root, WATER_Y);
-      applyTubFloorAquariumPeek(tubFloor);
-      for (let li = 0; li < tubLinings.length; li++) tubLinings[li].visible = false;
+      ensureFloorAquarium();
     }
     if (floorAquariumState) {
       tickFloorAquarium(floorAquariumState, elapsed, reducedMotion);
@@ -2228,6 +2337,8 @@ export function mountPrivateTeamScene(canvas, opts) {
         syncSecretaryBathLegs(secretaryRoot, secretarySprite, SECRETARY_SPRITE_HEIGHT);
       }
     }
+
+    if (divePlayback) tickSecretaryDive(now, frameDt);
 
     const bubbleFloatBase = (() => {
       if (!secretaryInLoungePose) return bubbleFloatMin;
@@ -2439,6 +2550,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     playSecretaryWave,
     playSecretaryYeah,
     playSecretaryDance,
+    playSecretaryDive(now) {
+      return playSecretaryDive(now);
+    },
+    isSecretaryDiving() {
+      return !!divePlayback;
+    },
     noteTigerStatus,
     setMonitorHud,
     setSceneInputEnabled(next) {
