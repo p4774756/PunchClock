@@ -116,6 +116,7 @@ import {
   applyUnderwaterTint,
   stripUnderwaterTint,
   extrudedRoundedPlate,
+  extrudedRoundedPlateWithRectHole,
   extrudedRoundedRing,
   FLOOR_SIZE,
   FLOOR_HALF,
@@ -359,6 +360,11 @@ export function mountPrivateTeamScene(canvas, opts) {
   const root = new THREE.Group();
   scene.add(root);
 
+  const TUB_CX = 0;
+  const TUB_CZ = 0.64;
+  const TUB_HW = 0.84;
+  const TUB_HD = 0.52;
+
   const marbleTex = makeMarbleFloorTexture(2.2, 2.2);
   const floorMat = new THREE.MeshStandardMaterial({
     map: marbleTex,
@@ -366,8 +372,19 @@ export function mountPrivateTeamScene(canvas, opts) {
     roughness: 0.46,
     metalness: 0.06
   });
-  const floor = extrudedRoundedPlate(FLOOR_HALF, FLOOR_HALF, 0.035, 0.08, floorMat);
+  const floor = extrudedRoundedPlateWithRectHole(
+    FLOOR_HALF,
+    FLOOR_HALF,
+    TUB_CX,
+    TUB_CZ,
+    TUB_HW + 0.06,
+    TUB_HD + 0.05,
+    0.035,
+    0.08,
+    floorMat
+  );
   floor.position.y = 0;
+  floor.name = 'marbleFloor';
   root.add(floor);
 
   const TRAY_THICK = 0.036;
@@ -375,15 +392,12 @@ export function mountPrivateTeamScene(canvas, opts) {
   const trayZ = 0.12;
   const WATER_Y = PRIVATE_TEAM_WATER_Y;
   const RIM_TOP_Y = 0.62;
-  const TUB_CX = 0;
-  const TUB_CZ = 0.64;
-  const TUB_HW = 0.84;
-  const TUB_HD = 0.52;
   const WALL_T = 0.08;
   const IN_HW = TUB_HW - WALL_T;
   const IN_HD = TUB_HD - WALL_T;
-  const outerH = RIM_TOP_Y - 0.02;
-  const outerMidY = 0.02 + outerH / 2;
+  const TUB_BASE_Y = -0.018;
+  const outerH = RIM_TOP_Y - TUB_BASE_Y;
+  const outerMidY = TUB_BASE_Y + outerH / 2;
   const tileTex = makeStoneTileTexture(8, 3);
   const tileSideTex = makeStoneTileTexture(8, 4);
   const outerMat = new THREE.MeshLambertMaterial({ map: tileSideTex, color: COL.tub });
@@ -423,6 +437,31 @@ export function mountPrivateTeamScene(canvas, opts) {
   rim.position.set(TUB_CX, RIM_TOP_Y - 0.045, TUB_CZ);
   rim.name = 'bathtubRim';
   root.add(rim);
+  const floorGrooveMat = new THREE.MeshLambertMaterial({ color: 0x7a8088 });
+  const tubFloorGroove = extrudedRoundedRing(
+    TUB_HW + 0.055,
+    TUB_HD + 0.05,
+    TUB_HW + 0.018,
+    TUB_HD + 0.015,
+    0.016,
+    0.055,
+    floorGrooveMat
+  );
+  tubFloorGroove.position.set(TUB_CX, 0.033, TUB_CZ);
+  tubFloorGroove.name = 'bathtubFloorGroove';
+  root.add(tubFloorGroove);
+  const tubMarbleLip = extrudedRoundedRing(
+    TUB_HW + 0.04,
+    TUB_HD + 0.038,
+    TUB_HW - 0.01,
+    TUB_HD - 0.01,
+    0.012,
+    0.05,
+    floorMat.clone()
+  );
+  tubMarbleLip.position.set(TUB_CX, 0.028, TUB_CZ);
+  tubMarbleLip.name = 'bathtubFloorLip';
+  root.add(tubMarbleLip);
   const liningH = RIM_TOP_Y - 0.08;
   const liningY = 0.04 + liningH / 2;
   const liningT = 0.02;
