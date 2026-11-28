@@ -214,15 +214,33 @@ test('phraseForActiveDisplay 空泛句改標題', () => {
   );
 });
 
-test('renderActiveBlock 階段卡片 DOM', () => {
-  const doc = {
+function miniDoc() {
+  return {
     createElement(tag) {
-      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '' };
+      const node = {
+        tagName: tag.toUpperCase(),
+        className: '',
+        classList: {
+          _c: new Set(),
+          add(c) { this._c.add(c); },
+          remove(c) { this._c.delete(c); }
+        },
+        childNodes: [],
+        textContent: '',
+        style: {}
+      };
       node.appendChild = (c) => { node.childNodes.push(c); return c; };
-      node.setAttribute = () => {};
+      node.setAttribute = (k, v) => { node[k] = v; };
+      node.addEventListener = (ev, fn) => {
+        if (ev === 'error') node._onError = fn;
+      };
       return node;
     }
   };
+}
+
+test('renderActiveBlock 階段卡片 DOM', () => {
+  const doc = miniDoc();
   const block = renderActiveBlock(doc, {
     phrase: '正在處理一項工作',
     title: '首頁秘書狀態卡',
@@ -237,9 +255,42 @@ test('renderActiveBlock 階段卡片 DOM', () => {
   assert.ok(flat.includes('is-azure'));
   assert.ok(flat.includes('青龍'));
   assert.ok(flat.includes('pt-status-chain-name'));
+  assert.ok(flat.includes('pt-status-chain-avatar'));
+  assert.ok(flat.includes('/assets/private-team/chain-qinglong-96.webp'));
+  assert.ok(flat.includes('chain-qinglong-192.webp 2x'));
+  assert.ok(flat.includes('"loading":"lazy"'));
+  assert.ok(flat.includes('"alt":"青龍"'));
   assert.ok(flat.includes('pt-status-progress'));
   assert.ok(flat.includes('開發中・12 分'));
   assert.ok(flat.includes('#507'));
+});
+
+test('renderActiveBlock 四象頭像與未知鏈名', () => {
+  const doc = miniDoc();
+  for (const { chain, slug } of [
+    { chain: '白虎', slug: 'baihu' },
+    { chain: '朱雀', slug: 'zhuque' },
+    { chain: '玄武', slug: 'xuanwu' }
+  ]) {
+    const block = renderActiveBlock(doc, { chain, stage: '開發中', issue: 1 });
+    const flat = JSON.stringify(block);
+    assert.ok(flat.includes('chain-' + slug + '-96.webp'), chain);
+    assert.ok(flat.includes('pt-status-chain-avatar'), chain);
+  }
+  const unknown = renderActiveBlock(miniDoc(), { chain: '未知鏈', stage: '開發中', issue: 2 });
+  const unkFlat = JSON.stringify(unknown);
+  assert.ok(!unkFlat.includes('pt-status-chain-avatar'));
+  assert.ok(unkFlat.includes('pt-status-chain-dot'));
+});
+
+test('renderActiveBlock 頭像載入失敗退回色點', () => {
+  const doc = miniDoc();
+  const block = renderActiveBlock(doc, { chain: '青龍', stage: '開發中', issue: 3 });
+  const chainLine = block.childNodes[0].childNodes[0];
+  const img = chainLine.childNodes[0];
+  assert.equal(typeof img._onError, 'function');
+  img._onError();
+  assert.ok(chainLine.classList._c.has('is-avatar-error'));
 });
 
 test('progressSegmentsForActive 各階段與 CI 失敗', () => {

@@ -909,6 +909,40 @@ button.pt-hud-id-plate {
   flex-shrink: 0;
 }
 
+.pt-status-chain-avatar {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-sizing: border-box;
+  border: 2px solid var(--maple-navy, #163a70);
+}
+
+.pt-status-chain-avatar.is-azure {
+  border-color: #5ab0c0;
+}
+
+.pt-status-chain-avatar.is-white {
+  border-color: #d8c890;
+}
+
+.pt-status-chain-avatar.is-vermilion {
+  border-color: #c86850;
+}
+
+.pt-status-chain-avatar.is-obsidian {
+  border-color: #4a5a72;
+}
+
+.pt-status-chain-line:not(.is-avatar-error) .pt-status-chain-avatar ~ .pt-status-chain-dot {
+  display: none;
+}
+
+.pt-status-chain-line.is-avatar-error .pt-status-chain-avatar {
+  display: none;
+}
+
 .pt-status-chain-name {
   font-size: 0.74rem;
   font-weight: 800;
