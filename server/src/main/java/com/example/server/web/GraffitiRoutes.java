@@ -19,10 +19,15 @@ public final class GraffitiRoutes {
 
     private final AuthService authService;
     private final GraffitiStore store;
+    private HttpSecurity httpSecurity;
 
     public GraffitiRoutes(AuthService authService, GraffitiStore store) {
         this.authService = authService;
         this.store = store;
+    }
+
+    public void bindHttpSecurity(HttpSecurity httpSecurity) {
+        this.httpSecurity = httpSecurity;
     }
 
     public void register(Javalin app) {
@@ -124,7 +129,11 @@ public final class GraffitiRoutes {
     }
 
     private void delete(Context ctx) {
-        if (!authService.isAuth(ctx)) {
+        if (httpSecurity != null) {
+            if (!httpSecurity.requireAdminWrite(ctx)) {
+                return;
+            }
+        } else if (!authService.isAuth(ctx)) {
             ctx.status(HttpStatus.UNAUTHORIZED).json(Map.of("success", false, "message", "未登入或權限不足"));
             return;
         }
@@ -167,19 +176,8 @@ public final class GraffitiRoutes {
         }
     }
 
-    /** 預設只用連線位址。設 punchclock.trustProxy=true 才採用 X-Forwarded-For。 */
     static String clientIp(Context ctx) {
-        if (Boolean.getBoolean("punchclock.trustProxy")) {
-            String forwarded = ctx.header("X-Forwarded-For");
-            if (forwarded != null && !forwarded.isEmpty()) {
-                String first = forwarded.split(",")[0].trim();
-                if (!first.isEmpty()) {
-                    return first;
-                }
-            }
-        }
-        String ip = ctx.ip();
-        return ip == null || ip.isBlank() ? "unknown" : ip;
+        return com.example.server.util.IpResolver.clientIp(ctx);
     }
 
     private static byte[] readLimited(InputStream in) throws IOException {

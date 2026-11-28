@@ -1,5 +1,6 @@
 /** 窗台 Game Boy 彈窗、按鍵與籌碼。 */
 
+import { ensureHomeRoadmapCss } from './home-panel-css-loader.js';
 import {
   pocketChipsAfterStartRefill,
   pocketChipsStorageKey,
@@ -269,6 +270,7 @@ export function wireGameBoyModal(opts) {
     board.hidden = !open;
     board.setAttribute('aria-hidden', open ? 'false' : 'true');
     if (open) {
+      ensureHomeRoadmapCss(win, doc).catch(() => {});
       loadChips();
       loadSound();
       paintChipReadout();

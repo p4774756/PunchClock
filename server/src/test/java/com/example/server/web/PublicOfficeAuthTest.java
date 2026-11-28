@@ -125,13 +125,37 @@ public class PublicOfficeAuthTest {
     }
 
     @Test
-    public void staticJsAndCssAllowDayCache() throws Exception {
+    public void unversionedJsAndCssMustRevalidate() throws Exception {
         HttpResponse<String> js = send("GET", "/js/office-page.js", null);
         assertEquals(200, js.statusCode());
-        assertTrue(js.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        String jsCache = js.headers().firstValue("cache-control").orElse("");
+        assertTrue(jsCache.contains("no-cache") || jsCache.contains("must-revalidate"));
+        assertFalse(jsCache.contains("max-age=86400"));
         HttpResponse<String> css = send("GET", "/css/lab-office.css", null);
         assertEquals(200, css.statusCode());
-        assertTrue(css.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        String cssCache = css.headers().firstValue("cache-control").orElse("");
+        assertTrue(cssCache.contains("no-cache") || cssCache.contains("must-revalidate"));
+        assertFalse(cssCache.contains("max-age=86400"));
+    }
+
+    @Test
+    public void versionedJsModuleGraphAllowsDayCache() throws Exception {
+        HttpResponse<String> home = send("GET", "/", null);
+        assertEquals(200, home.statusCode());
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile("src=\"(/js/v-[^/]+/office-page\\.js)\"")
+                .matcher(home.body());
+        assertTrue(home.body(), m.find());
+        String versioned = m.group(1);
+        HttpResponse<String> entry = send("GET", versioned, null);
+        assertEquals(200, entry.statusCode());
+        assertTrue(entry.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        assertTrue(entry.body().contains("mountPrivateTeamPage"));
+        String scenePath = versioned.replace("/office-page.js", "/private-team-scene.js");
+        HttpResponse<String> scene = send("GET", scenePath, null);
+        assertEquals(200, scene.statusCode());
+        assertTrue(scene.headers().firstValue("cache-control").orElse("").contains("max-age=86400"));
+        assertTrue(scene.body().contains("mountPrivateTeamScene"));
     }
 
     @Test
@@ -236,10 +260,9 @@ public class PublicOfficeAuthTest {
         HttpResponse<String> page = send("GET", "/login", null);
         assertEquals(200, page.statusCode());
         String body = page.body();
-        assertTrue(body.contains("[警告] 嘗試錯誤過多！帳號已鎖定，請等待"));
-        assertTrue(body.contains("id=\"lockAlert\""));
-        assertTrue(body.contains("id=\"countdown\""));
-        assertTrue(body.contains("冷卻鎖定中"));
+        assertTrue(body.contains("[警告] 密碼錯誤"));
+        assertFalse(body.contains("id=\"countdown\""));
+        assertFalse(body.contains("冷卻鎖定中"));
         assertTrue(body.contains("id=\"password\""));
         assertTrue(body.contains("disabled"));
         assertTrue(body.contains("aria-label=\"回辦公室\""));
@@ -249,7 +272,7 @@ public class PublicOfficeAuthTest {
         assertFalse(body.contains("管理主控台"));
         assertFalse(body.contains("PunchClock ·"));
         assertFalse(body.contains("⛔"));
-        assertFalse(body.contains(">登入</button>"));
+        assertTrue(body.contains(">登入</button>"));
         assertFalse(containsEmoji(body));
     }
 
@@ -260,7 +283,8 @@ public class PublicOfficeAuthTest {
         HttpResponse<String> page = send("GET", "/login?error=1", null);
         assertEquals(200, page.statusCode());
         String body = page.body();
-        assertTrue(body.contains("[警告] 密碼錯誤！剩餘嘗試次數：4 次 (滿5次鎖定15分鐘)"));
+        assertTrue(body.contains("[警告] 密碼錯誤"));
+        assertFalse(body.contains("剩餘嘗試次數"));
         assertTrue(body.contains(">登入</button>"));
         assertTrue(body.contains("aria-label=\"回辦公室\""));
         assertTrue(body.contains("roadmap-close-x"));
@@ -285,6 +309,8 @@ public class PublicOfficeAuthTest {
         assertTrue(response.body().contains("is-authenticated"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = true"));
         assertTrue(response.body().contains("href=\"/logout\""));
+        String expectedCsrf = server.csrfHeaderFromCookie(cookie);
+        assertTrue(response.body().contains("PUNCHCLOCK_CSRF = \"" + expectedCsrf + "\""));
     }
 
     @Test
@@ -300,9 +326,10 @@ public class PublicOfficeAuthTest {
         assertEquals(200, status.statusCode());
         assertTrue(status.body().contains("\"clients\""));
 
-        HttpResponse<String> logout = send("GET", "/logout", cookie);
+        String csrf = server.csrfHeaderFromCookie(cookie);
+        HttpResponse<String> logout = sendPostLogout(cookie, csrf);
         assertEquals(302, logout.statusCode());
-        assertDeniedManagement(send("GET", "/api/status", null));
+        assertDeniedManagement(send("GET", "/api/status", cookie));
     }
 
     @Test
@@ -349,8 +376,20 @@ public class PublicOfficeAuthTest {
         HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         assertEquals(200, response.statusCode());
         assertTrue(response.body().contains("\"success\":true"));
-        assertTrue(response.headers().firstValue("Set-Cookie").orElse("").startsWith("auth="));
+        String setCookie = response.headers().firstValue("Set-Cookie").orElse("");
+        assertTrue(setCookie.startsWith("auth="));
         assertFalse(response.headers().firstValue("location").isPresent());
+        String cookie = setCookie.split(";", 2)[0];
+        String expectedCsrf = server.csrfHeaderFromCookie(cookie);
+        assertTrue(response.body().contains("\"csrfToken\":\"" + expectedCsrf + "\""));
+        HttpRequest write = HttpRequest.newBuilder(URI.create(base + "/api/clients/x/cancel-schedule"))
+                .timeout(Duration.ofSeconds(5))
+                .header("Cookie", cookie)
+                .header(com.example.server.auth.CsrfTokens.HEADER, expectedCsrf)
+                .POST(HttpRequest.BodyPublishers.noBody())
+                .build();
+        HttpResponse<String> cancelled = http.send(write, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        assertEquals(200, cancelled.statusCode());
     }
 
     @Test
@@ -359,7 +398,7 @@ public class PublicOfficeAuthTest {
         assertEquals(401, response.statusCode());
         assertTrue(response.body().contains("\"success\":false"));
         assertTrue(response.body().contains("密碼錯誤"));
-        assertTrue(response.body().contains("remainingAttempts"));
+        assertFalse(response.body().contains("remainingAttempts"));
         assertFalse(response.headers().firstValue("location").isPresent());
     }
 
@@ -372,8 +411,8 @@ public class PublicOfficeAuthTest {
         HttpResponse<String> locked = postLoginJson("not-the-admin-password");
         assertEquals(403, locked.statusCode());
         assertTrue(locked.body().contains("\"locked\":true"));
-        assertTrue(locked.body().contains("remainingSec"));
-        assertTrue(locked.body().contains("帳號已鎖定"));
+        assertFalse(locked.body().contains("remainingSec"));
+        assertTrue(locked.body().contains("密碼錯誤"));
     }
 
     @Test
@@ -410,6 +449,55 @@ public class PublicOfficeAuthTest {
                 (cp >= 0x1F300 && cp <= 0x1FAFF)
                         || (cp >= 0x2600 && cp <= 0x27BF)
                         || cp == 0xFE0F);
+    }
+
+    @Test
+    public void guestSessionEndpointDoesNotIssueCsrf() throws Exception {
+        HttpResponse<String> response = send("GET", "/api/auth/session", null);
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"authenticated\":false"));
+        assertFalse(response.body().contains("csrfToken"));
+    }
+
+    @Test
+    public void signedInSessionEndpointReturnsCsrf() throws Exception {
+        HttpResponse<String> response = send("GET", "/api/auth/session", adminCookie);
+        assertEquals(200, response.statusCode());
+        String expectedCsrf = server.csrfHeaderFromCookie(adminCookie);
+        assertTrue(response.body().contains("\"authenticated\":true"));
+        assertTrue(response.body().contains("\"username\":\"root\""));
+        assertTrue(response.body().contains("\"csrfToken\":\"" + expectedCsrf + "\""));
+    }
+
+    @Test
+    public void postLogoutJsonClearsSessionWhenCsrfValid() throws Exception {
+        HttpResponse<String> logout = sendPostLogoutJson(adminCookie, server.csrfHeaderFromCookie(adminCookie));
+        assertEquals(200, logout.statusCode());
+        assertTrue(logout.body().contains("\"success\":true"));
+        assertDeniedManagement(send("GET", "/api/status", adminCookie));
+    }
+
+    private HttpResponse<String> sendPostLogoutJson(String cookie, String csrf) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(base + "/logout"))
+                .timeout(Duration.ofSeconds(5))
+                .header("Accept", "application/json")
+                .header(com.example.server.auth.CsrfTokens.HEADER, csrf)
+                .POST(HttpRequest.BodyPublishers.noBody());
+        if (cookie != null) {
+            builder.header("Cookie", cookie);
+        }
+        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+    }
+
+    private HttpResponse<String> sendPostLogout(String cookie, String csrf) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(base + "/logout"))
+                .timeout(Duration.ofSeconds(5))
+                .header(com.example.server.auth.CsrfTokens.HEADER, csrf)
+                .POST(HttpRequest.BodyPublishers.noBody());
+        if (cookie != null) {
+            builder.header("Cookie", cookie);
+        }
+        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
     private HttpResponse<String> send(String method, String path, String cookie) throws Exception {

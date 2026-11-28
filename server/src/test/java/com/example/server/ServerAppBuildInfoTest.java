@@ -43,12 +43,22 @@ public class ServerAppBuildInfoTest {
     }
 
     @Test
-    public void pingReportsVersionAndBuildTimeFromPom() throws Exception {
-        HttpResponse<String> ping = http.send(
+    public void pingGuestHidesVersionButAdminSeesBuildInfo() throws Exception {
+        HttpResponse<String> guestPing = http.send(
                 HttpRequest.newBuilder(URI.create(base + "/ping")).GET().timeout(Duration.ofSeconds(5)).build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, ping.statusCode());
-        JsonObject body = JsonParser.parseString(ping.body()).getAsJsonObject();
+        assertEquals(200, guestPing.statusCode());
+        JsonObject guest = JsonParser.parseString(guestPing.body()).getAsJsonObject();
+        assertEquals("pong", guest.get("message").getAsString());
+        assertFalse(guest.has("version"));
+        assertFalse(guest.has("buildTime"));
+
+        HttpResponse<String> adminPing = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/ping"))
+                        .header("Cookie", adminCookie)
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        JsonObject body = JsonParser.parseString(adminPing.body()).getAsJsonObject();
         assertTrue(body.get("version").getAsString().matches("\\d+\\.\\d+\\.\\d+"));
         assertNotNull(Instant.parse(body.get("buildTime").getAsString()));
     }
@@ -93,9 +103,18 @@ public class ServerAppBuildInfoTest {
         String homeBody = home.body();
         assertFalse(homeBody.contains("{{SERVER_VERSION}}"));
         assertFalse(homeBody.contains("{{SERVER_BUILD_TIME}}"));
+        assertFalse(homeBody.contains("{{SERVER_ASSET_QUERY}}"));
+        assertFalse(homeBody.contains("{{SERVER_JS_BASE}}"));
 
         assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_VERSION = \""));
         assertTrue(homeBody.contains("PUNCHCLOCK_SERVER_BUILD_TIME = \""));
+        assertTrue(homeBody.contains("/css/private-team.css?v="));
+        assertTrue(homeBody.contains(ServerApp.versionedJsHostedPath() + "/office-page.js"));
+        assertFalse(homeBody.contains("/js/office-page.js?v="));
+        assertTrue(homeBody.contains("/js/v-"));
+        assertEquals("202611281231", ServerApp.compactAssetBuildStamp("2026-11-28 12:31"));
+        assertEquals("4.0.0.202611281231", "4.0.0" + "." + ServerApp.compactAssetBuildStamp("2026-11-28 12:31"));
+        assertEquals("", ServerApp.compactAssetBuildStamp("開發版"));
         assertFalse(homeBody.contains("{{AUTH_JS_BOOL}}"));
         assertFalse(homeBody.contains("{{AUTH_USERNAME}}"));
     }

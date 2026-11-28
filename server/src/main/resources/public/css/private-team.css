@@ -123,6 +123,23 @@
   display: none;
 }
 
+/* 遮罩定位必須寫在這份常駐表，不能只靠 #819 延後載入的 roadmap.css。
+   否則開啟 Game Boy 時 3D 畫布被 .pt-roadmap-open 隱藏，彈窗卻留在文件流底部，畫面只剩深藍底。 */
+.roadmap-board {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  background: rgba(20, 36, 64, 0.47);
+}
+
+.roadmap-board[hidden] {
+  display: none !important;
+}
+
 .lab-office-stage.pt-roadmap-open .private-team-hud,
 .lab-office-stage.pt-roadmap-open .private-team-canvas,
 .lab-office-stage.pt-roadmap-open .pt-status-backdrop {
@@ -246,6 +263,42 @@
   pointer-events: none;
   user-select: none;
   z-index: 4;
+}
+
+.pt-hud-outfit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  max-width: min(11rem, calc(100vw - 5rem));
+  pointer-events: auto;
+}
+
+.pt-hud-outfit-label {
+  margin: 0;
+  padding: 0 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(248, 251, 255, 0.88);
+  user-select: none;
+}
+
+.pt-hud-outfit-select {
+  min-width: 5.75rem;
+  min-height: 44px;
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0e2244;
+  border: 3px solid var(--maple-navy, #163a70);
+  outline: 1px solid var(--maple-blue-lt, #a8d0f2);
+  outline-offset: -4px;
+  border-radius: 6px;
+  background: rgba(248, 251, 255, 0.94);
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.28);
+  cursor: pointer;
 }
 
 button.pt-hud-download {
@@ -549,7 +602,8 @@ button.pt-hud-id-plate {
   display: none !important;
 }
 
-.pt-hud-id-menu a.pt-hud-id-logout {
+.pt-hud-id-menu a.pt-hud-id-logout,
+.pt-hud-id-menu button.pt-hud-id-logout {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -571,7 +625,8 @@ button.pt-hud-id-plate {
   box-shadow: inset 0 1px 0 var(--maple-gold-hi, #f8dc6e);
 }
 
-.pt-hud-id-menu a.pt-hud-id-logout:hover {
+.pt-hud-id-menu a.pt-hud-id-logout:hover,
+.pt-hud-id-menu button.pt-hud-id-logout:hover {
   background: var(--maple-gold-hi, #f8dc6e);
 }
 
@@ -907,6 +962,40 @@ button.pt-hud-id-plate {
   align-items: center;
   gap: 0.28rem;
   flex-shrink: 0;
+}
+
+.pt-status-chain-avatar {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-sizing: border-box;
+  border: 2px solid var(--maple-navy, #163a70);
+}
+
+.pt-status-chain-avatar.is-azure {
+  border-color: #5ab0c0;
+}
+
+.pt-status-chain-avatar.is-white {
+  border-color: #d8c890;
+}
+
+.pt-status-chain-avatar.is-vermilion {
+  border-color: #c86850;
+}
+
+.pt-status-chain-avatar.is-obsidian {
+  border-color: #4a5a72;
+}
+
+.pt-status-chain-line:not(.is-avatar-error) .pt-status-chain-avatar ~ .pt-status-chain-dot {
+  display: none;
+}
+
+.pt-status-chain-line.is-avatar-error .pt-status-chain-avatar {
+  display: none;
 }
 
 .pt-status-chain-name {
@@ -1320,7 +1409,8 @@ button.pt-hud-id-plate {
     padding: 0.25rem 0.3rem;
   }
 
-  .pt-hud-id-menu a.pt-hud-id-logout {
+  .pt-hud-id-menu a.pt-hud-id-logout,
+.pt-hud-id-menu button.pt-hud-id-logout {
     font-size: 0.7rem;
     padding: 0.28rem 0.5rem;
   }
@@ -1817,5 +1907,103 @@ button.pt-hud-id-plate {
 
   .pt-pocket-speaker span {
     width: 30px;
+  }
+}
+
+
+/* 訪客點螢幕：請先從左上角登入。獨立樣式，不依賴無後備的 --maple-*。 */
+.pt-guest-hint-toast,
+.dev-login-toast.pt-guest-hint-toast {
+  position: fixed;
+  left: 50%;
+  top: max(5.5rem, calc(env(safe-area-inset-top, 0px) + 4.75rem));
+  bottom: auto;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  padding: 0.65rem 0.7rem 0.65rem 1rem;
+  max-width: min(92vw, 380px);
+  width: max-content;
+  background: linear-gradient(180deg, #1e4d8c, #163a70 55%, #102548);
+  border: 2px solid #c9a64a;
+  outline: 1px solid rgba(243, 227, 166, 0.45);
+  outline-offset: -5px;
+  border-radius: 999px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(243, 227, 166, 0.35);
+  color: #f8fbff;
+  pointer-events: auto;
+}
+
+.pt-guest-hint-toast .dev-login-toast-msg,
+.pt-guest-hint-toast .donate-toast-msg {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: #f8fbff;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+}
+
+.pt-guest-hint-toast .dev-login-toast-close {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  color: #f8fbff;
+  background: rgba(16, 37, 72, 0.55);
+  border: 2px solid #c9a64a;
+  border-radius: 999px;
+}
+
+@keyframes pt-hud-task-hint-pulse {
+  0%,
+  100% {
+    filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.31)) drop-shadow(0 0 2px rgba(243, 227, 166, 0.35));
+  }
+  50% {
+    filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.31)) drop-shadow(0 0 14px rgba(243, 227, 166, 0.95));
+  }
+}
+
+.pt-hud-task.pt-hud-task--hint-pulse,
+.pt-hud-task--hint-pulse {
+  animation: pt-hud-task-hint-pulse 0.9s ease-in-out 3;
+}
+
+@media (max-width: 520px) {
+  .pt-guest-hint-toast,
+  .dev-login-toast.pt-guest-hint-toast {
+    top: max(5.25rem, calc(env(safe-area-inset-top, 0px) + 4.5rem));
+    max-width: min(94vw, 380px);
+    padding: 0.55rem 0.55rem 0.55rem 0.85rem;
+  }
+
+  .pt-guest-hint-toast .dev-login-toast-msg,
+  .pt-guest-hint-toast .donate-toast-msg {
+    font-size: 0.88rem;
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pt-hud-task.pt-hud-task--hint-pulse,
+  .pt-hud-task--hint-pulse {
+    animation: none;
+    filter: drop-shadow(3px 4px 0 rgba(0, 0, 0, 0.31)) drop-shadow(0 0 10px rgba(243, 227, 166, 0.8));
   }
 }

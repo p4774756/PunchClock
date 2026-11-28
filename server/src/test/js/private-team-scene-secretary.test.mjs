@@ -61,11 +61,10 @@ test('今日完成差量鍵', () => {
 
 test('場景含揮手與比耶素材鍵', () => {
   const src = sceneSrc;
-  assert.match(src, /SECRETARY_SPRITE_URL_WAVE/);
   assert.match(src, /playSecretaryWave/);
   assert.match(src, /playSecretaryYeah/);
-  assert.match(src, new RegExp(SECRETARY_SPRITE_URL_WAVE.replace(/\//g, '\\/')));
-  assert.match(src, new RegExp(SECRETARY_SPRITE_URL_YEAH.replace(/\//g, '\\/')));
+  assert.match(src, /secretaryPack\.wave/);
+  assert.match(src, /secretaryPack\.yeah/);
 });
 
 test('慶祝拍手比讚小跳序列與時長', () => {
@@ -169,6 +168,8 @@ test('休憩區狀態與黑膠旋轉、地板大理石', async () => {
     SECRETARY_TUB_POSITION
   } = await loadPublicModule('private-team-scene-lounge.js');
   assert.equal(isWorkingTigerStatus('工作中 ×2'), true);
+  assert.equal(isWorkingTigerStatus('三聖獸結界展開中'), true);
+  assert.equal(isWorkingTigerStatus('青龍結界展開中'), true);
   assert.equal(isWorkingTigerStatus('待命中'), false);
   assert.equal(isLoungeTigerStatus('休息中'), true);
   assert.equal(isLoungeTigerStatus('工作中'), false);
@@ -190,6 +191,7 @@ test('休憩區狀態與黑膠旋轉、地板大理石', async () => {
   assert.doesNotMatch(src, /floor-wood\.webp/);
   assert.match(src, /floorMat = new THREE\.MeshStandardMaterial/);
   assert.match(src, /syncSecretaryPlacement/);
+  assert.match(src, /poseChanged/);
   assert.match(src, /SECRETARY_SPRITE_URL_SOFA|secretary-sofa\.webp/);
   assert.equal(SECRETARY_SPRITE_URL_SOFA, '/assets/private-team/secretary-sofa.webp');
 });
@@ -213,6 +215,6 @@ test('待命閒置起舞條件', () => {
   );
   const src = sceneSrc;
   assert.match(src, /playSecretaryDance/);
-  assert.match(src, /secretary-clap-/);
+  assert.match(src, /secretaryCelebrateSteps/);
   assert.match(src, /preloadSecretaryCelebrateFrames/);
 });

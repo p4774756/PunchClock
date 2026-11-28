@@ -34,7 +34,14 @@ import {
   isLoungeTigerStatus,
   SECRETARY_SPRITE_URL_SOFA,
   secretaryTubFallbackUrlForStatus,
-  isSecretarySofaSpriteUrl
+  isSecretarySofaSpriteUrl,
+  secretarySpritePackForOutfit,
+  secretaryCelebrateStepsForOutfit,
+  secretaryStandbyIdleUrlsForOutfit,
+  secretaryDanceDurationMsForSteps,
+  secretaryEquivalentSpriteUrl,
+  secretaryOutfitPreloadUrls,
+  parseSecretaryOutfitId
 } from './private-team-scene-secretary.js';
 
 import {
@@ -94,6 +101,13 @@ import {
   PRIVATE_TEAM_WINDOW_SKY_Z,
   PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX,
   PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_RIVER_OPACITY,
+  privateTeamWindowRiverShimmerMul,
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN,
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MAX,
+  PRIVATE_TEAM_WINDOW_FLICKER_ANCHORS,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT,
   privateTeamWindowSkylineParallaxOffset,
   privateTeamWindowAmbientMotionEnabled,
   privateTeamWindowTowerBeaconOpacity,
@@ -147,10 +161,12 @@ import {
   SECRETARY_TUB_POSITION,
   SECRETARY_SOFA_POSITION,
   SECRETARY_SHADOW_TUB,
-  SECRETARY_SHADOW_SOFA,
+  SECRETARY_SOFA_ROTATION_Y,
+  secretarySofaShadowLocal,
   SECRETARY_BUBBLE_TUB,
   SECRETARY_BUBBLE_SOFA,
-  secretaryAtLoungePose
+  secretaryAtLoungePose,
+  secretarySofaPlacementForOutfit
 } from './private-team-scene-lounge.js';
 
 import {
@@ -252,6 +268,13 @@ export {
   PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y,
   PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y,
   PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_RIVER_OPACITY,
+  privateTeamWindowRiverShimmerMul,
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN,
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MAX,
+  PRIVATE_TEAM_WINDOW_FLICKER_ANCHORS,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT,
   privateTeamWindowAirplaneXNorm,
   PRIVATE_TEAM_LEFT_POSTER_IDX_KEY,
   LEFT_WALL_POSTER_URLS,
@@ -657,7 +680,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       map: skylineFlicker.tex,
       transparent: true,
       depthWrite: false,
-      opacity: 0.88,
+      opacity: 0.76,
       blending: THREE.AdditiveBlending
     })
   );
@@ -705,16 +728,16 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const streetTrafficTex = makeWindowVistaTrafficOverlayTexture();
   const windowStreetTraffic = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.02, winH * 0.32),
+    new THREE.PlaneGeometry(winW + 0.02, winH * 0.22),
     new THREE.MeshBasicMaterial({
       map: streetTrafficTex,
       transparent: true,
       depthWrite: false,
-      opacity: 0.72,
+      opacity: 0.42,
       blending: THREE.AdditiveBlending
     })
   );
-  const trafficY = winBottom + winH * 0.18;
+  const trafficY = winBottom + winH * 0.24;
   const trafficZ = beaconZ + 0.006;
   windowStreetTraffic.position.set(0, trafficY, trafficZ);
   windowStreetTraffic.name = 'windowStreetTraffic';
@@ -723,16 +746,17 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const riverShimmerTex = makeWindowRiverShimmerTexture();
   const windowVistaRiver = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.02, winH * 0.18),
+    new THREE.PlaneGeometry(winW + 0.02, winH * 0.14),
     new THREE.MeshBasicMaterial({
       map: riverShimmerTex,
       transparent: true,
       depthWrite: false,
-      opacity: 0.38,
+      opacity: PRIVATE_TEAM_WINDOW_RIVER_OPACITY.night,
       blending: THREE.AdditiveBlending
     })
   );
-  const riverY = winBottom + winH * 0.08;
+  windowVistaRiver.userData.riverBaseOpacity = PRIVATE_TEAM_WINDOW_RIVER_OPACITY.night;
+  const riverY = winBottom + winH * 0.06;
   const riverZ = trafficZ + 0.004;
   windowVistaRiver.position.set(0, riverY, riverZ);
   windowVistaRiver.name = 'windowVistaRiver';
@@ -876,18 +900,6 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlightWallLeftFlank.position.set(-flankXOff, flankY, flankZ);
   windowMoonlightWallLeftFlank.name = 'windowMoonlightWallLeftFlank';
   root.add(windowMoonlightWallLeftFlank);
-  const leftWallMat = moonWallMat.clone();
-  leftWallMat.opacity = 0.34;
-  const windowMoonlightLeftWall = new THREE.Mesh(
-    new THREE.PlaneGeometry(FLOOR_SIZE - 0.14, 1.68),
-    leftWallMat
-  );
-  windowMoonlightLeftWall.rotation.y = Math.PI / 2;
-  windowMoonlightLeftWall.position.set(leftX + WALL_THICK + 0.006, 1.02, 0);
-  windowMoonlightLeftWall.renderOrder = 1;
-  windowMoonlightLeftWall.name = 'windowMoonlightLeftWall';
-  root.add(windowMoonlightLeftWall);
-
   const LEFT_POSTER_MARGIN = 0.07;
   let LEFT_POSTER_W = FLOOR_SIZE * (1 - 2 * LEFT_POSTER_MARGIN);
   let LEFT_POSTER_H = (LEFT_POSTER_W * 9) / 16;
@@ -896,6 +908,35 @@ export function mountPrivateTeamScene(canvas, opts) {
     LEFT_POSTER_H = leftPosterWallMaxH;
     LEFT_POSTER_W = (LEFT_POSTER_H * 16) / 9;
   }
+
+  /* 左牆月光洗牆不要蓋住壁畫：半透明加法材質若與畫布重疊，透明排序一翻
+     整幅畫就會整片亮暗閃。畫比洗牆還高時改成兩側窄條，中間完全讓給壁畫。 */
+  const leftWallMat = moonWallMat.clone();
+  leftWallMat.opacity = 0.34;
+  const LEFT_MOON_WASH_W = FLOOR_SIZE - 0.14;
+  const LEFT_MOON_WASH_H = 1.68;
+  const LEFT_MOON_WASH_Y = 1.02;
+  const LEFT_MOON_WASH_GAP = LEFT_POSTER_W + 0.04;
+  const leftMoonWashSideW = Math.max(0, (LEFT_MOON_WASH_W - LEFT_MOON_WASH_GAP) / 2);
+  if (leftMoonWashSideW > 0.01) {
+    const leftMoonWashX = leftX + WALL_THICK + 0.006;
+    const sideOff = (LEFT_MOON_WASH_GAP + leftMoonWashSideW) / 2;
+    function addLeftMoonWashSide(name, localX) {
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(leftMoonWashSideW, LEFT_MOON_WASH_H),
+        leftWallMat
+      );
+      mesh.rotation.y = Math.PI / 2;
+      mesh.position.set(leftMoonWashX, LEFT_MOON_WASH_Y, -localX);
+      mesh.renderOrder = 1;
+      mesh.name = name;
+      root.add(mesh);
+      return mesh;
+    }
+    addLeftMoonWashSide('windowMoonlightLeftWall', -sideOff);
+    addLeftMoonWashSide('windowMoonlightLeftWallRight', sideOff);
+  }
+
   const leftPosterFrameW = 0.028;
   const leftPosterGroup = new THREE.Group();
   leftPosterGroup.name = 'leftWallPoster';
@@ -1171,7 +1212,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     moonWallMat.opacity = lt.wallWash;
     windowMoonlightWallRight.material.opacity = lt.wallWash * 0.78;
     windowMoonlightWallLeftFlank.material.opacity = lt.wallWash * 0.78;
-    windowMoonlightLeftWall.material.opacity = lt.wallWash * 0.66;
+    if (root.getObjectByName('windowMoonlightLeftWall')) {
+      leftWallMat.opacity = lt.wallWash * 0.66;
+    }
     tubBackWarmWash.material.opacity = lt.tubWarm;
     lampPointBase = lt.point;
     lampSpotBase = lt.spot;
@@ -1185,11 +1228,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     windowVistaBeacon.visible = period === 'night' || period === 'sunset';
     windowVistaFlicker.visible = period === 'night' || period === 'sunset';
     windowVistaAirBeacon.visible = period === 'night' || period === 'sunset';
-    windowVistaClouds.visible = period === 'day' || period === 'sunset';
-    windowVistaClouds.material.opacity = period === 'day' ? 0.46 : 0.34;
-    const riverOp = period === 'day' ? 0.22 : period === 'sunset' ? 0.32 : 0.38;
+    windowVistaClouds.visible = period === 'day';
+    windowVistaClouds.material.opacity = 0.4;
+    const riverOp = PRIVATE_TEAM_WINDOW_RIVER_OPACITY[period] || PRIVATE_TEAM_WINDOW_RIVER_OPACITY.night;
+    windowVistaRiver.userData.riverBaseOpacity = riverOp;
     windowVistaRiver.material.opacity = riverOp;
-    windowStreetTraffic.material.opacity = period === 'day' ? 0.55 : 0.72;
+    windowStreetTraffic.material.opacity = period === 'day' ? 0.32 : 0.4;
   }
 
   applyWindowScenePeriod(windowVistaPeriod);
@@ -1245,13 +1289,28 @@ export function mountPrivateTeamScene(canvas, opts) {
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
 
+  let secretaryOutfitId = 'default';
+  let secretaryPack = secretarySpritePackForOutfit('default');
+  let secretaryCelebrateSteps = secretaryCelebrateStepsForOutfit('default');
+  let secretaryStandbyIdleUrls = secretaryStandbyIdleUrlsForOutfit('default');
+  let secretaryDanceDurationMs = secretaryDanceDurationMsForSteps(secretaryCelebrateSteps);
+
+  function preloadSecretaryOutfitUrls(outfitId) {
+    const urls = secretaryOutfitPreloadUrls(outfitId);
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      if (url) loader.load(url, () => {}, undefined, () => {});
+    }
+  }
+  preloadSecretaryOutfitUrls('stage');
+
   let secretaryCelebrateFramesPrimed = false;
   let secretaryStandbyIdleFramesPrimed = false;
 
   function preloadSecretaryCelebrateFrames() {
     const seen = new Set();
-    for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
-      const step = SECRETARY_CELEBRATE_STEPS[i];
+    for (let i = 0; i < secretaryCelebrateSteps.length; i++) {
+      const step = secretaryCelebrateSteps[i];
       if (step.kind !== 'frame') continue;
       const url = step.url;
       if (!url || seen.has(url)) continue;
@@ -1261,8 +1320,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   function preloadSecretaryStandbyIdleFrames() {
-    for (let i = 0; i < SECRETARY_STANDBY_IDLE_URLS.length; i++) {
-      const url = SECRETARY_STANDBY_IDLE_URLS[i];
+    for (let i = 0; i < secretaryStandbyIdleUrls.length; i++) {
+      const url = secretaryStandbyIdleUrls[i];
       if (url) loader.load(url, () => {}, undefined, () => {});
     }
   }
@@ -1284,7 +1343,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   function resolveRestSpriteUrl() {
-    return secretaryTypingDisplayUrl(statusBaseUrl, typingShowB, reducedMotion);
+    return secretaryTypingDisplayUrl(statusBaseUrl, typingShowB, reducedMotion, secretaryPack);
   }
 
   function applySecretarySpriteUrl(url) {
@@ -1312,9 +1371,17 @@ export function mountPrivateTeamScene(canvas, opts) {
         desiredSpriteUrl = currentSpriteUrl;
         if (isSecretarySofaSpriteUrl(next)) {
           secretarySofaSpriteOk = false;
-          const fallback = secretaryTubFallbackUrlForStatus(tigerStatus);
+          const fallback = secretaryTubFallbackUrlForStatus(tigerStatus, secretaryPack);
           if (fallback && fallback !== next) {
             applySecretarySpriteUrl(fallback);
+            return;
+          }
+        }
+        if (secretaryOutfitId === 'stage') {
+          const fallback = secretaryEquivalentSpriteUrl(next, 'default');
+          if (fallback && fallback !== next) {
+            applySecretarySpriteUrl(fallback);
+            return;
           }
         }
         syncSecretaryPlacement();
@@ -1347,7 +1414,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     dancePlayback = { startMs: t };
     syncSecretaryPlacement();
     danceDisplayFrame = -1;
-    const url = secretaryCelebrateFrameUrlAt(0);
+    const url = secretaryCelebrateFrameUrlAt(0, secretaryCelebrateSteps);
     if (url) applySecretarySpriteUrl(url);
   }
 
@@ -1395,20 +1462,20 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function playSecretaryWave() {
     if (dancePlayback) return;
-    enqueueSecretaryOverlay(SECRETARY_SPRITE_URL_WAVE, SECRETARY_WAVE_MS, performance.now());
+    enqueueSecretaryOverlay(secretaryPack.wave, SECRETARY_WAVE_MS, performance.now());
   }
 
   function playSecretaryYeah() {
     if (dancePlayback) return;
-    if (overlayActive && overlayActive.url === SECRETARY_SPRITE_URL_YEAH) {
+    if (overlayActive && overlayActive.url === secretaryPack.yeah) {
       return;
     }
-    enqueueSecretaryOverlay(SECRETARY_SPRITE_URL_YEAH, SECRETARY_YEAH_MS, performance.now());
+    enqueueSecretaryOverlay(secretaryPack.yeah, SECRETARY_YEAH_MS, performance.now());
   }
 
   function spriteAnimModeForUrl(url) {
-    if (url === SECRETARY_SPRITE_URL_TYPING || url === SECRETARY_SPRITE_URL_TYPING_B) return 'working';
-    if (url === SECRETARY_SPRITE_URL_SLEEP) return 'sleep';
+    if (url === secretaryPack.typing || url === secretaryPack.typingB) return 'working';
+    if (url === secretaryPack.sleep) return 'sleep';
     return 'idle';
   }
 
@@ -1424,7 +1491,11 @@ export function mountPrivateTeamScene(canvas, opts) {
       depthWrite: false,
       side: THREE.DoubleSide
     });
-    applyUnderwaterTint(mat, waterYUniform);
+    if (secretaryInLoungePose) {
+      stripUnderwaterTint(mat);
+    } else {
+      applyUnderwaterTint(mat, waterYUniform);
+    }
     secretarySprite = new THREE.Mesh(new THREE.PlaneGeometry(spriteW, SECRETARY_SPRITE_HEIGHT), mat);
     secretarySprite.position.set(0, spriteBaseY, 0);
     secretarySprite.renderOrder = 2;
@@ -1448,6 +1519,11 @@ export function mountPrivateTeamScene(canvas, opts) {
     const oldMap = secretarySprite.material.map;
     secretarySprite.material.map = tex;
     secretarySprite.material.needsUpdate = true;
+    if (secretaryInLoungePose) {
+      stripUnderwaterTint(secretarySprite.material);
+    } else {
+      applyUnderwaterTint(secretarySprite.material, waterYUniform);
+    }
     if (oldMap && oldMap !== tex) oldMap.dispose();
     if (dancePlayback) {
       secretarySprite.position.x = 0;
@@ -1466,11 +1542,47 @@ export function mountPrivateTeamScene(canvas, opts) {
   function setSecretarySprite(url) {
     const next = url == null ? '' : String(url).trim();
     if (!next) return;
-    if (shouldIgnoreStandbyIdleSpriteUpdate(statusBaseUrl, next)) return;
+    if (shouldIgnoreStandbyIdleSpriteUpdate(statusBaseUrl, next, secretaryPack)) return;
     if (next === statusBaseUrl) return;
     statusBaseUrl = next;
     typingShowB = false;
     lastTypingFlipMs = performance.now();
+    refreshPoseAnimMode();
+    refreshSecretaryDisplay();
+    syncSecretaryPlacement();
+  }
+
+  function setSecretaryOutfit(outfitId) {
+    const nextId = parseSecretaryOutfitId(outfitId);
+    const nextPack = secretarySpritePackForOutfit(nextId);
+    if (nextPack.typing === secretaryPack.typing && nextPack.sofa === secretaryPack.sofa) return;
+    secretaryOutfitId = nextId;
+    secretaryPack = nextPack;
+    secretaryCelebrateSteps = secretaryCelebrateStepsForOutfit(nextId);
+    secretaryStandbyIdleUrls = secretaryStandbyIdleUrlsForOutfit(nextId);
+    secretaryDanceDurationMs = secretaryDanceDurationMsForSteps(secretaryCelebrateSteps);
+    secretaryCelebrateFramesPrimed = false;
+    secretaryStandbyIdleFramesPrimed = false;
+    preloadSecretaryOutfitUrls(nextId);
+    statusBaseUrl = secretaryEquivalentSpriteUrl(statusBaseUrl, nextId);
+    if (overlayActive) {
+      overlayActive = {
+        url: secretaryEquivalentSpriteUrl(overlayActive.url, nextId),
+        until: overlayActive.until
+      };
+    }
+    if (overlayPending) {
+      overlayPending = {
+        url: secretaryEquivalentSpriteUrl(overlayPending.url, nextId),
+        ms: overlayPending.ms
+      };
+    }
+    if (dancePlayback) {
+      const elapsed = performance.now() - dancePlayback.startMs;
+      const url = secretaryCelebrateFrameUrlAt(elapsed, secretaryCelebrateSteps);
+      if (url) applySecretarySpriteUrl(url);
+    }
+    typingShowB = false;
     refreshPoseAnimMode();
     refreshSecretaryDisplay();
     syncSecretaryPlacement();
@@ -1498,21 +1610,32 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   syncSecretaryPlacement = function syncSecretaryPlacementImpl() {
     const wantLounge = !dancePlayback && secretaryAtLoungePose(tigerStatus, true);
+    const poseChanged = secretaryInLoungePose !== wantLounge;
     secretaryInLoungePose = wantLounge;
     if (wantLounge) {
-      secretaryRoot.position.set(
-        SECRETARY_SOFA_POSITION.x,
-        SECRETARY_SOFA_POSITION.y,
-        SECRETARY_SOFA_POSITION.z
-      );
-      secretaryRoot.rotation.y = -0.42;
-      shadow.position.set(
-        SECRETARY_SHADOW_SOFA.x,
-        SECRETARY_SHADOW_SOFA.y,
-        SECRETARY_SHADOW_SOFA.z
-      );
-      bubble.position.set(SECRETARY_BUBBLE_SOFA.x, bubble.position.y, SECRETARY_BUBBLE_SOFA.z);
-      if (secretarySprite && secretarySprite.material) {
+      const sofaPlace = secretarySofaPlacementForOutfit(secretaryOutfitId);
+      const px = Number(sofaPlace.position.x);
+      const py = Number(sofaPlace.position.y);
+      const pz = Number(sofaPlace.position.z);
+      const scale = Number(sofaPlace.scale);
+      const finite = [px, py, pz, scale].every(Number.isFinite) && scale > 0;
+      const pos = finite ? { x: px, y: py, z: pz } : SECRETARY_SOFA_POSITION;
+      const sc = finite ? scale : 1;
+      secretaryRoot.position.set(pos.x, pos.y, pos.z);
+      secretaryRoot.scale.set(sc, sc, sc);
+      secretaryRoot.rotation.y = SECRETARY_SOFA_ROTATION_Y;
+      const shadowLocal = secretarySofaShadowLocal({ position: pos, scale: sc });
+      shadow.position.set(shadowLocal.x, shadowLocal.y, shadowLocal.z);
+      const bubbleY = sofaPlace.bubble.y == null ? bubble.position.y : sofaPlace.bubble.y;
+      const bx = Number(sofaPlace.bubble.x);
+      const bz = Number(sofaPlace.bubble.z);
+      const by = Number(bubbleY);
+      if ([bx, bz, by].every(Number.isFinite)) {
+        bubble.position.set(bx, by, bz);
+      } else {
+        bubble.position.set(SECRETARY_BUBBLE_SOFA.x, bubble.position.y, SECRETARY_BUBBLE_SOFA.z);
+      }
+      if (poseChanged && secretarySprite && secretarySprite.material) {
         stripUnderwaterTint(secretarySprite.material);
       }
       if (bathLegsGroup) bathLegsGroup.visible = false;
@@ -1522,10 +1645,11 @@ export function mountPrivateTeamScene(canvas, opts) {
         SECRETARY_TUB_POSITION.y,
         SECRETARY_TUB_POSITION.z
       );
+      secretaryRoot.scale.set(1, 1, 1);
       secretaryRoot.rotation.y = 0;
       shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
       bubble.position.set(secretaryBubbleX, bubble.position.y, SECRETARY_BUBBLE_TUB.z);
-      if (secretarySprite && secretarySprite.material) {
+      if (poseChanged && secretarySprite && secretarySprite.material) {
         applyUnderwaterTint(secretarySprite.material, waterYUniform);
       }
       if (bathLegsGroup) bathLegsGroup.visible = true;
@@ -1906,10 +2030,10 @@ export function mountPrivateTeamScene(canvas, opts) {
         if (
           reducedMotion &&
           isStandbyTigerStatus(tigerStatus) &&
-          isSecretaryStandbyIdleUrl(statusBaseUrl) &&
-          statusBaseUrl !== SECRETARY_SPRITE_URL_IDLE
+          isSecretaryStandbyIdleUrl(statusBaseUrl, secretaryPack) &&
+          statusBaseUrl !== secretaryPack.idle
         ) {
-          statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+          statusBaseUrl = secretaryPack.idle;
           lastIdleRotateMs = null;
         }
         refreshSecretaryDisplay();
@@ -1922,10 +2046,10 @@ export function mountPrivateTeamScene(canvas, opts) {
         if (
           reducedMotion &&
           isStandbyTigerStatus(tigerStatus) &&
-          isSecretaryStandbyIdleUrl(statusBaseUrl) &&
-          statusBaseUrl !== SECRETARY_SPRITE_URL_IDLE
+          isSecretaryStandbyIdleUrl(statusBaseUrl, secretaryPack) &&
+          statusBaseUrl !== secretaryPack.idle
         ) {
-          statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+          statusBaseUrl = secretaryPack.idle;
           lastIdleRotateMs = null;
         }
         refreshSecretaryDisplay();
@@ -1963,10 +2087,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     lastFrameMs = now;
     if (dancePlayback) {
       const elapsed = now - dancePlayback.startMs;
-      if (elapsed >= SECRETARY_DANCE_DURATION_MS) {
+      if (elapsed >= secretaryDanceDurationMs) {
         stopSecretaryDance();
       } else {
-        const st = secretaryCelebrateStateAt(elapsed);
+        const st = secretaryCelebrateStateAt(elapsed, secretaryCelebrateSteps);
         if (st.kind !== 'done') {
           const frameKey = st.kind === 'jump' ? 'jump' : st.url;
           if (frameKey !== danceDisplayFrame) {
@@ -1974,7 +2098,7 @@ export function mountPrivateTeamScene(canvas, opts) {
             if (st.url) applySecretarySpriteUrl(st.url);
           }
           dancePlayback.jumpOffset =
-            st.kind === 'jump' ? secretaryCelebrateJumpOffsetAt(elapsed) : null;
+            st.kind === 'jump' ? secretaryCelebrateJumpOffsetAt(elapsed, secretaryCelebrateSteps) : null;
         }
       }
     } else if (
@@ -1997,7 +2121,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       !overlayActive &&
       !dancePlayback &&
       !reducedMotion &&
-      statusBaseUrl === SECRETARY_SPRITE_URL_TYPING &&
+      statusBaseUrl === secretaryPack.typing &&
       now - lastTypingFlipMs >= SECRETARY_TYPING_FRAME_MS
     ) {
       lastTypingFlipMs = now;
@@ -2009,13 +2133,13 @@ export function mountPrivateTeamScene(canvas, opts) {
       !reducedMotion &&
       !secretaryInLoungePose &&
       isStandbyTigerStatus(tigerStatus) &&
-      isSecretaryStandbyIdleUrl(statusBaseUrl) &&
+      isSecretaryStandbyIdleUrl(statusBaseUrl, secretaryPack) &&
       lastIdleRotateMs != null &&
       now - lastIdleRotateMs >= SECRETARY_IDLE_ROTATE_MS
     ) {
       primeSecretaryStandbyIdleFramesIfNeeded();
       lastIdleRotateMs = now;
-      statusBaseUrl = pickNextStandbyIdleUrl(statusBaseUrl, Math.floor(Math.random() * 1e6));
+      statusBaseUrl = pickNextStandbyIdleUrl(statusBaseUrl, Math.floor(Math.random() * 1e6), secretaryPack);
       refreshPoseAnimMode();
       refreshSecretaryDisplay();
     }
@@ -2055,12 +2179,17 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretarySprite.lookAt(camera.position);
     }
 
+    const bubbleFloatBase = (() => {
+      if (!secretaryInLoungePose) return bubbleFloatMin;
+      const y = secretarySofaPlacementForOutfit(secretaryOutfitId).bubble.y;
+      return y == null ? bubbleFloatMin : y;
+    })();
     if (reducedMotion) {
-      bubble.position.y = bubbleRestY;
+      bubble.position.y = bubbleFloatBase + bubbleFloatSpan / 2;
       bubbleMat.opacity = 0.92;
     } else {
       const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
-      bubble.position.y = bubbleFloatMin + bubblePhase * bubbleFloatSpan;
+      bubble.position.y = bubbleFloatBase + bubblePhase * bubbleFloatSpan;
       bubbleMat.opacity = 0.82 + bubblePhase * 0.18;
     }
 
@@ -2117,9 +2246,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     if (lampPointBase > 0) {
-      const lampPulse = reducedMotion ? 1 : 0.93 + ((Math.sin(elapsed * 3.6) + 1) / 2) * 0.07;
-      lampPoint.intensity = lampPointBase * lampPulse;
-      lampSpot.intensity = lampSpotBase * lampPulse;
+      // 脈動只改檯燈光暈，不改點光／聚光強度，避免左牆壁畫整片跟著亮暗。
       lampHaloMat.opacity =
         lampHaloBase * (reducedMotion ? 1 : 0.88 + ((Math.sin(elapsed * 3.6 + 0.8) + 1) / 2) * 0.12);
     }
@@ -2133,8 +2260,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     if (privateTeamWindowAmbientMotionEnabled(reducedMotion)) {
-      streetTrafficTex.offset.x = (elapsed * 0.048) % 1;
-      riverShimmerTex.offset.x = (elapsed * 0.02) % 1;
+      streetTrafficTex.offset.x = (elapsed * PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC) % 1;
+      riverShimmerTex.offset.x = 0;
+      const riverBase = windowVistaRiver.userData.riverBaseOpacity;
+      if (Number.isFinite(riverBase)) {
+        windowVistaRiver.material.opacity = riverBase * privateTeamWindowRiverShimmerMul(elapsed, reducedMotion);
+      }
       towerBeacon.paint(elapsed);
       towerBeacon.tex.needsUpdate = true;
       const beaconOp = privateTeamWindowTowerBeaconOpacity(elapsed, reducedMotion);
@@ -2152,13 +2283,17 @@ export function mountPrivateTeamScene(canvas, opts) {
         const airOp = privateTeamWindowAirplaneBeaconOpacity(elapsed, reducedMotion);
         windowVistaAirBeacon.material.opacity = airOp * (windowVistaPeriod === 'sunset' ? 0.55 : 0.78);
       }
-      if (windowVistaPeriod === 'day' || windowVistaPeriod === 'sunset') {
+      if (windowVistaPeriod === 'day') {
         dayCloudTex.offset.x = (elapsed * PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC) % 1;
         dayCloudTex.needsUpdate = true;
       }
     } else {
       streetTrafficTex.offset.x = 0;
       riverShimmerTex.offset.x = 0;
+      const riverBaseStatic = windowVistaRiver.userData.riverBaseOpacity;
+      if (Number.isFinite(riverBaseStatic)) {
+        windowVistaRiver.material.opacity = riverBaseStatic;
+      }
       towerBeacon.paint(null);
       towerBeacon.tex.needsUpdate = true;
       windowVistaBeacon.material.opacity = windowVistaPeriod === 'night' ? 0.72 : 0;
@@ -2168,7 +2303,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         vistaAirplane.tex.needsUpdate = true;
         windowVistaAirBeacon.material.opacity = 0.62;
       }
-      if (windowVistaPeriod === 'day' || windowVistaPeriod === 'sunset') {
+      if (windowVistaPeriod === 'day') {
         dayCloudTex.offset.x = 0;
       }
     }
@@ -2237,6 +2372,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       else refreshSecretaryDisplay();
     },
     setSecretarySprite,
+    setSecretaryOutfit,
     playSecretaryWave,
     playSecretaryYeah,
     playSecretaryDance,

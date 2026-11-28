@@ -319,6 +319,7 @@ export function applyUnderwaterTint(mat, waterYUniform) {
     );
   };
   mat.customProgramCacheKey = () => 'secretary-underwater-tint-v2';
+  mat.needsUpdate = true;
 }
 
 export function addBathPillow(parent) {

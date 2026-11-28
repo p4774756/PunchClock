@@ -1,3 +1,5 @@
+import { adminFetch } from './admin-session.js';
+
 // 簽到本純邏輯（不依賴 Three.js）。署名整理、空白畫布、牆面格子供 node:test。
 // 面板本身用 pointer events，手機上畫的時候不讓頁面跟著捲。
 
@@ -264,7 +266,7 @@ export function createGraffitiController(opts) {
 
   async function removeItem(id, card) {
     if (!win.confirm('確定刪掉這則簽到？')) return;
-    const res = await win.fetch('/api/graffiti/' + encodeURIComponent(id), { method: 'DELETE' });
+    const res = await adminFetch(win, '/api/graffiti/' + encodeURIComponent(id), { method: 'DELETE' });
     if (!res.ok) {
       setStatus('沒能刪掉');
       return;

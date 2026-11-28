@@ -109,7 +109,8 @@ public final class OfficePublicRoutes {
                 String machineId = secretaryMachineId(tiger);
                 int n = secretaryWorkCount(now, store, machineId, tiger, doc, github);
                 if (n > 0) {
-                    return n == 1 ? "工作中" : "工作中 ×" + n;
+                    String chain = resolveSecretaryChain(n, now, store, machineId, tiger, github);
+                    return secretaryStatusLabel(n, chain);
                 }
                 boolean online = tiger != null && isOnline(tiger, now);
                 if (online || hasSecretaryQueue(now, store, machineId, tiger, doc)) {
@@ -355,6 +356,62 @@ public final class OfficePublicRoutes {
                 return tiger.machine;
             }
             return configuredSecretaryMachine();
+        }
+
+        static String secretaryStatusLabel(int n, String chain) {
+            if (n <= 0) {
+                throw new IllegalArgumentException("n must be positive");
+            }
+            if (n == 1) {
+                String name = validSecretaryChain(chain);
+                return name != null ? name + "結界展開中" : "工作中";
+            }
+            if (n == 2) {
+                return "二聖獸結界展開中";
+            }
+            if (n == 3) {
+                return "三聖獸結界展開中";
+            }
+            if (n == 4) {
+                return "四聖獸結界展開中";
+            }
+            return "聖獸結界展開中";
+        }
+
+        private static String validSecretaryChain(String chain) {
+            if (chain == null) {
+                return null;
+            }
+            String s = chain.trim();
+            if ("青龍".equals(s) || "白虎".equals(s) || "朱雀".equals(s) || "玄武".equals(s)) {
+                return s;
+            }
+            return null;
+        }
+
+        private static String resolveSecretaryChain(int n, long now, DevMachineStore store, String machineId,
+                                                    DevMachineStore.Snapshot tiger, Snapshot github) {
+            if (n != 1) {
+                return null;
+            }
+            String fromRun = null;
+            int activeRunCount = 0;
+            for (DevMachineStore.RunEntry run : effectiveRuns(now, store, machineId, tiger)) {
+                if (run != null && run.issue > 0 && !isIssueMerged(github, run.issue)) {
+                    activeRunCount++;
+                    fromRun = run.chain;
+                }
+            }
+            if (activeRunCount == 1) {
+                String c = validSecretaryChain(fromRun);
+                if (c != null) {
+                    return c;
+                }
+            }
+            if (tiger != null) {
+                return validSecretaryChain(tiger.chain);
+            }
+            return null;
         }
 
         private static int secretaryWorkCount(long now, DevMachineStore store, String machineId,

@@ -9,14 +9,15 @@
   <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180">
   <link rel="icon" href="/icon-192.png" type="image/png" sizes="192x192">
   <link rel="icon" href="/icon-512.png" type="image/png" sizes="512x512">
-  <link rel="stylesheet" href="/css/lab-office.css?v={{SERVER_VERSION}}">
-  <link rel="stylesheet" href="/css/dev-guest-ui.css?v={{SERVER_VERSION}}">
-  <link rel="stylesheet" href="/css/private-team.css?v={{SERVER_VERSION}}">
+  <link rel="stylesheet" href="/css/lab-office.css?v={{SERVER_ASSET_QUERY}}">
+  <link rel="stylesheet" href="/css/dev-guest-ui.css?v={{SERVER_ASSET_QUERY}}">
+  <link rel="stylesheet" href="/css/private-team.css?v={{SERVER_ASSET_QUERY}}">
 </head>
 <body class="lab-office-page {{AUTH_BODY_CLASS}}">
   <script>
     window.PUNCHCLOCK_AUTHENTICATED = {{AUTH_JS_BOOL}};
     window.PUNCHCLOCK_USERNAME = "{{AUTH_USERNAME}}";
+    window.PUNCHCLOCK_CSRF = "{{CSRF_TOKEN}}";
     window.PUNCHCLOCK_SERVER_VERSION = "{{SERVER_VERSION}}";
     window.PUNCHCLOCK_SERVER_BUILD_TIME = "{{SERVER_BUILD_TIME}}";
     window.PUNCHCLOCK_CLIENT_VERSION = {{HOME_CLIENT_VERSION_JS}};
@@ -148,8 +149,8 @@
       </div>
     </div>
   </section>
-  <script type="module" src="/js/device-fold.js?v={{SERVER_VERSION}}"></script>
-  <script type="module" src="/js/device-head-badge.js?v={{SERVER_VERSION}}"></script>
-  <script type="module" src="/js/office-page.js?v={{SERVER_VERSION}}"></script>
+  <script type="module" src="{{SERVER_JS_BASE}}/device-fold.js"></script>
+  <script type="module" src="{{SERVER_JS_BASE}}/device-head-badge.js"></script>
+  <script type="module" src="{{SERVER_JS_BASE}}/office-page.js"></script>
 </body>
 </html>

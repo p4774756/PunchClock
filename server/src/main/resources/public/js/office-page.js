@@ -5,6 +5,7 @@ import { createHomeDownloadController } from './home-download-panel.js';
 import { createOfficeModalManager } from './office-modal.js';
 import { applyDownloadOpenParam, applyTasksOpenParam } from './dev-machines-format.js';
 import { mountPrivateTeamPage } from './private-team-page.js';
+import { wireLogoutLinks } from './admin-session.js';
 
 let privateTeam = null;
 
@@ -80,3 +81,5 @@ applyTasksOpenParam(window, () => {
   if (window.PUNCHCLOCK_AUTHENTICATED) openTasksFromHud();
 });
 applyDownloadOpenParam(window, () => openDownloadFromHud());
+
+wireLogoutLinks(window, document);

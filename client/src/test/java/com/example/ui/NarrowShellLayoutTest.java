@@ -163,11 +163,11 @@ public class NarrowShellLayoutTest {
     private static void assertPeerColumnAlignments(javax.swing.JTable table) {
         for (int col = 0; col < table.getColumnCount(); col++) {
             Component cell = table.prepareRenderer(table.getCellRenderer(0, col), 0, col);
-            assertTrue(cell instanceof JLabel);
-            int align = ((JLabel) cell).getHorizontalAlignment();
             if (col == 0) {
-                assertEquals(SwingConstants.LEADING, align);
+                assertTrue(cell instanceof PeerFriendNameCell);
             } else {
+                assertTrue(cell instanceof JLabel);
+                int align = ((JLabel) cell).getHorizontalAlignment();
                 assertEquals(SwingConstants.CENTER, align);
             }
             javax.swing.table.TableColumn column = table.getColumnModel().getColumn(col);
@@ -193,7 +193,8 @@ public class NarrowShellLayoutTest {
 
     private static Color dotColor(javax.swing.JTable table, int row) {
         Component cell = table.prepareRenderer(table.getCellRenderer(row, 0), row, 0);
-        Icon icon = ((JLabel) cell).getIcon();
+        assertTrue(cell instanceof PeerFriendNameCell);
+        Icon icon = ((PeerFriendNameCell) cell).avatarIcon();
         assertTrue(icon instanceof ImageIcon);
         BufferedImage face = (BufferedImage) ((ImageIcon) icon).getImage();
         return new Color(face.getRGB(13, 13), true);
@@ -234,11 +235,12 @@ public class NarrowShellLayoutTest {
             assertTrue("id row " + row + " pref " + cell.getPreferredSize().width + " col " + colW,
                     cell.getPreferredSize().width <= colW);
             String id = String.valueOf(table.getValueAt(row, 0));
-            String labelText = ((javax.swing.JLabel) cell).getText();
-            assertTrue("id " + id + " in " + labelText, labelText.contains(id));
+            assertTrue(cell instanceof PeerFriendNameCell);
+            PeerFriendNameCell nameCell = (PeerFriendNameCell) cell;
+            assertTrue("id " + id + " in " + nameCell.displayId(), nameCell.displayId().contains(id));
             String status = PanelFactory.peerRowStatusText(table, id);
             if (status != null && !status.isBlank()) {
-                assertTrue("status in " + labelText, labelText.contains(status));
+                assertEquals(status, nameCell.statusText());
             }
         }
     }

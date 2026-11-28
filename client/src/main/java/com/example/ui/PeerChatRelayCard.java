@@ -68,8 +68,8 @@ public final class PeerChatRelayCard extends JPanel {
         north.add(detailLabel, BorderLayout.SOUTH);
 
         bar = TransferProgressDialog.createRelayProgressBar();
-        bar.setPreferredSize(new Dimension(280, 18));
-        bar.setMinimumSize(new Dimension(180, 18));
+        bar.setPreferredSize(new Dimension(280, 36));
+        bar.setMinimumSize(new Dimension(180, 36));
 
         statusLabel = label(" ", small, CandyTheme.MUTED);
 
@@ -128,6 +128,7 @@ public final class PeerChatRelayCard extends JPanel {
                 + (folder ? "（資料夾 ZIP）" : ""));
         statusLabel.setText("請在 " + PeerFileRules.RELAY_ACCEPT_TIMEOUT_LABEL + " 內決定");
         bar.setVisible(false);
+        PetWalkerProgressBarUI.stopMotionIfPresent(bar);
         actionRow.removeAll();
         long deadline = System.currentTimeMillis() + Math.max(1L, timeoutMs);
         JButton accept = new CandyButton("接收", CandyButton.Variant.PRIMARY, CandyButton.Size.SMALL);
@@ -208,6 +209,7 @@ public final class PeerChatRelayCard extends JPanel {
             finished.set(true);
             stopCountdown();
             bar.setVisible(false);
+            PetWalkerProgressBarUI.stopMotionIfPresent(bar);
             actionRow.removeAll();
             statusLabel.setText(outbound ? "傳送完成" : "接收完成");
             titleLabel.setText((outbound ? "已直傳  " : "已接收  ") + filename);
@@ -220,6 +222,7 @@ public final class PeerChatRelayCard extends JPanel {
             finished.set(true);
             stopCountdown();
             bar.setVisible(false);
+            PetWalkerProgressBarUI.stopMotionIfPresent(bar);
             actionRow.removeAll();
             statusLabel.setText(message == null || message.isBlank() ? "直傳失敗" : message);
             relayout();
@@ -231,6 +234,7 @@ public final class PeerChatRelayCard extends JPanel {
             finished.set(true);
             stopCountdown();
             bar.setVisible(false);
+            PetWalkerProgressBarUI.stopMotionIfPresent(bar);
             actionRow.removeAll();
             statusLabel.setText("已取消");
             relayout();
@@ -242,6 +246,7 @@ public final class PeerChatRelayCard extends JPanel {
             finished.set(true);
             stopCountdown();
             bar.setVisible(false);
+            PetWalkerProgressBarUI.stopMotionIfPresent(bar);
             actionRow.removeAll();
             titleLabel.setText("已儲存  " + (file == null ? "" : file.getFileName().toString()));
             detailLabel.setText(file == null ? "" : file.toAbsolutePath().toString());
@@ -265,6 +270,7 @@ public final class PeerChatRelayCard extends JPanel {
             finished.set(true);
             stopCountdown();
             bar.setVisible(false);
+            PetWalkerProgressBarUI.stopMotionIfPresent(bar);
             actionRow.removeAll();
             statusLabel.setText(message);
             relayout();
@@ -287,6 +293,7 @@ public final class PeerChatRelayCard extends JPanel {
                 stopCountdown();
                 actionRow.removeAll();
                 bar.setVisible(false);
+                PetWalkerProgressBarUI.stopMotionIfPresent(bar);
                 if (action != null) {
                     action.run();
                 }
