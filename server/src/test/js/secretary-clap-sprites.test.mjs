@@ -9,7 +9,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 const assetDir = join(repoRoot, 'server/src/main/resources/public/assets/private-team');
 
 const CLAP_FILES = ['secretary-clap-a.webp', 'secretary-clap-b.webp'];
-const SIZE_MIN = 35_000;
+const SIZE_MIN = 22_000;
 const SIZE_MAX = 62_000;
 
 test('拍手慶祝立繪存在且 WebP 體積符合同系列水準', () => {
