@@ -575,6 +575,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   const tray = extrudedRoundedPlate(0.54, 0.26, TRAY_THICK, 0.04, trayMat);
   tray.position.set(0, TRAY_TOP_Y - TRAY_THICK, trayZ);
   tray.name = 'keyboardTray';
+  // 平貼在浴缸後緣、像一片浮在水面上的木板，腿又會穿過它（#913）：隱藏，鍵盤已畫在秘書立繪裡。
+  tray.visible = false;
   root.add(tray);
   const steamPuffs = [];
   const steamGroup = new THREE.Group();
@@ -1285,6 +1287,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   bathPillowTubAnchor.position.set(SECRETARY_TUB_POSITION.x, SECRETARY_TUB_POSITION.y, SECRETARY_TUB_POSITION.z);
   root.add(bathPillowTubAnchor);
   addBathPillow(bathPillowTubAnchor);
+  // 手機上像認不出來的白色團塊（#913），隱藏；程式碼保留。
+  bathPillowTubAnchor.visible = false;
 
   const secretaryRoot = new THREE.Group();
   secretaryRoot.position.set(SECRETARY_TUB_POSITION.x, SECRETARY_TUB_ROOT_Y, SECRETARY_TUB_POSITION.z);
