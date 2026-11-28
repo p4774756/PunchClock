@@ -65,6 +65,10 @@ public final class DesktopPetWindow extends JFrame {
     static final int MARGIN = 24;
     /** 對話框留白。喵露耳朵在畫布上方約 20px，泡泡畫在這條留白裡。 */
     static final int BUBBLE_SLOT = 44;
+    /** 台詞泡泡：本機糖果色，不走已被 Win95 換裝改寫的 {@link CandyTheme#PINK_*}。 */
+    private static final Color SPEECH_BUBBLE_FILL = new Color(255, 228, 240);
+    private static final Color SPEECH_BUBBLE_EDGE = new Color(220, 140, 170);
+    private static final Color SPEECH_BUBBLE_INK = new Color(72, 36, 56);
     private static final int SCALE = 3;
     private static final int DRAG_THRESHOLD = 4;
 
@@ -1979,7 +1983,10 @@ public final class DesktopPetWindow extends JFrame {
         if (union == null) {
             return new Rectangle(0, 0, WIDTH, HEIGHT);
         }
-        return clipToCanvas(union);
+        Rectangle hit = clipToCanvas(union);
+        int top = Math.max(0, hit.y - BUBBLE_SLOT);
+        int extraTop = hit.y - top;
+        return clipToCanvas(new Rectangle(hit.x, top, hit.width, hit.height + extraTop));
     }
 
     private static boolean covered(Rectangle shell, Rectangle raw) {
@@ -2014,6 +2021,59 @@ public final class DesktopPetWindow extends JFrame {
 
     static Rectangle miluBodyOnCanvas(BufferedImage image, int offsetX, int offsetY) {
         return cachedBody(image, offsetX, offsetY);
+    }
+
+    /**
+     * 在已 {@code translate(-view.x,-view.y)}（並可選 {@code scale(pixelScale)}) 的 Graphics 上畫台詞泡泡。
+     * 座標以視窗局部為準；回傳畫布座標的點擊區，無泡泡時回傳 null。
+     */
+    static Rectangle paintSpeechBubble(
+            Graphics2D g,
+            Rectangle view,
+            DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation,
+            String text) {
+        if (text == null || text.isEmpty() || view == null) {
+            return null;
+        }
+        g.setFont(UiFonts.chinesePlain(14));
+        FontMetrics metrics = g.getFontMetrics();
+        int innerMax = Math.max(96, view.width - 12);
+        String fitted = CandyTheme.fit(text, metrics, innerMax);
+        if (fitted.isEmpty()) {
+            return null;
+        }
+        int padX = 12;
+        int padY = 8;
+        int textWidth = metrics.stringWidth(fitted);
+        int bubbleW = textWidth + padX * 2;
+        int bubbleH = metrics.getHeight() + padY;
+        int bx = Math.max(0, (view.width - bubbleW) / 2);
+        int headCanvasY = view.y + BUBBLE_SLOT;
+        if (milu != null && animation != null) {
+            DesktopPetSpriteLoader.Sprite sprite = milu.spriteFor(animation);
+            if (sprite != null) {
+                headCanvasY = DesktopPetMiluLayout.placement(sprite).headDisplayTop;
+            }
+        }
+        int by = headCanvasY - view.y - bubbleH - 8;
+        if (by < 0) {
+            by = 0;
+        }
+        int anchorX = view.width / 2;
+        g.setColor(SPEECH_BUBBLE_FILL);
+        g.fillRoundRect(bx, by, bubbleW, bubbleH, 12, 12);
+        g.setColor(SPEECH_BUBBLE_EDGE);
+        g.drawRoundRect(bx, by, bubbleW, bubbleH, 12, 12);
+        int tailX = Math.max(bx + 10, Math.min(anchorX, bx + bubbleW - 10));
+        g.setColor(SPEECH_BUBBLE_FILL);
+        g.fillPolygon(
+                new int[] {tailX - 5, tailX + 5, tailX},
+                new int[] {by + bubbleH - 1, by + bubbleH - 1, by + bubbleH + 6},
+                3);
+        g.setColor(SPEECH_BUBBLE_INK);
+        g.drawString(fitted, bx + padX, by + metrics.getAscent() + padY / 2);
+        return new Rectangle(bx + view.x, by + view.y, bubbleW, bubbleH + 6);
     }
 
     private static synchronized Rectangle cachedBody(BufferedImage image, int offsetX, int offsetY) {
@@ -2238,6 +2298,9 @@ public final class DesktopPetWindow extends JFrame {
             Graphics2D extra = image.createGraphics();
             try {
                 extra.translate(-view.x, -view.y);
+                if (pixelScale > 1.0001) {
+                    extra.scale(pixelScale, pixelScale);
+                }
                 paintBubble(extra);
                 if (debug) {
                     paintDebug(extra);
@@ -2332,40 +2395,8 @@ public final class DesktopPetWindow extends JFrame {
         }
 
         private void paintBubble(Graphics2D g) {
-            String text = animation.bubble();
-            if (text == null || text.isEmpty()) {
-                bubbleBounds = null;
-                return;
-            }
-            g.setFont(UiFonts.chinesePlain(12));
-            FontMetrics metrics = g.getFontMetrics();
-            String fitted = CandyTheme.fit(text, metrics, Math.max(24, view.width - 20));
-            if (fitted.isEmpty()) {
-                bubbleBounds = null;
-                return;
-            }
-            int textWidth = metrics.stringWidth(fitted);
-            int bubbleW = textWidth + 16;
-            int bubbleH = metrics.getHeight() + 8;
-            int anchorX = view.x + view.width / 2;
-            int bx = view.x + Math.max(0, (view.width - bubbleW) / 2);
-            int by = view.y;
-            if (bx + bubbleW > view.x + view.width) {
-                bx = Math.max(view.x, view.x + view.width - bubbleW);
-            }
-            bubbleBounds = new Rectangle(bx, by, bubbleW, bubbleH + 6);
-            g.setColor(CandyTheme.PINK_HI);
-            g.fillRoundRect(bx, by, bubbleW, bubbleH, 12, 12);
-            g.setColor(CandyTheme.PINK_DEEP);
-            g.drawRoundRect(bx, by, bubbleW, bubbleH, 12, 12);
-            int tailX = Math.max(bx + 10, Math.min(anchorX, bx + bubbleW - 10));
-            g.setColor(CandyTheme.PINK_HI);
-            g.fillPolygon(
-                    new int[] {tailX - 5, tailX + 5, tailX},
-                    new int[] {by + bubbleH - 1, by + bubbleH - 1, by + bubbleH + 6},
-                    3);
-            g.setColor(CandyTheme.PINK_INK);
-            g.drawString(fitted, bx + 8, by + metrics.getAscent() + 4);
+            bubbleBounds =
+                    paintSpeechBubble(g, view, milu, animation, animation.bubble());
         }
 
         private void paintControlHint(Graphics2D g) {
