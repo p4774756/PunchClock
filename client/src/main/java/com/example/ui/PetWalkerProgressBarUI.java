@@ -2,10 +2,12 @@ package com.example.ui;
 
 import com.example.pet.DesktopPetSpriteLoader;
 
+import javax.imageio.ImageIO;
 import javax.swing.JComponent;
 import javax.swing.JProgressBar;
 import javax.swing.Timer;
 import javax.swing.plaf.basic.BasicProgressBarUI;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
@@ -14,8 +16,13 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.event.HierarchyEvent;
 import java.awt.event.HierarchyListener;
+import java.awt.image.BufferedImage;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 粉紅傳檔進度條：軌道自繪，填充緣站萌寵小人（走路／跑步／待機／完成揮手）。
@@ -28,20 +35,31 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     private static final int TRACK_HEIGHT = 12;
     private static final int TEXT_PAD = 2;
     private static final int PET_TEXT_GAP = 2;
-    private static final int WALK_MS = 120;
-    private static final int RUN_MS = 70;
-    private static final int INDET_MS = 110;
+    private static final int WALK_MS = 90;
+    private static final int RUN_MS = 55;
+    private static final int INDET_MS = 140;
+    private static final int IDLE_MS = 280;
     private static final double CHASE_WALK = 22.0;
     private static final double CHASE_RUN = 48.0;
     private static final int RUN_TARGET_JUMP = 80;
     private static final int WAVE_TICKS = 14;
     private static final int HOP_PEAK = 6;
+    private static final int RUN_BOB_PEAK = 3;
+    private static final String[] RUN_RIGHT = {
+            "/pet/milu/run/right_01.png",
+            "/pet/milu/run/right_02.png",
+            "/pet/milu/run/right_03.png",
+            "/pet/milu/run/right_04.png",
+            "/pet/milu/run/right_05.png",
+            "/pet/milu/run/right_06.png"
+    };
 
     private enum Motion {
         IDLE, WALK, RUN, WAVE, INDETERMINATE
     }
 
     private DesktopPetSpriteLoader.Frames frames;
+    private BufferedImage[] runFrames;
     private double displayValue;
     private int targetValue;
     private Motion motion = Motion.IDLE;
@@ -65,6 +83,7 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     public void installUI(JComponent c) {
         super.installUI(c);
         frames = DesktopPetSpriteLoader.load();
+        runFrames = loadRunFrames();
         displayValue = progressBar.getValue();
         targetValue = progressBar.getValue();
         prevTargetValue = targetValue;
@@ -94,6 +113,7 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
             hierarchyListener = null;
         }
         frames = null;
+        runFrames = null;
         super.uninstallUI(c);
     }
 
@@ -165,16 +185,16 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
                 ensureMotionTimer(WALK_MS);
             } else {
                 motion = Motion.IDLE;
-                stopMotionTimer();
+                ensureMotionTimer(IDLE_MS);
             }
             return;
         }
         if (chasing()) {
-            motion = shouldRun() ? Motion.RUN : Motion.WALK;
-            ensureMotionTimer(shouldRun() ? RUN_MS : WALK_MS);
+            motion = Motion.RUN;
+            ensureMotionTimer(RUN_MS);
         } else {
             motion = Motion.IDLE;
-            stopMotionTimer();
+            ensureMotionTimer(IDLE_MS);
         }
     }
 
@@ -214,6 +234,12 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     private void tick() {
         if (progressBar.isIndeterminate()) {
             indetFrame++;
+            animTick++;
+            progressBar.repaint();
+            return;
+        }
+        if (motion == Motion.IDLE) {
+            animTick++;
             progressBar.repaint();
             return;
         }
@@ -258,15 +284,28 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
         targetValue = value;
         displayValue = value;
         int max = Math.max(1, progressBar.getMaximum());
-        if (value >= max) {
-            waveDoneAtFull = true;
-            motion = Motion.IDLE;
-        } else {
+        if (value <= 0) {
             waveDoneAtFull = false;
             motion = Motion.IDLE;
+            animTick = 0;
+        } else if (value >= max) {
+            waveDoneAtFull = true;
+            motion = Motion.IDLE;
+            animTick = 0;
+        } else {
+            waveDoneAtFull = false;
+            motion = Motion.RUN;
+            animTick = 2; // 第 3 幀跨步最明顯
         }
-        animTick = 0;
         hopTick = -1;
+        progressBar.repaint();
+    }
+
+    /** Headless 測試：定住進度並指定跑步影格（0-based）。 */
+    void freezeAtRunFrame(int value, int frame) {
+        freezeAtValue(value);
+        motion = Motion.RUN;
+        animTick = Math.max(0, frame);
         progressBar.repaint();
     }
 
@@ -407,24 +446,61 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
             drawX = minX;
         }
         g2.drawImage(pet.sprite, drawX, drawY, pet.drawW, pet.drawH, null);
+        if (showsMotionFx()) {
+            drawRunFx(g2, drawX, footBaselineY - hop, minX, maxX);
+        }
+    }
+
+    private boolean showsMotionFx() {
+        return motion == Motion.RUN || motion == Motion.WALK || motion == Motion.INDETERMINATE;
+    }
+
+    private void drawRunFx(Graphics2D g2, int petLeft, int footY, int minX, int maxX) {
+        int phase = Math.floorMod(currentRunFrame(), 6);
+        int originX = petLeft + 6;
+        Color puff = new Color(255, 214, 232, 140);
+        Color line = new Color(255, 230, 244, 180);
+        g2.setStroke(new BasicStroke(1.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        for (int i = 0; i < 3; i++) {
+            int px = originX - 6 - i * 5 - (phase % 3);
+            int py = footY - 3 - ((phase + i) % 3);
+            int r = 2 + ((phase + i) % 3);
+            if (px - r >= minX && px + r <= maxX) {
+                g2.setColor(puff);
+                g2.fillOval(px - r, py - r, r * 2, r * 2);
+            }
+        }
+        g2.setColor(line);
+        for (int i = 0; i < 2; i++) {
+            int y = footY - 10 - i * 5;
+            int x2 = originX - 2;
+            int x1 = x2 - 8 - phase % 3;
+            if (x1 >= minX && x2 <= maxX) {
+                g2.drawLine(x1, y, x2, y - 1);
+            }
+        }
     }
 
     private int hopOffsetY() {
-        if (hopTick < 0 || motion != Motion.WAVE) {
-            return 0;
+        if (motion == Motion.WAVE && hopTick >= 0) {
+            double phase = hopTick / (double) (WAVE_TICKS / 2);
+            if (phase > 1) {
+                phase = 2 - phase;
+            }
+            return (int) Math.round(HOP_PEAK * Math.sin(phase * Math.PI));
         }
-        double phase = hopTick / (double) (WAVE_TICKS / 2);
-        if (phase > 1) {
-            phase = 2 - phase;
+        if (motion == Motion.RUN || motion == Motion.WALK || motion == Motion.INDETERMINATE) {
+            int[] bob = {0, 2, RUN_BOB_PEAK, 1, 2, RUN_BOB_PEAK - 1};
+            return bob[Math.floorMod(currentRunFrame(), bob.length)];
         }
-        return (int) Math.round(HOP_PEAK * Math.sin(phase * Math.PI));
+        if (motion == Motion.IDLE) {
+            return (int) Math.round((1 + Math.sin(animTick * 0.5)) * 0.8);
+        }
+        return 0;
     }
 
     private PetMetrics measurePet() {
         PetMetrics metrics = new PetMetrics();
-        if (frames == null) {
-            return metrics;
-        }
         metrics.sprite = pickSprite();
         if (metrics.sprite == null) {
             return metrics;
@@ -444,20 +520,66 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
         return targetHeight / (double) Math.max(1, srcFoot);
     }
 
-    private java.awt.image.BufferedImage pickSprite() {
+    private BufferedImage pickSprite() {
+        BufferedImage running = runFrame(currentRunFrame());
+        if (running != null) {
+            return running;
+        }
+        if (frames == null) {
+            return null;
+        }
         int walkFrames = Math.max(1, frames.walkRightCount());
         switch (motion) {
             case WAVE:
                 return frames.wave(Math.floorDiv(animTick, 2));
             case WALK:
             case RUN:
-                return frames.walkRight(Math.floorDiv(animTick, motion == Motion.RUN ? 1 : 2));
+                return frames.walkRight(animTick);
             case INDETERMINATE:
-                return frames.walkRight(Math.floorMod(indetFrame / 2, walkFrames));
+                return frames.walkRight(Math.floorMod(indetFrame, walkFrames));
             case IDLE:
             default:
-                return frames.breath(0);
+                return frames.walkRight(0);
         }
+    }
+
+    private int currentRunFrame() {
+        if (motion == Motion.IDLE || motion == Motion.WAVE) {
+            return 0;
+        }
+        if (motion == Motion.INDETERMINATE) {
+            return indetFrame;
+        }
+        return animTick;
+    }
+
+    int runFrameCountForTest() {
+        return runFrames == null ? 0 : runFrames.length;
+    }
+
+    BufferedImage runFrame(int index) {
+        if (runFrames == null || runFrames.length == 0) {
+            return null;
+        }
+        return runFrames[Math.floorMod(index, runFrames.length)];
+    }
+
+    static BufferedImage[] loadRunFrames() {
+        List<BufferedImage> loaded = new ArrayList<BufferedImage>();
+        for (String path : RUN_RIGHT) {
+            try (InputStream in = PetWalkerProgressBarUI.class.getResourceAsStream(path)) {
+                if (in == null) {
+                    continue;
+                }
+                BufferedImage image = ImageIO.read(in);
+                if (image != null) {
+                    loaded.add(image);
+                }
+            } catch (IOException ignored) {
+                // 單張失敗就略過，其餘影格照常。
+            }
+        }
+        return loaded.toArray(new BufferedImage[0]);
     }
 
     @Override

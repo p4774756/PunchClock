@@ -61,6 +61,28 @@ public class Issue857ProgressWalkerTest {
     }
 
     @Test
+    public void runCycleStripShowsForwardStride() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            JProgressBar bar = TransferProgressDialog.createRelayProgressBar();
+            bar.setIndeterminate(false);
+            bar.setStringPainted(true);
+            bar.setString("30%");
+            layout(bar);
+            PetWalkerProgressBarUI ui = (PetWalkerProgressBarUI) bar.getUI();
+            assertTrue("need 6 run frames, got " + ui.runFrameCountForTest(), ui.runFrameCountForTest() >= 6);
+            List<NamedShot> shots = new ArrayList<>();
+            for (int i = 0; i < ui.runFrameCountForTest(); i++) {
+                ui.freezeAtRunFrame(300, i);
+                NamedShot shot = paintShot(bar, "run-" + String.format(Locale.ROOT, "%02d", i + 1));
+                assertPetVisible(shot);
+                assertPetFullyInsideBar(shot);
+                shots.add(shot);
+            }
+            writeShotsIfRequested(shots);
+        });
+    }
+
+    @Test
     public void chaseWalkFramesStayVisible() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             JProgressBar bar = TransferProgressDialog.createRelayProgressBar();
@@ -483,6 +505,9 @@ public class Issue857ProgressWalkerTest {
             }
             if (shots.size() > 1 && shots.get(0).label.startsWith("walk-")) {
                 ImageIO.write(composeStrip(shots), "png", out.resolve("walk-strip.png").toFile());
+            }
+            if (shots.size() > 1 && shots.get(0).label.startsWith("run-")) {
+                ImageIO.write(composeStrip(shots), "png", out.resolve("run-frames.png").toFile());
             }
         } catch (Exception ignored) {
             // 選用輸出，失敗不影響測試。
