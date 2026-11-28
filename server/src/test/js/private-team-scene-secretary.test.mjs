@@ -169,6 +169,8 @@ test('休憩區狀態與黑膠旋轉、地板大理石', async () => {
     SECRETARY_TUB_POSITION
   } = await loadPublicModule('private-team-scene-lounge.js');
   assert.equal(isWorkingTigerStatus('工作中 ×2'), true);
+  assert.equal(isWorkingTigerStatus('三聖獸結界展開中'), true);
+  assert.equal(isWorkingTigerStatus('青龍結界展開中'), true);
   assert.equal(isWorkingTigerStatus('待命中'), false);
   assert.equal(isLoungeTigerStatus('休息中'), true);
   assert.equal(isLoungeTigerStatus('工作中'), false);

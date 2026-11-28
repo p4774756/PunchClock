@@ -1,4 +1,5 @@
 import * as THREE from './vendor/three.module.min.js';
+import { isWorkingStatus } from './private-team-office.js';
 
 export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
 export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typing-b.webp';
@@ -11,8 +12,7 @@ export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.
 export const SECRETARY_SPRITE_URL_SOFA = '/assets/private-team/secretary-sofa.webp';
 
 export function isWorkingTigerStatus(status) {
-  const s = status == null ? '' : String(status).trim();
-  return s.startsWith('工作中');
+  return isWorkingStatus(status);
 }
 
 export function isLoungeTigerStatus(status) {
@@ -23,7 +23,7 @@ export function isLoungeTigerStatus(status) {
 /** 沙發立繪無法載入時，改用具站姿／坐姿立繪（仍留在休憩區，不回浴缸）。 */
 export function secretaryTubFallbackUrlForStatus(status) {
   const s = status == null ? '' : String(status).trim();
-  if (s.startsWith('工作中')) return SECRETARY_SPRITE_URL_TYPING;
+  if (isWorkingStatus(s)) return SECRETARY_SPRITE_URL_TYPING;
   if (s === '休息中') return SECRETARY_SPRITE_URL_SLEEP;
   if (s === '待命中' || s === '待機') return SECRETARY_SPRITE_URL_IDLE;
   return SECRETARY_SPRITE_URL_IDLE;

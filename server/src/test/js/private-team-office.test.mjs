@@ -31,6 +31,7 @@ const {
   completedTodayKeys,
   hasNewCompletedToday,
   secretarySpriteUrlForStatus,
+  isWorkingStatus,
   progressBoardViewFromTiger,
   taskProgressFromTiger,
   mergeSecretaryQueues,
@@ -128,9 +129,20 @@ test('hasNewCompletedToday 僅在新鍵出現時', () => {
   assert.equal(completedTodayKeys([{ at: 't', issue: 5 }])[0], 'issue:5');
 });
 
+test('isWorkingStatus 舊文案與結界', () => {
+  assert.equal(isWorkingStatus('工作中'), true);
+  assert.equal(isWorkingStatus('工作中 ×3'), true);
+  assert.equal(isWorkingStatus('三聖獸結界展開中'), true);
+  assert.equal(isWorkingStatus('青龍結界展開中'), true);
+  assert.equal(isWorkingStatus('待命中'), false);
+  assert.equal(isWorkingStatus('休息中'), false);
+});
+
 test('secretarySpriteUrlForStatus 對應三張立繪', () => {
   assert.equal(secretarySpriteUrlForStatus('工作中'), '/assets/private-team/secretary-typing-a.webp');
   assert.equal(secretarySpriteUrlForStatus('工作中 ×3'), '/assets/private-team/secretary-typing-a.webp');
+  assert.equal(secretarySpriteUrlForStatus('三聖獸結界展開中'), '/assets/private-team/secretary-typing-a.webp');
+  assert.equal(secretarySpriteUrlForStatus('青龍結界展開中'), '/assets/private-team/secretary-typing-a.webp');
   assert.equal(secretarySpriteUrlForStatus('待命中'), '/assets/private-team/secretary-sofa.webp');
   assert.equal(secretarySpriteUrlForStatus('待機'), '/assets/private-team/secretary-sofa.webp');
   assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sofa.webp');
@@ -138,6 +150,8 @@ test('secretarySpriteUrlForStatus 對應三張立繪', () => {
 
 test('bubbleTextForStatus 僅三態與工作中倍數', () => {
   assert.equal(bubbleTextForStatus('工作中 ×2'), '工作中 ×2');
+  assert.equal(bubbleTextForStatus('三聖獸結界展開中'), '三聖獸結界展開中');
+  assert.equal(bubbleTextForStatus('青龍結界展開中'), '青龍結界展開中');
   assert.equal(bubbleTextForStatus('待命中'), '待命中');
   assert.equal(bubbleTextForStatus('休息中'), '休息中');
   assert.equal(bubbleTextForStatus(''), '待命中');

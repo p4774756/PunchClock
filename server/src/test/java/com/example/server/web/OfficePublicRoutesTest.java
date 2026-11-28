@@ -47,7 +47,8 @@ public class OfficePublicRoutesTest {
     private static final Set<String> ALLOWED_CHAR_BASE = Set.of("status", "updatedAt");
     private static final Set<String> ALLOWED_TIGER_EXTRA = Set.of(
             "active", "completedToday", "queue", "cpuPercent", "ramUsedGb", "ramTotalGb", "ramPercent");
-    private static final Pattern TIGER_STATUS = Pattern.compile("^(工作中( ×\\d+)?|待命中|休息中)$");
+    private static final Pattern TIGER_STATUS = Pattern.compile(
+            "^(工作中|(?:青龍|白虎|朱雀|玄武)結界展開中|[二三四]聖獸結界展開中|聖獸結界展開中|待命中|休息中)$");
     private static final Pattern REVIEWER_STATUS = Pattern.compile("^(審核中( ×\\d+)?|待機)$");
 
     private Javalin app;
@@ -129,8 +130,85 @@ public class OfficePublicRoutesTest {
         startApp();
 
         JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
-        assertEquals("工作中 ×2", tiger.get("status").getAsString());
+        assertEquals("二聖獸結界展開中", tiger.get("status").getAsString());
         assertEquals(2, tiger.getAsJsonArray("active").size());
+    }
+
+    @Test
+    public void secretaryStatusLabelCoversTable() {
+        assertEquals("工作中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(1, null));
+        assertEquals("工作中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(1, "未知"));
+        assertEquals("青龍結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(1, "青龍"));
+        assertEquals("白虎結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(1, "白虎"));
+        assertEquals("朱雀結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(1, "朱雀"));
+        assertEquals("玄武結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(1, "玄武"));
+        assertEquals("二聖獸結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(2, null));
+        assertEquals("三聖獸結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(3, null));
+        assertEquals("四聖獸結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(4, null));
+        assertEquals("聖獸結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(5, null));
+        assertEquals("聖獸結界展開中", OfficePublicRoutes.OfficePublicPayload.secretaryStatusLabel(9, null));
+    }
+
+    @Test
+    public void tigerSingleChainRunShowsBeastBarrier() throws Exception {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 9474);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-9474");
+        run.put("chain", "青龍");
+        run.put("startedAt", 9_000_000L - 60_000L);
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("青龍結界展開中", tiger.get("status").getAsString());
+    }
+
+    @Test
+    public void tigerTripleRunShowsThreeBeastBarrier() throws Exception {
+        List<Map<String, Object>> runs = new ArrayList<>();
+        runs.add(runMap(701, "白虎"));
+        runs.add(runMap(702, "朱雀"));
+        runs.add(runMap(703, "玄武"));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", runs);
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("三聖獸結界展開中", tiger.get("status").getAsString());
+        assertEquals(3, tiger.getAsJsonArray("active").size());
+    }
+
+    @Test
+    public void tigerQuadRunShowsFourBeastBarrier() throws Exception {
+        List<Map<String, Object>> runs = new ArrayList<>();
+        runs.add(runMap(801, "青龍"));
+        runs.add(runMap(802, "白虎"));
+        runs.add(runMap(803, "朱雀"));
+        runs.add(runMap(804, "玄武"));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", true);
+        body.put("runs", runs);
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject tiger = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger");
+        assertEquals("四聖獸結界展開中", tiger.get("status").getAsString());
+    }
+
+    private static Map<String, Object> runMap(int issue, String chain) {
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", issue);
+        run.put("round", 1);
+        run.put("branch", "ai/issue-" + issue);
+        run.put("chain", chain);
+        run.put("startedAt", 9_000_000L - 60_000L);
+        return run;
     }
 
     @Test
