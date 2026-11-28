@@ -118,6 +118,7 @@ function createScenePlaceholder() {
     noteTigerStatus: noop,
     setSecretarySprite: noop,
     setSecretaryOutfit: noop,
+    setMonitorHud: noop,
     destroy: noop
   };
 }
