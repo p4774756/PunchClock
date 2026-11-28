@@ -72,7 +72,7 @@ test('場景在沙發姿勢依服裝套用相對偏移，且不寫死沙發錨�
   assert.match(src, /secretarySofaPlacementForOutfit\(secretaryOutfitId\)/);
   assert.match(src, /secretaryRoot\.scale\.set\(sc, sc, sc\)/);
   assert.match(src, /\[px, py, pz, scale\]\.every\(Number\.isFinite\)/);
-  assert.match(src, /secretaryRoot\.scale\.set\(1, 1, 1\)/);
+  assert.match(src, /secretaryRoot\.scale\.set\(SECRETARY_TUB_SCALE, SECRETARY_TUB_SCALE, SECRETARY_TUB_SCALE\)/);
   assert.doesNotMatch(src, /SECRETARY_STAGE_SOFA_POSITION/);
 });
 
@@ -187,3 +187,12 @@ test('舊配置（盆栽卡在浴缸與沙發之間）確實不合格，測試�
   assert.equal(L.rectGap(oldPlant, f.tub), 0, '舊盆栽位置與浴缸重疊');
 });
 
+
+test('泡澡與沙發上的秘書比例相近（差距不超過 25%）', async () => {
+  const lounge = await loadPublicModule('private-team-scene-lounge.js');
+  const r1 = lounge.SECRETARY_DEFAULT_SOFA_SCALE / lounge.SECRETARY_TUB_SCALE;
+  const r2 = lounge.SECRETARY_STAGE_SOFA_SCALE / lounge.SECRETARY_TUB_SCALE;
+  assert.ok(r1 > 0.75 && r1 < 1.25, 'default sofa/tub ratio ' + r1);
+  assert.ok(r2 > 0.75 && r2 < 1.25 + 0.0001 + 0.0, 'stage sofa/tub ratio ' + r2);
+  assert.ok(lounge.SECRETARY_TUB_ROOT_Y > lounge.SECRETARY_TUB_POSITION.y);
+});

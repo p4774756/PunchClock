@@ -53,6 +53,8 @@ function addRecessedDownlight(parent, x, y, z, name) {
   );
   housing.position.set(x, y, z);
   housing.name = name;
+  // 房間沒有天花板，嵌燈外殼在斜角／俯視會像漂浮的黑色圓盤：隱藏外觀，保留名稱與下方 SpotLight。
+  housing.visible = false;
   parent.add(housing);
   const trim = new THREE.Mesh(
     new THREE.TorusGeometry(0.058, 0.004, 8, 20),
@@ -61,6 +63,7 @@ function addRecessedDownlight(parent, x, y, z, name) {
   trim.rotation.x = Math.PI / 2;
   trim.position.set(x, y + 0.012, z);
   trim.name = name + 'Trim';
+  trim.visible = false;
   parent.add(trim);
   const emitter = new THREE.Mesh(
     new THREE.CircleGeometry(0.038, 14),
@@ -74,6 +77,7 @@ function addRecessedDownlight(parent, x, y, z, name) {
   emitter.rotation.x = -Math.PI / 2;
   emitter.position.set(x, y - 0.01, z);
   emitter.name = name + 'Emitter';
+  emitter.visible = false;
   parent.add(emitter);
 }
 
@@ -227,6 +231,8 @@ export function addPrivateTeamGalleryLighting(root, layout) {
   );
   sofaIndirect.position.set(sofaX + 0.08, 1.08, backZ + 0.42);
   sofaIndirect.name = 'sofaBackIndirectWash';
+  // 離後牆 0.4 的半空中平面，斜角會像右牆外的半透明色塊：隱藏。
+  sofaIndirect.visible = false;
   root.add(sofaIndirect);
 
   let sofaIndirectBase = sofaIndirect.material.opacity;

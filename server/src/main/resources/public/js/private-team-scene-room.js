@@ -156,7 +156,8 @@ export function extrudedRoundedPlateWithRectHole(
     holeHh,
     Math.max(0.02, radius * 0.5),
     holeCx,
-    holeCz
+    // ExtrudeGeometry 之後 rotateX(-π/2)，形狀 y 會變成世界 -z，所以洞心要取負號，否則洞會鏡像到窗前。
+    -holeCz
   );
   shape.holes.push(hole);
   const geo = new THREE.ExtrudeGeometry(shape, {
@@ -405,8 +406,8 @@ export function makeHologramPanelPainter() {
     const h = canvas.height;
     ctx.clearRect(0, 0, w, h);
     const bg = ctx.createLinearGradient(0, 0, 0, h);
-    bg.addColorStop(0, 'rgba(12, 32, 58, 0.42)');
-    bg.addColorStop(1, 'rgba(8, 22, 42, 0.18)');
+    bg.addColorStop(0, 'rgba(8, 24, 48, 0.82)');
+    bg.addColorStop(1, 'rgba(6, 18, 36, 0.66)');
     ctx.fillStyle = bg;
     ctx.fillRect(8, 8, w - 16, h - 16);
 
@@ -429,25 +430,25 @@ export function makeHologramPanelPainter() {
       }
     }
 
-    ctx.font = '600 15px sans-serif';
-    ctx.fillStyle = '#b8ecff';
+    ctx.font = '700 22px sans-serif';
+    ctx.fillStyle = '#d6f6ff';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'top';
-    ctx.fillText('CPU ' + formatHudPercent(hudData.cpuPercent), 22, 28);
-    ctx.fillText('RAM ' + formatHudPercent(hudData.ramPercent), 22, 58);
+    ctx.fillText('CPU ' + formatHudPercent(hudData.cpuPercent), 22, 22);
+    ctx.fillText('RAM ' + formatHudPercent(hudData.ramPercent), 22, 54);
 
-    ctx.font = '500 15px sans-serif';
-    ctx.fillStyle = '#e0f4ff';
+    ctx.font = '700 22px sans-serif';
+    ctx.fillStyle = '#ffffff';
     const work = hologramWorkStatusLabel(hudData.status);
-    ctx.fillText('狀態 ' + work, 22, 92);
+    ctx.fillText('狀態 ' + work, 22, 94);
 
     const issue =
       hudData.issueLine == null || String(hudData.issueLine).trim() === ''
         ? '—'
         : String(hudData.issueLine).trim();
-    ctx.font = '500 14px sans-serif';
-    ctx.fillStyle = '#8fd4ff';
-    ctx.fillText('目前 ' + issue, 22, 124);
+    ctx.font = '700 20px sans-serif';
+    ctx.fillStyle = '#9fe0ff';
+    ctx.fillText('目前 ' + issue, 22, 130, w - 44);
     tex.needsUpdate = true;
   }
 
@@ -569,6 +570,9 @@ export function spriteAspectFromTexture(tex) {
   return 526 / 768;
 }
 
+/** 全息面板放大倍率（預設視角下文字才讀得到）。 */
+const HOLO_PANEL_SCALE = 1.4;
+
 export function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
   const group = new THREE.Group();
   group.name = 'hologramMonitor';
@@ -587,7 +591,7 @@ export function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
     depthWrite: false,
     toneMapped: false
   });
-  const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.43), panelMat);
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(0.62 * HOLO_PANEL_SCALE, 0.43 * HOLO_PANEL_SCALE), panelMat);
   panel.name = 'hologramPanel';
   panel.renderOrder = 5;
 
@@ -599,7 +603,7 @@ export function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
     blending: THREE.AdditiveBlending,
     side: THREE.DoubleSide
   });
-  const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.66, 0.47), edgeMat);
+  const edge = new THREE.Mesh(new THREE.PlaneGeometry(0.66 * HOLO_PANEL_SCALE, 0.47 * HOLO_PANEL_SCALE), edgeMat);
   edge.name = 'hologramEdgeGlow';
   edge.position.z = -0.004;
   edge.renderOrder = 4;
@@ -635,7 +639,7 @@ export function addMonitor(root, lookTarget, x, z, scale, traySurfaceY) {
     opacity: 0,
     depthWrite: false
   });
-  const pick = new THREE.Mesh(new THREE.PlaneGeometry(0.68, 0.48), pickMat);
+  const pick = new THREE.Mesh(new THREE.PlaneGeometry(0.68 * HOLO_PANEL_SCALE, 0.48 * HOLO_PANEL_SCALE), pickMat);
   pick.position.z = 0.015;
   pick.renderOrder = 6;
   pick.userData.pickRole = 'monitor';

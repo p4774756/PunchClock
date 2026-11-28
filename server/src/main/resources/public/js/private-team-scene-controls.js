@@ -4,10 +4,12 @@ export const PRIVATE_TEAM_ZOOM_MIN = 0.72;
 export const PRIVATE_TEAM_ZOOM_MAX = 2.05;
 
 /** 鍵盤托盤上緣（與原桌面高度相近） */
-export const PRIVATE_TEAM_TRAY_SURFACE_Y = 0.498;
+export const PRIVATE_TEAM_TRAY_SURFACE_Y = 0.058;
 
-/** 浴缸水面高度（約齊腰，略高於托盤，鍵盤仍露出） */
-export const PRIVATE_TEAM_WATER_Y = 0.468;
+/** 浴缸水面高度：略低於地板面（地板頂約 0.047），浴缸與地板齊平不突出。 */
+export const PRIVATE_TEAM_WATER_Y = 0.028;
+/** 浴缸整體相對舊版（水面 0.468）下沉的高度，秘書／靠枕／對話泡泡一起下移。 */
+export const PRIVATE_TEAM_TUB_SINK = 0.44;
 
 export function clampPrivateTeamZoom(z) {
   const n = Number(z);

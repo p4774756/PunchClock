@@ -10,7 +10,10 @@ import {
 import { privateTeamSeededRand } from './private-team-scene-window.js';
 import { isLoungeTigerStatus, isWorkingTigerStatus, parseSecretaryOutfitId } from './private-team-scene-secretary.js';
 
-export const SECRETARY_TUB_POSITION = { x: 0.02, y: 0, z: 0.56 };
+export const SECRETARY_TUB_POSITION = { x: 0.02, y: -0.44, z: 0.56 };
+/** 泡澡時秘書比例（原 1.0 比沙發上的她大一圈）；縮小後鍵盤／水面對齊點不變，所以根節點 y 要補償。 */
+export const SECRETARY_TUB_SCALE = 0.84;
+export const SECRETARY_TUB_ROOT_Y = SECRETARY_TUB_POSITION.y + 0.5 * (1 - SECRETARY_TUB_SCALE);
 export const SECRETARY_SOFA_POSITION = { x: 1.38, y: 0, z: -0.3 };
 export const SECRETARY_SHADOW_TUB = { x: 0.06, y: 0.072, z: -0.42 };
 /** 沙發姿勢的腳下陰影：相對沙發錨點的「世界」偏移（不隨立繪縮放／偏移移動）。 */
@@ -41,7 +44,7 @@ export const LOUNGE_FLOOR_HALF = 1.8;
 /** 地毯：比沙發略大，且左緣要留在浴缸右緣外面。 */
 export const LOUNGE_RUG = { cx: 1.38, cz: -0.2, w: 0.84, d: 0.9 };
 /** 沙發旁落地燈，相對沙發錨點。 */
-export const LOUNGE_FLOOR_LAMP_OFFSET = { x: -0.52, z: -0.52 };
+export const LOUNGE_FLOOR_LAMP_OFFSET = { x: -0.60, z: -0.2 };
 export const LOUNGE_FLOOR_LAMP_RADIUS = 0.17;
 /** 龜背芋盆栽放在右後角（原本卡在浴缸與沙發之間的窄縫）。 */
 export const LOUNGE_MONSTERA_POSITION = { x: 1.62, z: -1.38 };
@@ -115,8 +118,8 @@ export function loungeObstacleFootprints() {
  * SECRETARY_SOFA_POSITION（與 3D 皮沙發同一錨點）偏移，讓坐線對上座墊。
  * 只用相對偏移，之後沙發錨點若移動，舞台服會跟著走。
  */
-export const SECRETARY_STAGE_SOFA_SCALE = 0.82;
-export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0.02, y: -0.16, z: 0.22 };
+export const SECRETARY_STAGE_SOFA_SCALE = 0.96;
+export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0.02, y: -0.25, z: 0.22 };
 export const SECRETARY_STAGE_SOFA_BUBBLE_OFFSET = { x: 0.12, z: 0.22 };
 export const SECRETARY_STAGE_SOFA_BUBBLE_Y = 1.16;
 
@@ -124,8 +127,8 @@ export const SECRETARY_STAGE_SOFA_BUBBLE_Y = 1.16;
  * 預設服沙發立繪也已去背（只留人物、不含畫上去的沙發），與舞台服一樣縮小後
  * 相對沙發錨點偏移，讓臀部坐在 3D 座墊上。
  */
-export const SECRETARY_DEFAULT_SOFA_SCALE = 0.68;
-export const SECRETARY_DEFAULT_SOFA_OFFSET = { x: 0.05, y: -0.1, z: 0.18 };
+export const SECRETARY_DEFAULT_SOFA_SCALE = 0.8;
+export const SECRETARY_DEFAULT_SOFA_OFFSET = { x: 0.05, y: -0.18, z: 0.18 };
 
 function finiteNumber(value, fallback) {
   const n = Number(value);
@@ -568,14 +571,20 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   const sfBase = cyl(0.055, 0.062, 0.025, 10, COL.lampBase);
   sfBase.position.set(0, 0.012, 0);
   sofaLamp.add(sfBase);
-  const sfPole = cyl(0.014, 0.014, 0.62, 8, COL.lampMetal);
-  sfPole.position.set(0, 0.34, 0);
+  // 落地燈：細長燈桿＋上窄下寬的錐形燈罩，站在沙發旁，不再像「穿了根棍子的白碗」疊在側櫃前。
+  const sfPole = cyl(0.014, 0.014, 0.9, 8, COL.lampMetal);
+  sfPole.position.set(0, 0.46, 0);
   sofaLamp.add(sfPole);
-  const sfShade = cyl(0.14, 0.17, 0.11, 14, COL.lampShade);
-  sfShade.position.set(0, 0.66, 0);
+  const sfShade = cyl(0.1, 0.18, 0.22, 16, COL.lampShade);
+  sfShade.material.emissive = new THREE.Color(0x7a5424);
+  sfShade.material.emissiveIntensity = 0.55;
+  sfShade.position.set(0, 0.96, 0);
   sofaLamp.add(sfShade);
+  const sfCap = cyl(0.03, 0.03, 0.03, 8, COL.lampMetal);
+  sfCap.position.set(0, 1.09, 0);
+  sofaLamp.add(sfCap);
   const sfBulb = new THREE.PointLight(0xffc888, 0.62, 2.4, 2);
-  sfBulb.position.set(0, 0.58, 0);
+  sfBulb.position.set(0, 0.88, 0);
   sfBulb.name = 'sofaFloorLampBulb';
   sofaLamp.add(sfBulb);
   root.add(sofaLamp);
