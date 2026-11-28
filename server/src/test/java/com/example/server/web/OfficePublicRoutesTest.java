@@ -743,6 +743,31 @@ public class OfficePublicRoutesTest {
     }
 
     @Test
+    public void conflictingPrShowsConflictStageWithoutMinutes() throws Exception {
+        status = new DevStatusService(repo -> githubWithIssue(822, null,
+                new DevStatusModels.PullRow(832, "pr", true, false, false, 0, 0, null, null,
+                        new HashSet<>(Collections.singletonList(822)), true)));
+        startApp();
+
+        Map<String, Object> run = new HashMap<>();
+        run.put("issue", 822);
+        run.put("round", 0);
+        run.put("branch", "ai/issue-822");
+        run.put("startedAt", 9_000_000L - 300_000L);
+        run.put("role", "dev");
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("machine", "tiger");
+        body.put("agentRunning", false);
+        body.put("runs", Collections.singletonList(run));
+        store.applyHeartbeat("tiger", body);
+
+        JsonObject active = fetchPublic().getAsJsonObject("characters").getAsJsonObject("tiger")
+                .getAsJsonArray("active").get(0).getAsJsonObject();
+        assertEquals("有衝突", active.get("stage").getAsString());
+        assertFalse(active.has("minutes"));
+    }
+
+    @Test
     public void fixingStageAfterReviewFail() throws Exception {
         Map<String, Object> run = new HashMap<>();
         run.put("issue", 501);

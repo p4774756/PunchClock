@@ -32,7 +32,7 @@ public final class DevMachineStore {
     private static final Pattern ROLE_PATTERN = Pattern.compile("^(dev|review)$");
     private static final Pattern VERDICT_PATTERN = Pattern.compile("^(PASS|FAIL|UNKNOWN)$");
     private static final Pattern STAGE_PATTERN = Pattern.compile(
-            "^(開發中|等 CI|審查中|修正中|合併中)$");
+            "^(開發中|等 CI|審查中|修正中|合併中|有衝突)$");
     private static final Pattern CHAIN_PATTERN = Pattern.compile("^(青龍|白虎|朱雀|玄武)$");
     private static final Pattern MODEL_PATTERN = Pattern.compile("^[A-Za-z0-9._+-]{1,64}$");
 
