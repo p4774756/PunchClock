@@ -126,6 +126,11 @@ public class ConfigPersistenceService {
 
         /** 外觀：Dock／工作列圖示改用泳裝角色（B 款）；預設關閉。 */
         public boolean dockIconSwimsuit = false;
+
+        /** 是否顯示私房相簿分頁；預設關閉。 */
+        public boolean privateAlbumVisible = false;
+        /** 私房相簿圖片資料夾；空白表示 {@code ~/.sklbaby/album/}。 */
+        public String privateAlbumDirectory = "";
     }
 
     private static SlotSettings defaultWorkIn() {
@@ -279,6 +284,11 @@ public class ConfigPersistenceService {
         config.homeIllustration = HomeIllustration.fromId(config.homeIllustration).id();
         config.lastUpdateCheckAt = normalizeUpdateCheckAt(config.lastUpdateCheckAt);
         config.statusText = PeerFileRules.sanitizeStatusText(config.statusText);
+        if (config.privateAlbumDirectory == null) {
+            config.privateAlbumDirectory = "";
+        } else {
+            config.privateAlbumDirectory = config.privateAlbumDirectory.trim();
+        }
     }
 
     /** 讀不回來的時間清成空字串，避免畫面顯示壞掉的紀錄。 */
