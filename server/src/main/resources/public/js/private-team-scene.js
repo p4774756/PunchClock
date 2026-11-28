@@ -157,7 +157,8 @@ import {
   SECRETARY_SHADOW_SOFA,
   SECRETARY_BUBBLE_TUB,
   SECRETARY_BUBBLE_SOFA,
-  secretaryAtLoungePose
+  secretaryAtLoungePose,
+  secretarySofaPlacementForOutfit
 } from './private-team-scene-lounge.js';
 
 export {
@@ -1274,6 +1275,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
 
+  let secretaryOutfitId = 'default';
   let secretaryPack = secretarySpritePackForOutfit('default');
   let secretaryCelebrateSteps = secretaryCelebrateStepsForOutfit('default');
   let secretaryStandbyIdleUrls = secretaryStandbyIdleUrlsForOutfit('default');
@@ -1527,6 +1529,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     const nextId = parseSecretaryOutfitId(outfitId);
     const nextPack = secretarySpritePackForOutfit(nextId);
     if (nextPack.typing === secretaryPack.typing && nextPack.sofa === secretaryPack.sofa) return;
+    secretaryOutfitId = nextId;
     secretaryPack = nextPack;
     secretaryCelebrateSteps = secretaryCelebrateStepsForOutfit(nextId);
     secretaryStandbyIdleUrls = secretaryStandbyIdleUrlsForOutfit(nextId);
@@ -1583,18 +1586,21 @@ export function mountPrivateTeamScene(canvas, opts) {
     const poseChanged = secretaryInLoungePose !== wantLounge;
     secretaryInLoungePose = wantLounge;
     if (wantLounge) {
+      const sofaPlace = secretarySofaPlacementForOutfit(secretaryOutfitId);
       secretaryRoot.position.set(
-        SECRETARY_SOFA_POSITION.x,
-        SECRETARY_SOFA_POSITION.y,
-        SECRETARY_SOFA_POSITION.z
+        sofaPlace.position.x,
+        sofaPlace.position.y,
+        sofaPlace.position.z
       );
+      secretaryRoot.scale.set(sofaPlace.scale, sofaPlace.scale, sofaPlace.scale);
       secretaryRoot.rotation.y = -0.42;
       shadow.position.set(
         SECRETARY_SHADOW_SOFA.x,
         SECRETARY_SHADOW_SOFA.y,
         SECRETARY_SHADOW_SOFA.z
       );
-      bubble.position.set(SECRETARY_BUBBLE_SOFA.x, bubble.position.y, SECRETARY_BUBBLE_SOFA.z);
+      const bubbleY = sofaPlace.bubble.y == null ? bubble.position.y : sofaPlace.bubble.y;
+      bubble.position.set(sofaPlace.bubble.x, bubbleY, sofaPlace.bubble.z);
       if (poseChanged && secretarySprite && secretarySprite.material) {
         stripUnderwaterTint(secretarySprite.material);
       }
@@ -1604,6 +1610,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         SECRETARY_TUB_POSITION.y,
         SECRETARY_TUB_POSITION.z
       );
+      secretaryRoot.scale.set(1, 1, 1);
       secretaryRoot.rotation.y = 0;
       shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
       bubble.position.set(secretaryBubbleX, bubble.position.y, SECRETARY_BUBBLE_TUB.z);
@@ -2125,12 +2132,17 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretarySprite.lookAt(camera.position);
     }
 
+    const bubbleFloatBase = (() => {
+      if (!secretaryInLoungePose) return bubbleFloatMin;
+      const y = secretarySofaPlacementForOutfit(secretaryOutfitId).bubble.y;
+      return y == null ? bubbleFloatMin : y;
+    })();
     if (reducedMotion) {
-      bubble.position.y = bubbleRestY;
+      bubble.position.y = bubbleFloatBase + bubbleFloatSpan / 2;
       bubbleMat.opacity = 0.92;
     } else {
       const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
-      bubble.position.y = bubbleFloatMin + bubblePhase * bubbleFloatSpan;
+      bubble.position.y = bubbleFloatBase + bubblePhase * bubbleFloatSpan;
       bubbleMat.opacity = 0.82 + bubblePhase * 0.18;
     }
 
