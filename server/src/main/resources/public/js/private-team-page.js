@@ -243,7 +243,14 @@ function mountDeployVersion(hud, win, doc) {
 }
 
 const DL_SVG =
-  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M8 12l4 4 4-4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="18" width="14" height="2" fill="#fff"/></svg>';
+  '<svg class="pt-hud-sq-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M8 12l4 4 4-4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="18" width="14" height="2" fill="#fff"/></svg>';
+
+const JOURNAL_SVG =
+  '<svg class="pt-hud-sq-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-5 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M7.5 9h9M7.5 12.5h5.5" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>';
+const OUTFIT_SVG =
+  '<svg class="pt-hud-sq-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3L3 6.5l2 4 2.5-1V21h9V9.5l2.5 1 2-4L15 3c-.6 1.6-1.7 2.4-3 2.4S9.6 4.6 9 3z" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>';
+const DIVE_SVG =
+  '<svg class="pt-hud-sq-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v9" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/><path d="M8.5 9l3.5 4 3.5-4" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 16c2 0 2-1.6 4.5-1.6S9.5 16 12 16s2-1.6 4.5-1.6S19 16 21 16M3 20c2 0 2-1.6 4.5-1.6S9.5 20 12 20s2-1.6 4.5-1.6S19 20 21 20" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>';
 
 const FRAME_CORNER_SVG =
   '<svg viewBox="0 0 22 22" fill="none" aria-hidden="true">' +
@@ -331,16 +338,21 @@ export function mountPrivateTeamPage(opts) {
       '<div class="pt-hud-tl">' +
       taskHudMarkup() +
       '</div>' +
-      '<div class="pt-hud-br">' +
-      '<a href="/?open=journal" class="pt-hud-journal" data-pt-open-journal>留言板</a>' +
-      '<button type="button" class="pt-hud-dive" data-pt-dive-btn aria-label="秘書跳水，跳進下方水缸" title="跳水">跳水</button>' +
-      '<button type="button" class="pt-hud-outfit" data-pt-secretary-outfit-btn aria-label="秘書服裝：預設，點一下換成舞台服" title="換服裝">' +
-      '<span class="pt-hud-outfit-cap" aria-hidden="true">服裝</span>' +
-      '<span class="pt-hud-outfit-name" aria-hidden="true" data-pt-secretary-outfit-name>預設</span>' +
+      '<div class="pt-hud-actions" aria-label="功能按鈕">' +
+      '<a href="/?open=journal" class="pt-hud-journal pt-hud-sq" data-pt-open-journal aria-label="留言板" title="留言板">' +
+      JOURNAL_SVG +
+      '<span class="pt-hud-sq-label">留言板</span></a>' +
+      '<button type="button" class="pt-hud-dive pt-hud-sq" data-pt-dive-btn aria-label="秘書跳水，跳進下方水缸" title="跳水">' +
+      DIVE_SVG +
+      '<span class="pt-hud-sq-label" data-pt-dive-label>跳水</span></button>' +
+      '<button type="button" class="pt-hud-outfit pt-hud-sq" data-pt-secretary-outfit-btn aria-label="秘書服裝：預設，點一下換成舞台服" title="換服裝">' +
+      OUTFIT_SVG +
+      '<span class="pt-hud-sq-label" aria-hidden="true">服裝</span>' +
+      '<span class="pt-hud-sr-only" aria-hidden="true" data-pt-secretary-outfit-name>預設</span>' +
       '</button>' +
       '<span class="pt-hud-sr-only" role="status" aria-live="polite" data-pt-secretary-outfit-status></span>' +
-      '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App" title="下載 App">' + DL_SVG +
-      '</button></div>' +
+      '<button type="button" class="pt-hud-download pt-hud-sq" data-pt-open-download aria-label="下載 App" title="下載 App">' + DL_SVG +
+      '<span class="pt-hud-sq-label">下載</span></button></div>' +
       '<p class="pt-hud-deploy-ver" data-pt-deploy-ver hidden aria-hidden="true"></p>';
     stage.appendChild(hud);
   }
@@ -785,7 +797,8 @@ export function mountPrivateTeamPage(opts) {
   const diveBtn = hud.querySelector('[data-pt-dive-btn]');
   function paintDiveBtn(active) {
     if (!diveBtn) return;
-    diveBtn.textContent = active ? '上岸' : '跳水';
+    const diveLabel = diveBtn.querySelector('[data-pt-dive-label]');
+    if (diveLabel) diveLabel.textContent = active ? '上岸' : '跳水';
     diveBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
     diveBtn.setAttribute('aria-label', active ? '秘書上岸，回到沙發' : '秘書跳水，跳進下方水缸');
     diveBtn.title = active ? '上岸' : '跳水';

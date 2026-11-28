@@ -48,7 +48,7 @@ test('可見文案為留言板且短文上限 280', () => {
   assert.match(html, /placeholder="寫點什麼…"/);
   assert.match(html, /maxlength="280"/);
   assert.doesNotMatch(html, /心得動態牆|心得牆|<h2>心得<\/h2>|寫下心得/);
-  assert.match(page, />留言板<\/a>/);
+  assert.match(page, /pt-hud-sq-label">留言板<\/span><\/a>/);
   assert.doesNotMatch(page, /心得牆/);
   assert.match(room, /fillText\('留言板'/);
   assert.doesNotMatch(room, /fillText\('心得'|fillText\('動態牆'/);
