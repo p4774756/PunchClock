@@ -42,8 +42,7 @@ public class HomeBubbleAnchorTest {
     @Test
     public void mouthNormMapsInsideDrawRect() {
         Rectangle stage = new Rectangle(0, 0, 380, 460);
-        Rectangle draw = HomeBubbleAnchor.imageDrawRect(
-                stage.width, stage.height, IMG_W, IMG_H, true);
+        Rectangle draw = HomeBubbleAnchor.imageDrawRect(stage.width, stage.height, IMG_W, IMG_H);
         HomeBubbleAnchor.Spec spec = HomeBubbleAnchor.specFor(HomeIllustration.CHERRY_PARK_D);
         var mouth = HomeBubbleAnchor.imageNormToPanel(
                 spec.mouthX, spec.mouthY, draw, IMG_W, IMG_H);

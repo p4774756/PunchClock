@@ -53,12 +53,44 @@ public class HomeIllustrationTest {
     }
 
     @Test
-    public void preferTopWhenVerticalCrop_roomBOnlyFalse() {
-        assertFalse(HomeIllustration.ROOM_B.preferTopWhenVerticalCrop());
-        assertTrue(HomeIllustration.POOL_C.preferTopWhenVerticalCrop());
-        assertTrue(HomeIllustration.CHERRY_PARK_D.preferTopWhenVerticalCrop());
-        assertTrue(HomeIllustration.NIGHT_MARKET_E.preferTopWhenVerticalCrop());
-        assertTrue(HomeIllustration.OVERTIME_F.preferTopWhenVerticalCrop());
+    public void coverFillsIllustrationPanelWithoutTopGaps() throws Exception {
+        int[][] shells = {
+                {ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT},
+                {417, 644},
+        };
+        for (HomeIllustration illustration : HomeIllustration.values()) {
+            try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(illustration.resourcePath())) {
+                assertNotNull(in);
+                var img = ImageIO.read(in);
+                int imgW = img.getWidth();
+                int imgH = img.getHeight();
+                for (int[] shell : shells) {
+                    int panelH = shell[1] - ShellDimensions.TAB_BAR_HEIGHT;
+                    int panelW = shell[0];
+                    java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(panelW, panelH, imgW, imgH);
+                    assertTrue(draw.width >= panelW);
+                    assertTrue(draw.height >= panelH);
+                    assertTrue("top gap", draw.y <= 0);
+                    assertTrue("bottom gap", draw.y + draw.height >= panelH);
+                    assertTrue("left gap", draw.x <= 0);
+                    assertTrue("right gap", draw.x + draw.width >= panelW);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void verticalCropUsesUpperThirdAnchorNotTopAlign() throws Exception {
+        int panelW = ShellDimensions.DEFAULT_WIDTH;
+        int panelH = ShellDimensions.DEFAULT_HEIGHT - ShellDimensions.TAB_BAR_HEIGHT;
+        try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(
+                HomeIllustration.CHERRY_PARK_D.resourcePath())) {
+            var img = ImageIO.read(in);
+            java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
+                    panelW, panelH, img.getWidth(), img.getHeight());
+            assertTrue(draw.height > panelH);
+            assertTrue("should crop top, not pin y=0", draw.y < 0);
+        }
     }
 
     @Test

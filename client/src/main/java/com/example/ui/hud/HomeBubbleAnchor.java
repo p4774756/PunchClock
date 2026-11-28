@@ -59,8 +59,7 @@ public final class HomeBubbleAnchor {
         return id != null && BY_ID.containsKey(id.trim().toLowerCase());
     }
 
-    public static Rectangle imageDrawRect(
-            int panelW, int panelH, int imgW, int imgH, boolean preferTopWhenVerticalCrop) {
+    public static Rectangle imageDrawRect(int panelW, int panelH, int imgW, int imgH) {
         if (panelW < 1 || panelH < 1 || imgW < 1 || imgH < 1) {
             return new Rectangle(0, 0, panelW, panelH);
         }
@@ -68,8 +67,18 @@ public final class HomeBubbleAnchor {
         int dw = (int) Math.ceil(imgW * scale);
         int dh = (int) Math.ceil(imgH * scale);
         int x = (panelW - dw) / 2;
-        int y = preferTopWhenVerticalCrop && dh > panelH ? 0 : (panelH - dh) / 2;
+        int y = coverOffsetY(panelH, dh, imgH, scale);
         return new Rectangle(x, y, dw, dh);
+    }
+
+    /** cover 縮放後上下裁切：裁切時以原圖與面板各約上 1/3 對齊，略過圖檔頂端填補帶。 */
+    static int coverOffsetY(int panelH, int dh, int imgH, double scale) {
+        if (dh <= panelH) {
+            return (panelH - dh) / 2;
+        }
+        int y = panelH / 3 - (int) Math.round(imgH / 3.0 * scale);
+        int minY = panelH - dh;
+        return Math.max(minY, Math.min(0, y));
     }
 
     public static Point imageNormToPanel(
@@ -91,8 +100,7 @@ public final class HomeBubbleAnchor {
             int boxH,
             Rectangle topRightAvoid) {
         Spec spec = specFor(illustration);
-        boolean preferTop = illustration != null && illustration.preferTopWhenVerticalCrop();
-        Rectangle draw = imageDrawRect(stage.width, stage.height, imgW, imgH, preferTop);
+        Rectangle draw = imageDrawRect(stage.width, stage.height, imgW, imgH);
         Point mouth = imageNormToPanel(spec.mouthX, spec.mouthY, draw, imgW, imgH);
         Point anchor = imageNormToPanel(spec.bubbleX, spec.bubbleY, draw, imgW, imgH);
         int x = anchor.x - boxW / 2;

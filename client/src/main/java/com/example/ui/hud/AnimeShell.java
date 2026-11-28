@@ -938,17 +938,15 @@ public final class AnimeShell extends JPanel {
             g.fillRect(0, 0, getWidth(), getHeight());
             return;
         }
-        double scale = Math.max(
-                getWidth() / (double) background.getWidth(),
-                getHeight() / (double) background.getHeight());
-        int dw = (int) Math.ceil(background.getWidth() * scale);
-        int dh = (int) Math.ceil(background.getHeight() * scale);
-        int x = (getWidth() - dw) / 2;
-        int y = homeIllustration.preferTopWhenVerticalCrop() && dh > getHeight()
-                ? 0
-                : (getHeight() - dh) / 2;
+        java.awt.Rectangle content = contentBounds();
+        int imgW = background.getWidth();
+        int imgH = background.getHeight();
+        java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
+                content.width, content.height, imgW, imgH);
+        int x = content.x + draw.x;
+        int y = content.y + draw.y;
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g.drawImage(background, x, y, dw, dh, null);
+        g.drawImage(background, x, y, draw.width, draw.height, null);
         g.setColor(new Color(16, 10, 32, 48));
         g.fillRect(0, 0, getWidth(), getHeight());
     }
