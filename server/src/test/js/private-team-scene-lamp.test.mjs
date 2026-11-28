@@ -85,3 +85,14 @@ test('下沉浴缸、托盤與單螢幕支架', () => {
   assert.doesNotMatch(src, /remove_secretary_chair_for_bathtub/);
   assert.match(src, /tubSteam/);
 });
+
+test('軌道燈頭透鏡跟著杯體傾斜，夜晚看得到發光與光錐，且不投影', () => {
+  const src = readPrivateTeamSceneBundle();
+  assert.match(src, /name \+ 'Group'/);
+  assert.match(src, /name \+ 'Lens'/);
+  assert.match(src, /name \+ 'Beam'/);
+  assert.match(src, /emissive: new THREE\.Color\(0xffc070\)/);
+  assert.match(src, /h\.cupMat\.emissiveIntensity = h\.emissiveBase \* mul/);
+  assert.match(src, /h\.coneMat\.opacity = h\.coneBase \* mul/);
+  assert.doesNotMatch(src, /galleryTrackHead[\s\S]{0,1200}castShadow\s*=\s*true/);
+});

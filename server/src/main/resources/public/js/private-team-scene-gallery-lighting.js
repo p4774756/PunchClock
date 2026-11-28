@@ -82,6 +82,7 @@ function addRecessedDownlight(parent, x, y, z, name) {
 }
 
 function addTrackHead(parent, x, y, z, name, tiltX) {
+  const tilt = tiltX != null ? tiltX : 0.72;
   const arm = new THREE.Mesh(
     new THREE.BoxGeometry(0.038, 0.022, 0.034),
     new THREE.MeshStandardMaterial({ color: TRACK_COLOR, metalness: 0.45, roughness: 0.42 })
@@ -89,27 +90,63 @@ function addTrackHead(parent, x, y, z, name, tiltX) {
   arm.position.set(x, y - 0.02, z);
   arm.name = name + 'Arm';
   parent.add(arm);
-  const cup = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.034, 0.048, 0.062, 14),
-    new THREE.MeshStandardMaterial({ color: TRACK_CUP, metalness: 0.48, roughness: 0.4 })
-  );
-  cup.position.set(x, y - 0.068, z);
-  cup.rotation.x = tiltX != null ? tiltX : 0.72;
+
+  // 燈頭整組跟著杯體傾斜，透鏡貼在開口上，斜角才看得到發光面（舊版透鏡不跟著轉，看起來像關著的黑杯子）。
+  const group = new THREE.Group();
+  group.position.set(x, y - 0.028, z);
+  group.rotation.x = tilt;
+  group.name = name + 'Group';
+  parent.add(group);
+
+  const cupMat = new THREE.MeshStandardMaterial({
+    color: TRACK_CUP,
+    metalness: 0.42,
+    roughness: 0.38,
+    emissive: new THREE.Color(0xffc070),
+    emissiveIntensity: 0.55
+  });
+  const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.05, 0.064, 14), cupMat);
+  cup.position.set(0, -0.048, 0);
   cup.name = name;
-  parent.add(cup);
-  const lens = new THREE.Mesh(
-    new THREE.CircleGeometry(0.03, 12),
-    new THREE.MeshBasicMaterial({
-      color: 0xffe8c8,
-      transparent: true,
-      opacity: 0.78,
-      depthWrite: false
-    })
-  );
+  group.add(cup);
+
+  const lensMat = new THREE.MeshBasicMaterial({
+    color: 0xfff3d8,
+    transparent: true,
+    opacity: 0.96,
+    depthWrite: false
+  });
+  const lens = new THREE.Mesh(new THREE.CircleGeometry(0.032, 14), lensMat);
   lens.rotation.x = Math.PI / 2;
-  lens.position.set(x, y - 0.095, z);
+  lens.position.set(0, -0.082, 0);
   lens.name = name + 'Lens';
-  parent.add(lens);
+  lens.renderOrder = 3;
+  group.add(lens);
+
+  const bulb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.012, 8, 8),
+    new THREE.MeshBasicMaterial({ color: 0xfff6e4, transparent: true, opacity: 0.92, depthWrite: false })
+  );
+  bulb.position.set(0, -0.074, 0);
+  bulb.name = name + 'Bulb';
+  group.add(bulb);
+
+  const coneMat = new THREE.MeshBasicMaterial({
+    map: lampGlowTexture(),
+    color: 0xffd4a0,
+    transparent: true,
+    opacity: 0.2,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    side: THREE.DoubleSide
+  });
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.34, 16, 1, true), coneMat);
+  cone.position.set(0, -0.25, 0);
+  cone.name = name + 'Beam';
+  cone.renderOrder = 2;
+  group.add(cone);
+
+  return { cupMat, lensMat, coneMat, emissiveBase: 0.55, lensBase: 0.96, coneBase: 0.2 };
 }
 
 /**
@@ -144,8 +181,9 @@ export function addPrivateTeamGalleryLighting(root, layout) {
     { x: 1.14, name: 'galleryTrackHeadSofa' },
     { x: 1.46, name: 'galleryTrackHeadVinyl' }
   ];
+  const heads = [];
   for (let i = 0; i < trackHeadDefs.length; i++) {
-    addTrackHead(fixtureRoot, trackHeadDefs[i].x, ceilingY, -0.38, trackHeadDefs[i].name);
+    heads.push(addTrackHead(fixtureRoot, trackHeadDefs[i].x, ceilingY, -0.38, trackHeadDefs[i].name));
   }
 
   addRecessedDownlight(fixtureRoot, -0.28, ceilingY, 0.08, 'galleryRecessedTub');
@@ -247,6 +285,12 @@ export function addPrivateTeamGalleryLighting(root, layout) {
       if (s.poolMat) {
         s.poolMat.opacity = s.basePoolOpacity * poolMul;
       }
+    }
+    for (let i = 0; i < heads.length; i++) {
+      const h = heads[i];
+      h.cupMat.emissiveIntensity = h.emissiveBase * mul;
+      h.lensMat.opacity = h.lensBase * (0.28 + 0.72 * mul);
+      h.coneMat.opacity = h.coneBase * mul;
     }
     sofaIndirect.material.opacity = sofaIndirectBase * indirectMul;
   }
