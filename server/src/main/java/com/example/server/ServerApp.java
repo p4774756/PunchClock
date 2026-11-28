@@ -539,7 +539,36 @@ public final class ServerApp {
     private static String applyServerBuildTokens(String html) {
         return html
                 .replace("{{SERVER_VERSION}}", SERVER_VERSION)
-                .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel());
+                .replace("{{SERVER_BUILD_TIME}}", serverBuildLabel())
+                .replace("{{SERVER_ASSET_QUERY}}", serverAssetQuery());
+    }
+
+    /**
+     * 靜態 JS/CSS 的快取破壞參數。版本號在多次部署之間可能不變，
+     * 必須再串上建置時間，否則手機仍會用 max-age=86400 的舊檔
+     * （例如 #819 把 login.css 移出 index 後，舊 JS 不會去載 CSS）。
+     */
+    static String serverAssetQuery() {
+        String ver = SERVER_VERSION == null ? "" : SERVER_VERSION.trim();
+        String built = compactAssetBuildStamp(serverBuildLabel());
+        if (built.isEmpty()) {
+            return ver;
+        }
+        if (ver.isEmpty()) {
+            return built;
+        }
+        return ver + "." + built;
+    }
+
+    static String compactAssetBuildStamp(String label) {
+        if (label == null) {
+            return "";
+        }
+        String trimmed = label.trim();
+        if (trimmed.isEmpty() || trimmed.contains("開發")) {
+            return "";
+        }
+        return trimmed.replaceAll("[^0-9A-Za-z]+", "");
     }
 
     private static String applyAuthPageTokens(String html, boolean authenticated) {

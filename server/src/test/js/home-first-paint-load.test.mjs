@@ -54,6 +54,7 @@ test('彈窗 CSS 改由 home-panel-css-loader 延後載入', () => {
   assert.match(loader, /ensureHomeRoadmapCss/);
   assert.match(loader, /ensureHomeLoginCss/);
   assert.match(loader, /ensureHomeDownloadCss/);
+  assert.match(loader, /PUNCHCLOCK_SERVER_BUILD_TIME/);
   assert.match(readFileSync(join(publicRoot, 'js/home-login-modal.js'), 'utf8'), /ensureHomeLoginCss/);
   assert.match(readFileSync(join(publicRoot, 'js/home-download-panel.js'), 'utf8'), /ensureHomeDownloadCss/);
   assert.match(readFileSync(join(publicRoot, 'js/home-tasks-panel.js'), 'utf8'), /ensureHomeRoadmapCss/);

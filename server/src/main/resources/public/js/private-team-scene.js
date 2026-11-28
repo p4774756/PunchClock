@@ -882,18 +882,6 @@ export function mountPrivateTeamScene(canvas, opts) {
   windowMoonlightWallLeftFlank.position.set(-flankXOff, flankY, flankZ);
   windowMoonlightWallLeftFlank.name = 'windowMoonlightWallLeftFlank';
   root.add(windowMoonlightWallLeftFlank);
-  const leftWallMat = moonWallMat.clone();
-  leftWallMat.opacity = 0.34;
-  const windowMoonlightLeftWall = new THREE.Mesh(
-    new THREE.PlaneGeometry(FLOOR_SIZE - 0.14, 1.68),
-    leftWallMat
-  );
-  windowMoonlightLeftWall.rotation.y = Math.PI / 2;
-  windowMoonlightLeftWall.position.set(leftX + WALL_THICK + 0.006, 1.02, 0);
-  windowMoonlightLeftWall.renderOrder = 1;
-  windowMoonlightLeftWall.name = 'windowMoonlightLeftWall';
-  root.add(windowMoonlightLeftWall);
-
   const LEFT_POSTER_MARGIN = 0.07;
   let LEFT_POSTER_W = FLOOR_SIZE * (1 - 2 * LEFT_POSTER_MARGIN);
   let LEFT_POSTER_H = (LEFT_POSTER_W * 9) / 16;
@@ -902,6 +890,35 @@ export function mountPrivateTeamScene(canvas, opts) {
     LEFT_POSTER_H = leftPosterWallMaxH;
     LEFT_POSTER_W = (LEFT_POSTER_H * 16) / 9;
   }
+
+  /* 左牆月光洗牆不要蓋住壁畫：半透明加法材質若與畫布重疊，透明排序一翻
+     整幅畫就會整片亮暗閃。畫比洗牆還高時改成兩側窄條，中間完全讓給壁畫。 */
+  const leftWallMat = moonWallMat.clone();
+  leftWallMat.opacity = 0.34;
+  const LEFT_MOON_WASH_W = FLOOR_SIZE - 0.14;
+  const LEFT_MOON_WASH_H = 1.68;
+  const LEFT_MOON_WASH_Y = 1.02;
+  const LEFT_MOON_WASH_GAP = LEFT_POSTER_W + 0.04;
+  const leftMoonWashSideW = Math.max(0, (LEFT_MOON_WASH_W - LEFT_MOON_WASH_GAP) / 2);
+  if (leftMoonWashSideW > 0.01) {
+    const leftMoonWashX = leftX + WALL_THICK + 0.006;
+    const sideOff = (LEFT_MOON_WASH_GAP + leftMoonWashSideW) / 2;
+    function addLeftMoonWashSide(name, localX) {
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(leftMoonWashSideW, LEFT_MOON_WASH_H),
+        leftWallMat
+      );
+      mesh.rotation.y = Math.PI / 2;
+      mesh.position.set(leftMoonWashX, LEFT_MOON_WASH_Y, -localX);
+      mesh.renderOrder = 1;
+      mesh.name = name;
+      root.add(mesh);
+      return mesh;
+    }
+    addLeftMoonWashSide('windowMoonlightLeftWall', -sideOff);
+    addLeftMoonWashSide('windowMoonlightLeftWallRight', sideOff);
+  }
+
   const leftPosterFrameW = 0.028;
   const leftPosterGroup = new THREE.Group();
   leftPosterGroup.name = 'leftWallPoster';
@@ -1177,7 +1194,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     moonWallMat.opacity = lt.wallWash;
     windowMoonlightWallRight.material.opacity = lt.wallWash * 0.78;
     windowMoonlightWallLeftFlank.material.opacity = lt.wallWash * 0.78;
-    windowMoonlightLeftWall.material.opacity = lt.wallWash * 0.66;
+    if (root.getObjectByName('windowMoonlightLeftWall')) {
+      leftWallMat.opacity = lt.wallWash * 0.66;
+    }
     tubBackWarmWash.material.opacity = lt.tubWarm;
     lampPointBase = lt.point;
     lampSpotBase = lt.spot;
@@ -2107,9 +2126,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     if (lampPointBase > 0) {
-      const lampPulse = reducedMotion ? 1 : 0.93 + ((Math.sin(elapsed * 3.6) + 1) / 2) * 0.07;
-      lampPoint.intensity = lampPointBase * lampPulse;
-      lampSpot.intensity = lampSpotBase * lampPulse;
+      // 脈動只改檯燈光暈，不改點光／聚光強度，避免左牆壁畫整片跟著亮暗。
       lampHaloMat.opacity =
         lampHaloBase * (reducedMotion ? 1 : 0.88 + ((Math.sin(elapsed * 3.6 + 0.8) + 1) / 2) * 0.12);
     }

@@ -123,6 +123,23 @@
   display: none;
 }
 
+/* 遮罩定位必須寫在這份常駐表，不能只靠 #819 延後載入的 roadmap.css。
+   否則開啟 Game Boy 時 3D 畫布被 .pt-roadmap-open 隱藏，彈窗卻留在文件流底部，畫面只剩深藍底。 */
+.roadmap-board {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  background: rgba(20, 36, 64, 0.47);
+}
+
+.roadmap-board[hidden] {
+  display: none !important;
+}
+
 .lab-office-stage.pt-roadmap-open .private-team-hud,
 .lab-office-stage.pt-roadmap-open .private-team-canvas,
 .lab-office-stage.pt-roadmap-open .pt-status-backdrop {
