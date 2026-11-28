@@ -1330,7 +1330,10 @@ button.pt-hud-id-plate {
 .pt-pocket-shell {
   position: relative;
   touch-action: manipulation;
-  max-width: min(96vw, 420px);
+  box-sizing: border-box;
+  width: 420px;
+  --pt-pocket-design-h: 520px;
+  zoom: min(92vw / 420px, 90vh / var(--pt-pocket-design-h));
   padding: 36px 16px 24px;
   border-radius: 10px 10px 56px 10px;
   background: linear-gradient(168deg, #ece8e2 0%, #d4d0ca 48%, #c4c0ba 100%);
@@ -1705,7 +1708,7 @@ button.pt-hud-id-plate {
 @media (max-width: 420px) {
   .pt-pocket-shell {
     padding: 28px 8px 14px;
-    max-width: 100%;
+    --pt-pocket-design-h: 480px;
     border-radius: 8px 8px 48px 8px;
   }
 

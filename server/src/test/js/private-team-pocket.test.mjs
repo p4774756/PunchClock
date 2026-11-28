@@ -23,6 +23,8 @@ test('彈窗 HTML 與 CSS 結構', () => {
   assert.match(html, /data-pocket-btn="start"/);
   assert.match(css, /image-rendering:\s*pixelated/);
   assert.match(css, /\.pt-pocket-shell/);
+  assert.match(css, /90vh/);
+  assert.match(css, /zoom:\s*min\([^)]*90vh/);
 });
 
 test('首頁接上掌機彈窗與 3D 點擊', () => {
