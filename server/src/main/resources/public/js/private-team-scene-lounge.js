@@ -22,10 +22,10 @@ export const SECRETARY_BUBBLE_SOFA = { x: 1.18, z: 0.35 };
  * SECRETARY_SOFA_POSITION（與 3D 皮沙發同一錨點）偏移，讓坐線對上座墊。
  * 只用相對偏移，之後沙發錨點若移動，舞台服會跟著走。
  */
-export const SECRETARY_STAGE_SOFA_SCALE = 0.52;
-export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0, y: 0, z: 0.02 };
-export const SECRETARY_STAGE_SOFA_BUBBLE_OFFSET = { x: 0.1, z: 0.22 };
-export const SECRETARY_STAGE_SOFA_BUBBLE_Y = 1.08;
+export const SECRETARY_STAGE_SOFA_SCALE = 0.82;
+export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0.02, y: -0.18, z: -0.03 };
+export const SECRETARY_STAGE_SOFA_BUBBLE_OFFSET = { x: 0.12, z: 0.22 };
+export const SECRETARY_STAGE_SOFA_BUBBLE_Y = 1.16;
 
 export function secretarySofaPlacementForOutfit(outfitId) {
   const base = SECRETARY_SOFA_POSITION;
