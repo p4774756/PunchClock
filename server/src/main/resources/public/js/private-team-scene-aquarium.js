@@ -7,7 +7,20 @@ export const PRIVATE_TEAM_TUB_RIM_TOP_Y = 0.125;
 export const PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y = -0.88;
 export const PRIVATE_TEAM_AQUARIUM_DEPTH = 0.86;
 export const PRIVATE_TEAM_AQUARIUM_TOP_Y = -0.038;
-export const PRIVATE_TEAM_AQUARIUM_LAZY_CAMERA_Y = 0.48;
+/** 鏡頭尚高但已大角度下拉時也建立水族箱 */
+export const PRIVATE_TEAM_AQUARIUM_LAZY_CAMERA_Y = 1.85;
+/** 約 18° 俯角即預建，避免底角黑屏 */
+export const PRIVATE_TEAM_AQUARIUM_LAZY_PITCH_RAD = -0.32;
+/** 驗收俯角（約 45°）用於單測對照 */
+export const PRIVATE_TEAM_PITCH_ACCEPTANCE_DOWN_RAD = (45 * Math.PI) / 180;
+export const PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY = 0.48;
+export const PRIVATE_TEAM_BATH_WATER_PITCH_CLEAR_OPACITY = 0.22;
+/** 下拉超過約 30° 起漸漸減淡水面，露出泳裝腿輪廓 */
+export const PRIVATE_TEAM_BATH_WATER_PITCH_PEEK_START_RAD = 0.52;
+export const PRIVATE_TEAM_BATH_WATER_PITCH_PEEK_END_RAD = 0.82;
+export const PRIVATE_TEAM_TUB_FLOOR_AQUARIUM_OPACITY = 0.06;
+export const PRIVATE_TEAM_AQUARIUM_UNDER_GLOW = 1.15;
+export const PRIVATE_TEAM_AQUARIUM_GLASS_OPACITY = 0.38;
 
 const SWIMSUIT = 0xd85a82;
 const SAND = 0xc4a882;
@@ -18,8 +31,30 @@ export function shouldLazyBuildFloorAquarium(cameraY, pitchRadians) {
   const p = Number(pitchRadians);
   if (!Number.isFinite(y) || !Number.isFinite(p)) return false;
   if (y < PRIVATE_TEAM_AQUARIUM_LAZY_CAMERA_Y) return true;
-  if (p < -0.48) return true;
+  if (p < PRIVATE_TEAM_AQUARIUM_LAZY_PITCH_RAD) return true;
   return false;
+}
+
+export function privateTeamBathWaterSurfaceOpacity(pitchRadians) {
+  const down = Math.max(0, -Number(pitchRadians));
+  if (!Number.isFinite(down)) return PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY;
+  if (down <= PRIVATE_TEAM_BATH_WATER_PITCH_PEEK_START_RAD) {
+    return PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY;
+  }
+  const span = PRIVATE_TEAM_BATH_WATER_PITCH_PEEK_END_RAD - PRIVATE_TEAM_BATH_WATER_PITCH_PEEK_START_RAD;
+  const t = span > 1e-6 ? Math.min(1, (down - PRIVATE_TEAM_BATH_WATER_PITCH_PEEK_START_RAD) / span) : 1;
+  return (
+    PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY -
+    t * (PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY - PRIVATE_TEAM_BATH_WATER_PITCH_CLEAR_OPACITY)
+  );
+}
+
+/** 浴缸底與地板下同一池水：打通自底觀看的穿透 */
+export function applyTubFloorAquariumPeek(tubFloorMesh) {
+  if (!tubFloorMesh || !tubFloorMesh.material) return;
+  tubFloorMesh.material.transparent = true;
+  tubFloorMesh.material.opacity = PRIVATE_TEAM_TUB_FLOOR_AQUARIUM_OPACITY;
+  tubFloorMesh.material.depthWrite = false;
 }
 
 export function buildFloorAquarium(root, waterY) {
@@ -33,7 +68,7 @@ export function buildFloorAquarium(root, waterY) {
 
   const sand = new THREE.Mesh(
     new THREE.PlaneGeometry(innerW - 0.08, innerD - 0.08),
-    new THREE.MeshLambertMaterial({ color: SAND })
+    new THREE.MeshBasicMaterial({ color: SAND })
   );
   sand.rotation.x = -Math.PI / 2;
   sand.position.set(0, tankBottom + 0.012, 0.04);
@@ -72,9 +107,12 @@ export function buildFloorAquarium(root, waterY) {
   const glassMat = () =>
     new THREE.MeshLambertMaterial({
       color: GLASS,
+      emissive: 0x3a7088,
+      emissiveIntensity: 0.42,
       transparent: true,
-      opacity: 0.22,
-      depthWrite: false
+      opacity: PRIVATE_TEAM_AQUARIUM_GLASS_OPACITY,
+      depthWrite: false,
+      side: THREE.DoubleSide
     });
   const wallThick = 0.018;
   const wallH = tankH + 0.04;
@@ -83,6 +121,7 @@ export function buildFloorAquarium(root, waterY) {
   frontWall.material = glassMat();
   frontWall.position.set(0, wallMidY, 0.04 + innerD / 2 - wallThick / 2);
   frontWall.name = 'aquariumGlassFront';
+  frontWall.renderOrder = 3;
   group.add(frontWall);
   const backWall = frontWall.clone();
   backWall.position.z = 0.04 - innerD / 2 + wallThick / 2;
@@ -99,7 +138,11 @@ export function buildFloorAquarium(root, waterY) {
   rightWall.name = 'aquariumGlassRight';
   group.add(rightWall);
 
-  const decorMat = new THREE.MeshLambertMaterial({ color: 0x3d8a7a });
+  const decorMat = new THREE.MeshLambertMaterial({
+    color: 0x3d8a7a,
+    emissive: 0x1a5048,
+    emissiveIntensity: 0.35
+  });
   const coralGeos = [];
   const coralOffsets = [
     [-0.95, -0.42, 0.78],
@@ -115,7 +158,11 @@ export function buildFloorAquarium(root, waterY) {
     group.add(cone);
     coralGeos.push(cone);
   }
-  const grassMat = new THREE.MeshLambertMaterial({ color: 0x2e7a48 });
+  const grassMat = new THREE.MeshLambertMaterial({
+    color: 0x2e7a48,
+    emissive: 0x144830,
+    emissiveIntensity: 0.32
+  });
   const grassBases = [
     [-0.55, 0.55],
     [0.42, 0.62],
@@ -148,16 +195,30 @@ export function buildFloorAquarium(root, waterY) {
   causticsPlane.rotation.x = -Math.PI / 2;
   causticsPlane.position.set(0, tankBottom + 0.018, 0.04);
   causticsPlane.name = 'aquariumCaustics';
+  causticsPlane.renderOrder = 5;
   group.add(causticsPlane);
 
-  const aquaGlow = new THREE.PointLight(0x6ab8e0, 0.55, 4.2, 2);
+  const underHemi = new THREE.HemisphereLight(0xb8ecff, 0x2a4a58, 0.92);
+  underHemi.position.set(0, tankBottom + 0.5, 0.04);
+  underHemi.name = 'aquariumUnderHemi';
+  group.add(underHemi);
+
+  const aquaGlow = new THREE.PointLight(0x6ab8e0, 0.88, 5.5, 1.6);
   aquaGlow.position.set(0, tankBottom + 0.35, 0.04);
   aquaGlow.name = 'aquariumGlow';
   group.add(aquaGlow);
 
+  const underGlow = new THREE.PointLight(0x48a0d8, PRIVATE_TEAM_AQUARIUM_UNDER_GLOW, 5.8, 1.4);
+  underGlow.position.set(0, tankBottom + 0.08, 0.04);
+  underGlow.name = 'aquariumUnderGlow';
+  group.add(underGlow);
+
+  waterVol.renderOrder = 2;
+  sand.renderOrder = 1;
+
   const fishGroup = new THREE.Group();
   fishGroup.name = 'aquariumFish';
-  const fishMat = new THREE.MeshLambertMaterial({ color: 0xf4c878 });
+  const fishMat = new THREE.MeshBasicMaterial({ color: 0xf4c878 });
   const fishBodies = [];
   const fishSeeds = [
     { x: -0.45, z: 0.2, phase: 0.1 },
@@ -186,6 +247,8 @@ export function buildFloorAquarium(root, waterY) {
     fishBodies,
     seagrass,
     aquaGlow,
+    underGlow,
+    underHemi,
     tankBottom
   };
 }
@@ -217,10 +280,14 @@ export function addSecretaryBathLegs(parent) {
   if (parent.getObjectByName('secretaryBathLegs')) return;
   const group = new THREE.Group();
   group.name = 'secretaryBathLegs';
-  const suitMat = new THREE.MeshLambertMaterial({ color: SWIMSUIT });
+  const suitMat = new THREE.MeshLambertMaterial({
+    color: SWIMSUIT,
+    emissive: 0x5a1830,
+    emissiveIntensity: 0.62
+  });
   function leg(side) {
     const sign = side === 'L' ? -1 : 1;
-    const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.22, 0.13), suitMat);
+    const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.24, 0.14), suitMat);
     thigh.position.set(sign * 0.1, 0.18, 0.12);
     thigh.rotation.x = -0.42;
     thigh.rotation.z = sign * 0.08;
@@ -236,6 +303,10 @@ export function addSecretaryBathLegs(parent) {
     return [thigh, shin, foot];
   }
   group.add(...leg('L'), ...leg('R'));
-  group.position.set(0, 0.06, -0.04);
+  group.position.set(0, 0.1, -0.02);
+  group.renderOrder = 4;
   parent.add(group);
+  for (let ci = 0; ci < group.children.length; ci++) {
+    group.children[ci].renderOrder = 4;
+  }
 }

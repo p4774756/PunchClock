@@ -156,10 +156,13 @@ import {
 import {
   PRIVATE_TEAM_TUB_RIM_TOP_Y,
   PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y,
+  PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY,
   shouldLazyBuildFloorAquarium,
   buildFloorAquarium,
   tickFloorAquarium,
-  addSecretaryBathLegs
+  addSecretaryBathLegs,
+  applyTubFloorAquariumPeek,
+  privateTeamBathWaterSurfaceOpacity
 } from './private-team-scene-aquarium.js';
 
 export {
@@ -488,7 +491,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const waterMat = new THREE.MeshLambertMaterial({
     color: COL.water,
     transparent: true,
-    opacity: 0.58,
+    opacity: PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY,
     depthWrite: false
   });
   const water = extrudedRoundedPlate(IN_HW - 0.02, IN_HD - 0.02, 0.012, 0.05, waterMat);
@@ -2022,10 +2025,12 @@ export function mountPrivateTeamScene(canvas, opts) {
       shouldLazyBuildFloorAquarium(camera.position.y, pitchRadians)
     ) {
       floorAquariumState = buildFloorAquarium(root, WATER_Y);
+      applyTubFloorAquariumPeek(tubFloor);
     }
     if (floorAquariumState) {
       tickFloorAquarium(floorAquariumState, elapsed, reducedMotion);
     }
+    waterMat.opacity = privateTeamBathWaterSurfaceOpacity(pitchRadians);
     const breath = Math.sin(elapsed * 1.65) * 0.014;
     const typeNudge = Math.sin(elapsed * 7.2) * 0.008;
     const lean = Math.sin(elapsed * 7.2 + 0.4) * 0.018;
