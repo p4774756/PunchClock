@@ -76,7 +76,12 @@ test('場景在沙發姿勢依服裝套用相對偏移，且不寫死沙發錨�
 });
 
 test('訪客／無效服裝的沙發擺位永遠是有限數字', async () => {
-  const { secretarySofaPlacementForOutfit, SECRETARY_SOFA_POSITION } = await loadPublicModule(
+  const {
+    secretarySofaPlacementForOutfit,
+    SECRETARY_SOFA_POSITION,
+    SECRETARY_DEFAULT_SOFA_SCALE,
+    SECRETARY_DEFAULT_SOFA_OFFSET
+  } = await loadPublicModule(
     'private-team-scene-lounge.js'
   );
   const samples = [undefined, null, '', 'default', 'stage', 'STAGE', 'foo', 0, {}, '  stage  '];
@@ -93,9 +98,11 @@ test('訪客／無效服裝的沙發擺位永遠是有限數字', async () => {
       assert.ok(Number.isFinite(place.bubble.y), String(id) + ' bubble.y');
     }
   }
+  const def = secretarySofaPlacementForOutfit('default');
   const visitor = secretarySofaPlacementForOutfit(undefined);
-  assert.deepEqual(visitor.position, SECRETARY_SOFA_POSITION);
-  assert.equal(visitor.scale, 1);
-  const noOutfit = secretarySofaPlacementForOutfit('');
-  assert.deepEqual(noOutfit.position, SECRETARY_SOFA_POSITION);
+  assert.deepEqual(visitor, def);
+  assert.equal(visitor.scale, SECRETARY_DEFAULT_SOFA_SCALE);
+  assert.equal(visitor.position.x, SECRETARY_SOFA_POSITION.x + SECRETARY_DEFAULT_SOFA_OFFSET.x);
+  assert.deepEqual(secretarySofaPlacementForOutfit(''), def);
+  assert.deepEqual(secretarySofaPlacementForOutfit('foo'), def);
 });
