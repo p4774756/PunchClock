@@ -25,6 +25,10 @@ public final class DesktopPetControl {
     private boolean walkRight;
     private int jumpTick;
     private boolean jumping;
+    /** 起跳瞬間鎖定的水平步進；0 表示原地跳。 */
+    private int jumpAirDx0;
+    /** 跳躍中這一格的水平步進。 */
+    private int jumpAirDx;
 
     public boolean isActive() {
         return active;
@@ -87,8 +91,10 @@ public final class DesktopPetControl {
         KeyAction action = keyAction(keyCode);
         if (action == KeyAction.WALK_LEFT) {
             walkLeft = true;
+            refreshJumpAirHoriz();
         } else if (action == KeyAction.WALK_RIGHT) {
             walkRight = true;
+            refreshJumpAirHoriz();
         } else if (action == KeyAction.JUMP) {
             startJump();
         } else if (action == KeyAction.EXIT) {
@@ -103,8 +109,10 @@ public final class DesktopPetControl {
         KeyAction action = keyAction(keyCode);
         if (action == KeyAction.WALK_LEFT) {
             walkLeft = false;
+            refreshJumpAirHoriz();
         } else if (action == KeyAction.WALK_RIGHT) {
             walkRight = false;
+            refreshJumpAirHoriz();
         }
     }
 
@@ -128,19 +136,56 @@ public final class DesktopPetControl {
         }
         jumping = true;
         jumpTick = 0;
+        jumpAirDx0 = walkDirection() * WALK_STEP;
+        jumpAirDx = jumpAirDx0;
     }
 
     public void cancelJump() {
         jumping = false;
         jumpTick = 0;
+        jumpAirDx0 = 0;
+        jumpAirDx = 0;
     }
 
     public int horizontalDelta() {
+        if (!active) {
+            return 0;
+        }
+        if (jumping) {
+            return jumpAirDx;
+        }
         int dir = walkDirection();
-        if (dir == 0 || jumping) {
+        if (dir == 0) {
             return 0;
         }
         return dir * WALK_STEP;
+    }
+
+    /**
+     * 空中僅能在起跳水平速度的 ±30% 內同向微調；放開方向鍵不減速、反向不回頭。
+     */
+    private void refreshJumpAirHoriz() {
+        if (!jumping || jumpAirDx0 == 0) {
+            return;
+        }
+        int dir = walkDirection();
+        if (dir == 0) {
+            return;
+        }
+        if (Integer.signum(dir) != Integer.signum(jumpAirDx0)) {
+            return;
+        }
+        int maxAdjust = Math.max(1, (int) Math.round(Math.abs(jumpAirDx0) * 0.30));
+        int sign = Integer.signum(jumpAirDx0);
+        int lo = jumpAirDx0 - sign * maxAdjust;
+        int hi = jumpAirDx0 + sign * maxAdjust;
+        if (lo > hi) {
+            int swap = lo;
+            lo = hi;
+            hi = swap;
+        }
+        int desired = dir * WALK_STEP;
+        jumpAirDx = Math.max(lo, Math.min(hi, desired));
     }
 
     /**
