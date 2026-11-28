@@ -16,6 +16,8 @@ import {
   writeSecretaryOutfitToStorage,
   secretaryAvatarUrlForOutfit,
   parseSecretaryOutfitId,
+  nextSecretaryOutfitId,
+  secretaryOutfitLabel,
   SECRETARY_OUTFIT_STORAGE_KEY
 } from './private-team-secretary-outfit.js';
 
@@ -326,12 +328,11 @@ export function mountPrivateTeamPage(opts) {
       '</div>' +
       '<div class="pt-hud-br">' +
       '<a href="/?open=journal" class="pt-hud-journal" data-pt-open-journal>心得牆</a>' +
-      '<div class="pt-hud-outfit" data-pt-secretary-outfit>' +
-      '<label class="pt-hud-outfit-label" for="pt-secretary-outfit-select">服裝</label>' +
-      '<select id="pt-secretary-outfit-select" class="pt-hud-outfit-select" data-pt-secretary-outfit-select aria-label="秘書服裝">' +
-      '<option value="default">預設</option>' +
-      '<option value="stage">舞台服</option>' +
-      '</select></div>' +
+      '<button type="button" class="pt-hud-outfit" data-pt-secretary-outfit-btn aria-label="秘書服裝：預設，點一下換成舞台服" title="換服裝">' +
+      '<span class="pt-hud-outfit-cap" aria-hidden="true">服裝</span>' +
+      '<span class="pt-hud-outfit-name" aria-hidden="true" data-pt-secretary-outfit-name>預設</span>' +
+      '</button>' +
+      '<span class="pt-hud-sr-only" role="status" aria-live="polite" data-pt-secretary-outfit-status></span>' +
       '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App" title="下載 App">' + DL_SVG +
       '</button></div>' +
       '<p class="pt-hud-deploy-ver" data-pt-deploy-ver hidden aria-hidden="true"></p>';
@@ -620,8 +621,17 @@ export function mountPrivateTeamPage(opts) {
   function syncSecretaryOutfitHud() {
     const avatarImg = hud && hud.querySelector ? hud.querySelector('[data-pt-secretary-avatar]') : null;
     if (avatarImg) avatarImg.src = secretaryAvatarUrlForOutfit(secretaryOutfitId);
-    const outfitSelect = hud && hud.querySelector ? hud.querySelector('[data-pt-secretary-outfit-select]') : null;
-    if (outfitSelect) outfitSelect.value = parseSecretaryOutfitId(secretaryOutfitId);
+    const outfitBtn = hud && hud.querySelector ? hud.querySelector('[data-pt-secretary-outfit-btn]') : null;
+    if (outfitBtn) {
+      const cur = parseSecretaryOutfitId(secretaryOutfitId);
+      const curLabel = secretaryOutfitLabel(cur);
+      const nextLabel = secretaryOutfitLabel(nextSecretaryOutfitId(cur));
+      const nameEl = outfitBtn.querySelector('[data-pt-secretary-outfit-name]');
+      if (nameEl) nameEl.textContent = curLabel;
+      outfitBtn.setAttribute('data-outfit', cur);
+      outfitBtn.setAttribute('aria-label', '秘書服裝：' + curLabel + '，點一下換成' + nextLabel);
+      outfitBtn.setAttribute('title', '換成' + nextLabel);
+    }
   }
 
   function applySecretaryOutfitChoice(nextRaw) {
@@ -728,18 +738,21 @@ export function mountPrivateTeamPage(opts) {
     });
   }
 
-  const outfitSelect = hud.querySelector('[data-pt-secretary-outfit-select]');
-  if (outfitSelect) {
+  const outfitBtn = hud.querySelector('[data-pt-secretary-outfit-btn]');
+  if (outfitBtn) {
     syncSecretaryOutfitHud();
     const stopSceneDrag = (ev) => {
       if (ev.stopPropagation) ev.stopPropagation();
     };
-    outfitSelect.addEventListener('pointerdown', stopSceneDrag);
-    outfitSelect.addEventListener('mousedown', stopSceneDrag);
-    outfitSelect.addEventListener('click', stopSceneDrag);
-    outfitSelect.addEventListener('change', (ev) => {
+    outfitBtn.addEventListener('pointerdown', stopSceneDrag);
+    outfitBtn.addEventListener('mousedown', stopSceneDrag);
+    /* 原生 button：Enter／空白鍵也會觸發 click，每按一次切到下一套。 */
+    outfitBtn.addEventListener('click', (ev) => {
       stopSceneDrag(ev);
-      applySecretaryOutfitChoice(outfitSelect.value);
+      if (ev.preventDefault) ev.preventDefault();
+      applySecretaryOutfitChoice(nextSecretaryOutfitId(secretaryOutfitId));
+      const live = hud.querySelector('[data-pt-secretary-outfit-status]');
+      if (live) live.textContent = '已換成' + secretaryOutfitLabel(secretaryOutfitId);
     });
   }
 

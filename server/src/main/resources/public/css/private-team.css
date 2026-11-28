@@ -266,9 +266,8 @@
 }
 
 a.pt-hud-journal {
-  align-self: flex-end;
-  margin-bottom: 0.45rem;
-  margin-right: 0.35rem;
+  align-self: center;
+  margin-right: 0.15rem;
   padding: 0.22rem 0.55rem;
   border-radius: 999px;
   font-size: 0.78rem;
@@ -283,39 +282,62 @@ a.pt-hud-journal:hover {
 }
 
 .pt-hud-outfit {
-  display: flex;
+  min-width: 68px;
+  min-height: 48px;
+  padding: 0.2rem 0.6rem;
+  display: inline-flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 0.2rem;
-  max-width: min(11rem, calc(100vw - 5rem));
-  pointer-events: auto;
-}
-
-.pt-hud-outfit-label {
-  margin: 0;
-  padding: 0 0.15rem;
-  font-size: 0.72rem;
-  font-weight: 600;
-  line-height: 1.2;
-  color: rgba(248, 251, 255, 0.88);
-  user-select: none;
-}
-
-.pt-hud-outfit-select {
-  min-width: 5.75rem;
-  min-height: 44px;
-  padding: 0.35rem 0.55rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.05rem;
   font: inherit;
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: #0e2244;
+  color: #fff;
   border: 3px solid var(--maple-navy, #163a70);
   outline: 1px solid var(--maple-blue-lt, #a8d0f2);
   outline-offset: -4px;
   border-radius: 6px;
-  background: rgba(248, 251, 255, 0.94);
-  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.28);
+  background: var(--maple-blue, #3a7ac4);
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.31);
   cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pt-hud-outfit:active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 2px 0 rgba(0, 0, 0, 0.31);
+}
+
+.pt-hud-outfit:focus-visible {
+  outline: 3px solid #ffe08a;
+  outline-offset: 2px;
+}
+
+.pt-hud-outfit-cap {
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.1;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.pt-hud-outfit-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.pt-hud-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 button.pt-hud-download {

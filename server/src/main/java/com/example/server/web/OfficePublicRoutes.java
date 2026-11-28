@@ -237,7 +237,9 @@ public final class OfficePublicRoutes {
                 row.put("minutes", minutes);
             }
             PullRow pull = findPullForIssue(github, item.issue);
-            row.put("stage", OfficeActiveStage.forGithubItem(item, pull));
+            String stage = OfficeActiveStage.forGithubItem(item, pull);
+            row.put("stage", stage);
+            dropMinutesWhenConflict(row, stage);
             return row;
         }
 
@@ -547,6 +549,7 @@ public final class OfficePublicRoutes {
             }
             String stage = OfficeActiveStage.forRun(run, machineAgentRunning, machineVerdict, machineRole, pull);
             row.put("stage", stage);
+            dropMinutesWhenConflict(row, stage);
             if (run.chain != null) {
                 row.put("chain", run.chain);
             }
@@ -593,10 +596,11 @@ public final class OfficePublicRoutes {
             if (tiger.model != null && !tiger.model.isEmpty()) {
                 row.put("model", tiger.model);
             }
-            String stage = tiger.stage != null ? tiger.stage
+            String stage = tiger.stage != null ? OfficeActiveStage.withConflict(tiger.stage, pull)
                     : OfficeActiveStage.forMachineFields(tiger.agentRunning, tiger.verdict,
                     tiger.role, pull);
             row.put("stage", stage);
+            dropMinutesWhenConflict(row, stage);
             if (tiger.chain != null) {
                 row.put("chain", tiger.chain);
             }
@@ -749,6 +753,13 @@ public final class OfficePublicRoutes {
                 return 0;
             }
             return (now - startedAt) / 60_000L;
+        }
+
+        /** 有衝突的 PR 不會跑 CI，分鐘數沒有意義，不輸出。 */
+        private static void dropMinutesWhenConflict(Map<String, Object> row, String stage) {
+            if (OfficeActiveStage.CONFLICT.equals(stage)) {
+                row.remove("minutes");
+            }
         }
 
         private static boolean ciStageFailed(String stage, String verdict) {
