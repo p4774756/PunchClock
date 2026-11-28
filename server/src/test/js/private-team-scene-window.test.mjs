@@ -18,13 +18,14 @@ const {
   privateTeamSceneLighting
 } = await loadPublicModule('private-team-scene.js');
 
-test('窗景改用台北 101 三時段 WebP，預載並依時段換 map', () => {
+test('窗景改用台北 101 三時段 WebP，懶載當前時段並依切換換 map', () => {
   const src = sceneSrc;
   assert.match(src, /PRIVATE_TEAM_WINDOW_TEXTURE_URLS/);
   assert.match(src, /taipei-window-day\.webp/);
   assert.match(src, /taipei-window-sunset\.webp/);
   assert.match(src, /taipei-window-night\.webp/);
-  assert.match(src, /windowVistaMat\.map = vistaTex\[period\]/);
+  assert.match(src, /ensureWindowVistaTexture/);
+  assert.match(src, /ensureWindowVistaTexture\(texLoader, vistaTex, period\)/);
   assert.doesNotMatch(src, /name = 'skylineFar'/);
   assert.doesNotMatch(src, /windowRainBack/);
   assert.doesNotMatch(src, /windowAirplane/);

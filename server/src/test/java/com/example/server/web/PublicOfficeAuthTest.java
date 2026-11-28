@@ -85,7 +85,9 @@ public class PublicOfficeAuthTest {
         assertFalse(response.body().contains("id=\"newsBoard\""));
         assertTrue(response.body().contains("loginBoard"));
         assertTrue(response.body().contains("data-login-form"));
-        assertTrue(response.body().contains("roadmap.css"));
+        assertFalse(response.body().contains("/css/roadmap.css"));
+        assertFalse(response.body().contains("/css/login.css"));
+        assertFalse(response.body().contains("/css/download.css"));
         assertTrue(response.body().contains("is-guest"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = false"));
         assertFalse(response.body().toLowerCase().contains("island"));
