@@ -33,7 +33,8 @@ const {
   secretarySpriteUrlForStatus,
   progressBoardViewFromTiger,
   taskProgressFromTiger,
-  mergeSecretaryQueues
+  mergeSecretaryQueues,
+  renderQueueList
 } = await loadPublicModule('private-team-office.js');
 
 test('progressBoardViewFromTiger 單號與今日進度', () => {
@@ -360,6 +361,31 @@ test('fillStatusCard 缺系統欄位不誤顯 0%', () => {
   const flat = JSON.stringify(body);
   assert.ok(!flat.includes('pt-status-sys'));
   assert.ok(!flat.includes('0%'));
+});
+
+test('renderQueueList 顯示 issue 連結與接在後提示', () => {
+  const doc = {
+    createElement(tag) {
+      const node = { tagName: tag.toUpperCase(), className: '', childNodes: [], textContent: '', style: {}, attributes: {} };
+      node.appendChild = (c) => node.childNodes.push(c);
+      node.setAttribute = (k, v) => { node.attributes[k] = v; };
+      return node;
+    }
+  };
+  const root = renderQueueList(doc, [
+    {
+      issue: 820,
+      title: '排隊修面板',
+      issueUrl: 'https://github.com/p4774756/PunchClock/issues/820',
+      waitingFor: 816
+    }
+  ], { canLinkGithub: true });
+  const flat = JSON.stringify(root);
+  assert.ok(flat.includes('#820'));
+  assert.ok(flat.includes('pt-status-stage-issue'));
+  assert.ok(flat.includes('排隊修面板'));
+  assert.ok(flat.includes('接在 #816 後'));
+  assert.ok(flat.includes('https://github.com/p4774756/PunchClock/issues/820'));
 });
 
 test('fillStatusCard 產出連結與膠囊', () => {
