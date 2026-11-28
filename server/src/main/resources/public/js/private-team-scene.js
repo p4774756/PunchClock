@@ -63,7 +63,10 @@ import {
   PRIVATE_TEAM_DEFAULT_YAW_NARROW_PORTRAIT,
   PRIVATE_TEAM_PITCH_MAX_UP_DEG,
   PRIVATE_TEAM_PITCH_MAX_DOWN_DEG,
-  clampPrivateTeamPitch
+  clampPrivateTeamPitch,
+  PRIVATE_TEAM_SCENE_TARGET_FPS,
+  privateTeamSceneRenderDue,
+  privateTeamSceneAnimationPaused
 } from './private-team-scene-controls.js';
 
 import {
@@ -180,6 +183,9 @@ export {
   privateTeamPitchFromDragDelta,
   privateTeamPitchDragVelocityRadPerMs,
   privateTeamPitchMomentumTick,
+  PRIVATE_TEAM_SCENE_TARGET_FPS,
+  privateTeamSceneRenderDue,
+  privateTeamSceneAnimationPaused,
   privateTeamSceneLighting,
   privateTeamCandleFlickerMultiplier,
   PRIVATE_TEAM_WINDOW_TEXTURE_URLS,
@@ -755,7 +761,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const leftPosterFrameW = 0.028;
   const leftPosterGroup = new THREE.Group();
   leftPosterGroup.name = 'leftWallPoster';
-  leftPosterGroup.position.set(leftX + WALL_THICK + 0.01, 0.98, -0.32);
+  leftPosterGroup.position.set(leftX + WALL_THICK + 0.01, glassY, -0.32);
   leftPosterGroup.rotation.y = Math.PI / 2;
   leftPosterGroup.userData.pickRole = 'leftPoster';
 
@@ -774,9 +780,9 @@ export function mountPrivateTeamScene(canvas, opts) {
   });
   const posterMat = new THREE.MeshLambertMaterial({
     map: posterTextures[leftPosterIndex] || posterTextures[0],
-    color: 0xffffff,
-    emissive: 0x000000,
-    emissiveIntensity: 0
+    color: 0xfff4ec,
+    emissive: 0x120c08,
+    emissiveIntensity: 0.07
   });
   const posterPlane = new THREE.Mesh(new THREE.PlaneGeometry(LEFT_POSTER_W, LEFT_POSTER_H), posterMat);
   posterPlane.position.set(0, 0, 0.022);
@@ -824,50 +830,86 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const brassPic = 0xc9a84c;
   const brassPicDk = 0x8b6914;
-  const picLightRailY = LEFT_POSTER_H / 2 + leftPosterFrameW + 0.1;
-  const picLampRail = box(LEFT_POSTER_W * 0.9, 0.038, 0.05, brassPic);
-  picLampRail.material.emissive = new THREE.Color(0xffc878);
-  picLampRail.material.emissiveIntensity = 0.32;
-  picLampRail.position.set(0, picLightRailY, 0.034);
-  leftPosterGroup.add(picLampRail);
+  const posterFrameTopY = LEFT_POSTER_H / 2 + leftPosterFrameW / 2;
 
   function addPicLampHead(xOff) {
-    const arm = box(0.024, 0.058, 0.034, brassPicDk);
-    arm.position.set(xOff, picLightRailY - 0.042, 0.036);
+    const mount = box(0.038, 0.024, 0.034, brassPic);
+    mount.material.emissive = new THREE.Color(0xffc878);
+    mount.material.emissiveIntensity = 0.22;
+    mount.position.set(xOff, posterFrameTopY + 0.01, 0.032);
+    leftPosterGroup.add(mount);
+    const arm = box(0.022, 0.052, 0.03, brassPicDk);
+    arm.position.set(xOff, posterFrameTopY - 0.028, 0.036);
     leftPosterGroup.add(arm);
-    const shadeW = LEFT_POSTER_W * 0.24;
-    const shade = box(shadeW, 0.044, 0.064, brassPic);
+    const shadeW = LEFT_POSTER_W * 0.22;
+    const shade = box(shadeW, 0.042, 0.062, brassPic);
     shade.material.emissive = new THREE.Color(0xffb868);
-    shade.material.emissiveIntensity = 0.38;
-    shade.position.set(xOff, picLightRailY - 0.088, 0.05);
-    shade.rotation.x = 0.24;
+    shade.material.emissiveIntensity = 0.42;
+    shade.position.set(xOff, posterFrameTopY - 0.078, 0.052);
+    shade.rotation.x = 0.42;
     leftPosterGroup.add(shade);
     const bulb = new THREE.Mesh(
       new THREE.SphereGeometry(0.015, 8, 8),
-      new THREE.MeshBasicMaterial({ color: 0xffe8c0, transparent: true, opacity: 0.82 })
+      new THREE.MeshBasicMaterial({ color: 0xffe8c0, transparent: true, opacity: 0.88 })
     );
-    bulb.position.set(xOff, picLightRailY - 0.1, 0.058);
+    bulb.position.set(xOff, posterFrameTopY - 0.092, 0.06);
     leftPosterGroup.add(bulb);
   }
   addPicLampHead(-LEFT_POSTER_W * 0.3);
   addPicLampHead(LEFT_POSTER_W * 0.3);
 
-  const posterWarmWash = new THREE.Mesh(
-    new THREE.PlaneGeometry(LEFT_POSTER_W + 0.04, LEFT_POSTER_H + 0.1),
+  const posterWallHalo = new THREE.Mesh(
+    new THREE.PlaneGeometry(LEFT_POSTER_W + 0.38, LEFT_POSTER_H + 0.48),
     new THREE.MeshBasicMaterial({
-      color: 0xffc888,
+      color: 0xffb878,
       transparent: true,
-      opacity: 0.11,
+      opacity: 0.085,
       depthWrite: false,
       blending: THREE.AdditiveBlending
     })
   );
-  posterWarmWash.position.set(0, -0.04, 0.02);
+  posterWallHalo.position.set(0, 0.06, -0.006);
+  leftPosterGroup.add(posterWallHalo);
+
+  const posterConeWash = new THREE.Mesh(
+    new THREE.PlaneGeometry(LEFT_POSTER_W + 0.06, LEFT_POSTER_H * 0.72),
+    new THREE.MeshBasicMaterial({
+      map: lampGlowTexture(),
+      color: 0xffd090,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  posterConeWash.position.set(0, LEFT_POSTER_H * 0.12, 0.018);
+  leftPosterGroup.add(posterConeWash);
+
+  const posterWarmWash = new THREE.Mesh(
+    new THREE.PlaneGeometry(LEFT_POSTER_W + 0.04, LEFT_POSTER_H + 0.08),
+    new THREE.MeshBasicMaterial({
+      color: 0xffc888,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    })
+  );
+  posterWarmWash.position.set(0, -0.02, 0.021);
   leftPosterGroup.add(posterWarmWash);
 
-  const posterPicLight = new THREE.PointLight(0xffc890, 0.34, 0.95, 2);
-  posterPicLight.position.set(0, picLightRailY - 0.06, 0.2);
+  const posterPicLight = new THREE.PointLight(0xffc890, 0.42, 1.05, 1.9);
+  posterPicLight.position.set(0, posterFrameTopY - 0.055, 0.18);
   leftPosterGroup.add(posterPicLight);
+
+  const posterSpot = new THREE.SpotLight(0xffc888, 0.36, 2.1, Math.PI / 3.4, 0.58, 1.65);
+  posterSpot.castShadow = false;
+  posterSpot.position.set(0, posterFrameTopY - 0.04, 0.16);
+  const posterSpotTarget = new THREE.Object3D();
+  posterSpotTarget.position.set(0, -LEFT_POSTER_H * 0.08, 0.022);
+  leftPosterGroup.add(posterSpotTarget);
+  posterSpot.target = posterSpotTarget;
+  leftPosterGroup.add(posterSpot);
 
   root.add(leftPosterGroup);
 
@@ -1301,8 +1343,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (tapMs) leftPosterHighlightUntil = tapMs;
     if (!posterMat || !posterMat.emissive) return;
     const on = leftPosterHovered || performance.now() < leftPosterHighlightUntil;
-    posterMat.emissive.setHex(on ? 0x6a5040 : 0x000000);
-    posterMat.emissiveIntensity = on ? 0.2 : 0;
+    posterMat.emissive.setHex(on ? 0x6a5040 : 0x120c08);
+    posterMat.emissiveIntensity = on ? 0.22 : 0.07;
   }
 
   function applyHandheldHighlight(hovered, tapMs) {
@@ -1628,6 +1670,15 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   let running = true;
   let animationPaused = false;
+  let pageHidden = !!(doc && doc.hidden);
+  let lastRenderMs = 0;
+  function onVisibilityChange() {
+    if (!doc) return;
+    pageHidden = !!(doc.hidden || doc.visibilityState !== 'visible');
+  }
+  if (doc && typeof doc.addEventListener === 'function') {
+    doc.addEventListener('visibilitychange', onVisibilityChange);
+  }
   if (typeof win.matchMedia === 'function') {
     const mq = win.matchMedia('(prefers-reduced-motion: reduce)');
     reducedMotion = !!mq.matches;
@@ -1690,9 +1741,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   function tick(now) {
     if (!running) return;
     raf = win.requestAnimationFrame(tick);
+    if (privateTeamSceneAnimationPaused(animationPaused, pageHidden)) return;
+    if (!privateTeamSceneRenderDue(lastRenderMs, now, PRIVATE_TEAM_SCENE_TARGET_FPS)) return;
     const frameDt = lastFrameMs ? now - lastFrameMs : 0;
     lastFrameMs = now;
-    if (animationPaused) return;
     if (dancePlayback) {
       const elapsed = now - dancePlayback.startMs;
       if (elapsed >= SECRETARY_DANCE_DURATION_MS) {
@@ -1897,6 +1949,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     lampHalo.lookAt(camera.position);
 
     renderer.render(scene, camera);
+    lastRenderMs = now;
   }
 
   resize();
@@ -1940,6 +1993,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     destroy() {
       running = false;
       win.cancelAnimationFrame(raf);
+      if (doc && typeof doc.removeEventListener === 'function') {
+        doc.removeEventListener('visibilitychange', onVisibilityChange);
+      }
       win.removeEventListener('resize', resize);
       canvas.removeEventListener('pointerdown', handlePointerDown);
       canvas.removeEventListener('pointermove', handlePointerMove);

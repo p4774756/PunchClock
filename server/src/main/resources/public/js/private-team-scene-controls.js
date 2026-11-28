@@ -230,3 +230,23 @@ export function privateTeamPitchMomentumTick(pitch, velRadPerMs, dtMs, canvasHei
   if (Math.abs(v) < 1e-5) v = 0;
   return { pitch: p, vel: v };
 }
+
+export const PRIVATE_TEAM_SCENE_TARGET_FPS = 60;
+
+export function privateTeamSceneFrameIntervalMs(fps) {
+  const f = Number(fps);
+  const rate = Number.isFinite(f) && f > 0 ? f : PRIVATE_TEAM_SCENE_TARGET_FPS;
+  return 1000 / rate;
+}
+
+export function privateTeamSceneRenderDue(lastRenderMs, now, fps) {
+  const t = Number(now);
+  if (!Number.isFinite(t)) return false;
+  const last = Number(lastRenderMs);
+  if (!Number.isFinite(last) || last <= 0) return true;
+  return t - last >= privateTeamSceneFrameIntervalMs(fps);
+}
+
+export function privateTeamSceneAnimationPaused(modalPaused, pageHidden) {
+  return !!(modalPaused || pageHidden);
+}
