@@ -1446,7 +1446,11 @@ export function mountPrivateTeamScene(canvas, opts) {
       depthWrite: false,
       side: THREE.DoubleSide
     });
-    applyUnderwaterTint(mat, waterYUniform);
+    if (secretaryInLoungePose) {
+      stripUnderwaterTint(mat);
+    } else {
+      applyUnderwaterTint(mat, waterYUniform);
+    }
     secretarySprite = new THREE.Mesh(new THREE.PlaneGeometry(spriteW, SECRETARY_SPRITE_HEIGHT), mat);
     secretarySprite.position.set(0, spriteBaseY, 0);
     secretarySprite.renderOrder = 2;
@@ -1520,6 +1524,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   syncSecretaryPlacement = function syncSecretaryPlacementImpl() {
     const wantLounge = !dancePlayback && secretaryAtLoungePose(tigerStatus, true);
+    const poseChanged = secretaryInLoungePose !== wantLounge;
     secretaryInLoungePose = wantLounge;
     if (wantLounge) {
       secretaryRoot.position.set(
@@ -1534,7 +1539,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         SECRETARY_SHADOW_SOFA.z
       );
       bubble.position.set(SECRETARY_BUBBLE_SOFA.x, bubble.position.y, SECRETARY_BUBBLE_SOFA.z);
-      if (secretarySprite && secretarySprite.material) {
+      if (poseChanged && secretarySprite && secretarySprite.material) {
         stripUnderwaterTint(secretarySprite.material);
       }
     } else {
@@ -1546,7 +1551,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretaryRoot.rotation.y = 0;
       shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
       bubble.position.set(secretaryBubbleX, bubble.position.y, SECRETARY_BUBBLE_TUB.z);
-      if (secretarySprite && secretarySprite.material) {
+      if (poseChanged && secretarySprite && secretarySprite.material) {
         applyUnderwaterTint(secretarySprite.material, waterYUniform);
       }
     }
