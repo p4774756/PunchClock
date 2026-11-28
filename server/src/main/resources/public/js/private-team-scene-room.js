@@ -288,16 +288,6 @@ export function addRomanceCandle(parent, x, y, z, name) {
   return { flameMat, glow, baseIntensity: 0.42 };
 }
 
-function stepSkylineFlickerLights(flicker) {
-  const r = flicker.rand();
-  const n = 2 + Math.floor(r() * 3);
-  for (let i = 0; i < n; i++) {
-    const L = flicker.lights[Math.floor(r() * flicker.lights.length)];
-    if (r() > 0.5) L.on = !L.on;
-  }
-  flicker.paint();
-}
-
 export function stripUnderwaterTint(mat) {
   if (!mat) return;
   mat.onBeforeCompile = null;
