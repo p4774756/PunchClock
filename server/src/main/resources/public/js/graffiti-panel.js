@@ -1,4 +1,5 @@
 import { adminFetch } from './admin-session.js';
+import { GRAFFITI_SIG_KEY, mountConfirmEdit, readStored, writeStored } from './confirm-edit.js';
 
 // 簽到本純邏輯（不依賴 Three.js）。署名整理、空白畫布、牆面格子供 node:test。
 // 面板本身用 pointer events，手機上畫的時候不讓頁面跟著捲。
@@ -69,6 +70,19 @@ export function createGraffitiController(opts) {
   let loading = false;
   let listDone = false;
   const seen = Object.create(null);
+
+  let signatureEdit = null;
+  if (signatureInput) {
+    const stored = readStored(win && win.localStorage, GRAFFITI_SIG_KEY);
+    if (stored) signatureInput.value = stored;
+    signatureEdit = mountConfirmEdit(signatureInput, {
+      max: SIGNATURE_MAX,
+      initial: signatureInput.value,
+      normalize: (raw) => String(raw == null ? '' : raw).trim(),
+      canSave: (draft) => normalizeSignature(draft) != null,
+      onConfirm: (value) => writeStored(win && win.localStorage, GRAFFITI_SIG_KEY, value)
+    });
+  }
 
   function setStatus(text) {
     if (statusEl) statusEl.textContent = text || '';
@@ -306,7 +320,8 @@ export function createGraffitiController(opts) {
       }
       clearPaint();
       undos.length = 0;
-      if (signatureInput) signatureInput.value = '';
+      if (signatureEdit) signatureEdit.cancel();
+      else if (signatureInput) signatureInput.value = '';
       if (body.item) prependItem(body.item);
       if (typeof hooks.onWallChange === 'function') hooks.onWallChange();
       setStatus('已貼上簽到本');

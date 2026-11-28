@@ -339,6 +339,9 @@ public class SlotController {
         if (refs.nameApplyButton != null) {
             refs.nameApplyButton.addActionListener(e -> commitSlotName(kind));
         }
+        if (refs.nameCancelButton != null) {
+            refs.nameCancelButton.addActionListener(e -> revertSlotName(kind));
+        }
         syncSlotEditorsEnabled(refs);
         updateSlotNameApplyState(kind);
     }
@@ -350,8 +353,21 @@ public class SlotController {
         }
         CheckInTask task = schedulerService.getTask(kind.id);
         String saved = task == null ? WorkSlot.normalizeName(kind, kind.displayName) : task.getName();
-        refs.nameApplyButton.setEnabled(
-                SlotNameApplyUi.isApplyEnabled(kind, refs.nameField.getText(), saved));
+        boolean canSave = SlotNameApplyUi.isApplyEnabled(kind, refs.nameField.getText(), saved);
+        String draft = WorkSlot.normalizeName(kind, refs.nameField.getText());
+        String committed = WorkSlot.normalizeName(kind, saved);
+        ConfirmEditSupport.setCommitted(refs.nameField, committed);
+        ConfirmEditSupport.syncButtons(
+                refs.nameApplyButton, refs.nameCancelButton, ConfirmEditSupport.isDirty(draft, committed), canSave);
+    }
+
+    private void revertSlotName(WorkSlot.Kind kind) {
+        PanelFactory.SlotCardRefs refs = refsFor(kind);
+        if (refs == null || refs.nameField == null) {
+            return;
+        }
+        ConfirmEditSupport.revertText(refs.nameField);
+        updateSlotNameApplyState(kind);
     }
 
     /** 啟用中鎖定時分／隨機偏移，避免誤改正在排程的設定 */
@@ -1082,6 +1098,7 @@ public class SlotController {
         onSlotStateChanged.run();
         heartbeatService.sendHeartbeat(appendLog, null);
         showSlotNameSavedFeedback(refs);
+        ConfirmEditSupport.setCommitted(refs.nameField, next);
         updateSlotNameApplyState(kind);
     }
 

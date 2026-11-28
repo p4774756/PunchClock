@@ -42,6 +42,7 @@ export function ensureJournalAssets(win, doc) {
   const q = versionQuery(win);
   // 先載共用彈窗 CSS（maple 視窗外框、標題、關閉鈕、btn），再載 journal.css 覆寫。
   loadPromise = ensureHomeRoadmapCss(win, doc)
+    .then(() => loadStylesheet(doc, '/css/confirm-edit.css' + q, '/css/confirm-edit.css'))
     .then(() => loadStylesheet(doc, '/css/journal.css' + q, '/css/journal.css'))
     .catch((err) => {
       loadPromise = null;

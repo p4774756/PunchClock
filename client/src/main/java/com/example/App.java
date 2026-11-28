@@ -977,6 +977,9 @@ public class App extends JFrame {
         if (peerRefs.statusApplyButton != null) {
             peerRefs.statusApplyButton.addActionListener(e -> applyPeerStatusFromUi());
         }
+        if (peerRefs.statusCancelButton != null) {
+            peerRefs.statusCancelButton.addActionListener(e -> revertPeerStatusFromUi());
+        }
     }
 
     /** 加入／取消最愛；好友列表會重排並存檔。 */
@@ -1845,6 +1848,7 @@ public class App extends JFrame {
             if (!text.equals(shown)) {
                 peerRefs.statusTextField.setText(text);
             }
+            com.example.ui.ConfirmEditSupport.setCommitted(peerRefs.statusTextField, text);
         }
         if (slotController != null && slotController.getConfig() != null) {
             slotController.getConfig().statusText = text;
@@ -1866,16 +1870,27 @@ public class App extends JFrame {
             slotController.getConfig().statusText = text;
         }
         saveCloudConfig();
+        com.example.ui.ConfirmEditSupport.setCommitted(peerRefs.statusTextField, text);
+        updateStatusApplyButtonState();
+    }
+
+    private void revertPeerStatusFromUi() {
+        if (peerRefs.statusTextField == null) {
+            return;
+        }
+        com.example.ui.ConfirmEditSupport.revertText(peerRefs.statusTextField);
         updateStatusApplyButtonState();
     }
 
     private void updateStatusApplyButtonState() {
-        if (peerRefs.statusApplyButton == null || peerRefs.statusTextField == null) {
+        if (peerRefs.statusTextField == null) {
             return;
         }
         String draft = com.example.PeerFileRules.sanitizeStatusText(peerRefs.statusTextField.getText());
         String effective = com.example.PeerFileRules.sanitizeStatusText(heartbeatService.getStatusText());
-        peerRefs.statusApplyButton.setEnabled(!draft.equals(effective));
+        boolean dirty = com.example.ui.ConfirmEditSupport.isDirty(draft, effective);
+        com.example.ui.ConfirmEditSupport.syncButtons(
+                peerRefs.statusApplyButton, peerRefs.statusCancelButton, dirty, dirty);
     }
 
     private void refreshAvatarPreview(String encoded) {
@@ -2171,6 +2186,9 @@ public class App extends JFrame {
         if (peerRefs.clientIdApplyButton != null) {
             peerRefs.clientIdApplyButton.addActionListener(e -> applyClientIdFromUI(true));
         }
+        if (peerRefs.clientIdCancelButton != null) {
+            peerRefs.clientIdCancelButton.addActionListener(e -> revertClientIdFromUi());
+        }
         if (serverRefs.trustAllSslCheckBox != null) {
             serverRefs.trustAllSslCheckBox.addActionListener(e -> {
                 boolean trust = serverRefs.trustAllSslCheckBox.isSelected();
@@ -2369,6 +2387,7 @@ public class App extends JFrame {
             ensureClientIdOption(config.clientId);
             peerRefs.clientIdCombo.setSelectedItem(config.clientId);
             heartbeatService.setClientId(config.clientId);
+            com.example.ui.ConfirmEditSupport.setCommitted(peerRefs.clientIdCombo, config.clientId);
             updateClientIdApplyButtonState();
         }
         if (serverRefs.heartbeatTokenField != null && config.heartbeatToken != null) {
@@ -2476,6 +2495,7 @@ public class App extends JFrame {
     }
 
     private void applyClientIdFromUI(boolean persist) {
+        if (suppressConfigSave) return;
         if (peerRefs.clientIdCombo == null) return;
         Object item = peerRefs.clientIdCombo.getSelectedItem();
         if (item == null) return;
@@ -2498,6 +2518,21 @@ public class App extends JFrame {
             appendLog("[裝置] 裝置 ID 已改為 " + heartbeatService.getClientId());
             showClientIdSavedFeedback();
         }
+        com.example.ui.ConfirmEditSupport.setCommitted(peerRefs.clientIdCombo, heartbeatService.getClientId());
+        updateClientIdApplyButtonState();
+    }
+
+    private void revertClientIdFromUi() {
+        if (peerRefs.clientIdCombo == null) {
+            return;
+        }
+        boolean previous = suppressConfigSave;
+        suppressConfigSave = true;
+        try {
+            com.example.ui.ConfirmEditSupport.revertCombo(peerRefs.clientIdCombo);
+        } finally {
+            suppressConfigSave = previous;
+        }
         updateClientIdApplyButtonState();
     }
 
@@ -2514,12 +2549,14 @@ public class App extends JFrame {
     }
 
     private void updateClientIdApplyButtonState() {
-        if (peerRefs.clientIdApplyButton == null) {
-            return;
-        }
         String draft = clientIdDraftFromUi();
         String effective = heartbeatService.getClientId();
-        peerRefs.clientIdApplyButton.setEnabled(ClientIdApplyUi.isApplyEnabled(draft, effective));
+        boolean canSave = ClientIdApplyUi.isApplyEnabled(draft, effective);
+        String draftNorm = com.example.PeerFileRules.normalizeClientId(draft);
+        String effectiveNorm = com.example.PeerFileRules.normalizeClientId(effective);
+        boolean dirty = com.example.ui.ConfirmEditSupport.isDirty(draftNorm, effectiveNorm);
+        com.example.ui.ConfirmEditSupport.syncButtons(
+                peerRefs.clientIdApplyButton, peerRefs.clientIdCancelButton, dirty, canSave);
     }
 
     private void showClientIdSavedFeedback() {

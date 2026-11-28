@@ -3,8 +3,10 @@ import {
   BODY_MAX,
   containsForbiddenLink,
   formatJournalWhen,
+  NICKNAME_MAX,
   normalizeNickname
 } from './journal-core.js';
+import { JOURNAL_NICK_KEY, mountConfirmEdit, readStored, writeStored } from './confirm-edit.js';
 
 export function mountJournalPanel(opts) {
   const doc = opts && opts.doc;
@@ -25,6 +27,20 @@ export function mountJournalPanel(opts) {
   if (compose) compose.hidden = false;
   if (whoEl) whoEl.hidden = !authed;
   if (nickEl) nickEl.hidden = authed;
+
+  let nickEdit = null;
+  if (nickEl) {
+    const stored = readStored(win && win.localStorage, JOURNAL_NICK_KEY);
+    if (stored) nickEl.value = stored;
+    nickEdit = mountConfirmEdit(nickEl, {
+      max: NICKNAME_MAX,
+      initial: nickEl.value,
+      normalize: (raw) => String(raw == null ? '' : raw).trim(),
+      canSave: (draft) => normalizeNickname(draft) != null,
+      onConfirm: (value) => writeStored(win && win.localStorage, JOURNAL_NICK_KEY, value)
+    });
+    if (nickEdit.root) nickEdit.root.hidden = authed;
+  }
 
   function setStatus(text) {
     if (statusEl) statusEl.textContent = text || '';
