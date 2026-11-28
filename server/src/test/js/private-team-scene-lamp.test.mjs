@@ -45,14 +45,15 @@ test('首頁秘書場景已移除名牌、泡泡錨點下移', () => {
   const src = sceneSrc;
   assert.doesNotMatch(src, /labelTexture/);
   assert.doesNotMatch(src, /namePlate|nameStand/);
-  assert.match(src, /bubbleFloatMin = 1\.68/);
+  assert.match(src, /bubbleFloatMin = SECRETARY_TUB_ROOT_Y/);
   assert.doesNotMatch(src, /bubbleFloatMin = 2\.2/);
 });
 
 test('下沉浴缸、托盤與單螢幕支架', () => {
-  assert.ok(PRIVATE_TEAM_TRAY_SURFACE_Y > 0.45 && PRIVATE_TEAM_TRAY_SURFACE_Y < 0.52);
+  assert.ok(PRIVATE_TEAM_TRAY_SURFACE_Y > 0.03 && PRIVATE_TEAM_TRAY_SURFACE_Y < 0.1);
   assert.ok(PRIVATE_TEAM_WATER_Y < PRIVATE_TEAM_TRAY_SURFACE_Y);
-  assert.ok(PRIVATE_TEAM_WATER_Y > 0.4 && PRIVATE_TEAM_WATER_Y < 0.5);
+  // 水面略低於地板頂（約 0.047），浴缸不突出地板
+  assert.ok(PRIVATE_TEAM_WATER_Y > 0 && PRIVATE_TEAM_WATER_Y < 0.047);
   const src = sceneSrc;
   assert.match(src, /bathtubWater/);
   assert.match(src, /bathtubRim/);

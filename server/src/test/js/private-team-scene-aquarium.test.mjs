@@ -8,6 +8,7 @@ const sceneSrc = readPrivateTeamSceneBundle();
 const {
   PRIVATE_TEAM_TUB_RIM_TOP_Y,
   PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y,
+  PRIVATE_TEAM_AQUARIUM_DEPTH,
   PRIVATE_TEAM_PITCH_ACCEPTANCE_DOWN_RAD,
   PRIVATE_TEAM_AQUARIUM_LAZY_PITCH_RAD,
   PRIVATE_TEAM_AQUARIUM_LAZY_CAMERA_Y,
@@ -18,8 +19,10 @@ const {
 } = await loadPublicModule('private-team-scene-aquarium.js');
 
 test('浴缸下沉與海底水族箱懶建立', () => {
-  assert.ok(PRIVATE_TEAM_TUB_RIM_TOP_Y > 0.1 && PRIVATE_TEAM_TUB_RIM_TOP_Y < 0.16);
-  assert.ok(PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y < -0.5);
+  // 盆緣與地板齊平（地板頂約 0.047），不再突出地面；水族箱至少 2.5 深。
+  assert.ok(PRIVATE_TEAM_TUB_RIM_TOP_Y > 0.03 && PRIVATE_TEAM_TUB_RIM_TOP_Y < 0.08);
+  assert.ok(PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y < -2.5);
+  assert.ok(PRIVATE_TEAM_AQUARIUM_DEPTH >= 2.5);
   assert.equal(shouldLazyBuildFloorAquarium(0.1, 0), true);
   assert.equal(shouldLazyBuildFloorAquarium(2, 0), false);
   assert.equal(shouldLazyBuildFloorAquarium(1.5, -0.4), true);
@@ -94,4 +97,23 @@ test('泡澡 3D 腿髖部釘在精靈圖底緣，俯視也不脫節且腿伸進�
     assert.ok(foot.y > PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y, '腳不應穿出水族箱底');
   }
   assert.match(sceneSrc, /syncSecretaryBathLegs\(secretaryRoot/);
+});
+
+test('地板開洞位置與浴缸同側（不再鏡像到窗前）', async () => {
+  const THREE = await import('../../main/resources/public/js/vendor/three.module.min.js');
+  const { extrudedRoundedPlateWithRectHole } = await loadPublicModule('private-team-scene-room.js');
+  const mesh = extrudedRoundedPlateWithRectHole(1.81, 1.81, 0, 0.64, 0.9, 0.57, 0.035, 0.08, new THREE.MeshBasicMaterial());
+  const pos = mesh.geometry.attributes.position;
+  let nearTub = false;
+  let nearMirror = false;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    if (Math.abs(x) < 0.95 && Math.abs(z) < 1.4) {
+      if (Math.abs(z - 1.21) < 0.03 || Math.abs(z - 0.07) < 0.03) nearTub = true;
+      if (Math.abs(z + 1.21) < 0.03 || Math.abs(z + 0.07) < 0.03) nearMirror = true;
+    }
+  }
+  assert.equal(nearTub, true, '洞邊應在浴缸 z=+0.64 附近');
+  assert.equal(nearMirror, false, '洞不可鏡像到 z=-0.64（窗前）');
 });

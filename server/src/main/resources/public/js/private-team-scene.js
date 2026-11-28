@@ -159,6 +159,8 @@ import {
   addLoungeFurnishings,
   tickVinylSpin,
   SECRETARY_TUB_POSITION,
+  SECRETARY_TUB_SCALE,
+  SECRETARY_TUB_ROOT_Y,
   SECRETARY_SOFA_POSITION,
   SECRETARY_SHADOW_TUB,
   SECRETARY_SOFA_ROTATION_Y,
@@ -173,6 +175,7 @@ import { addPrivateTeamGalleryLighting } from './private-team-scene-gallery-ligh
 
 import {
   PRIVATE_TEAM_TUB_RIM_TOP_Y,
+  PRIVATE_TEAM_TUB_PIT_FLOOR_Y,
   PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y,
   PRIVATE_TEAM_BATH_WATER_SURFACE_OPACITY,
   shouldLazyBuildFloorAquarium,
@@ -471,7 +474,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const waterYUniform = { value: WATER_Y };
 
   const tubFloor = box(IN_HW * 2 - 0.02, 0.03, IN_HD * 2 - 0.02, COL.tubInner);
-  tubFloor.position.set(TUB_CX, 0.03, TUB_CZ);
+  tubFloor.position.set(TUB_CX, PRIVATE_TEAM_TUB_PIT_FLOOR_Y, TUB_CZ);
   tubFloor.name = 'bathtubFloor';
   root.add(tubFloor);
 
@@ -502,14 +505,16 @@ export function mountPrivateTeamScene(canvas, opts) {
   rim.position.set(TUB_CX, RIM_TOP_Y - 0.028, TUB_CZ);
   rim.name = 'bathtubRim';
   root.add(rim);
-  const liningH = WATER_Y + 0.02 - 0.04;
-  const liningY = 0.04 + liningH / 2;
+  const liningH = RIM_TOP_Y - PRIVATE_TEAM_TUB_PIT_FLOOR_Y;
+  const liningY = PRIVATE_TEAM_TUB_PIT_FLOOR_Y + liningH / 2;
+  const tubLinings = [];
   const liningT = 0.02;
   function addLining(name, w, h, d, x, y, z) {
     const mesh = box(w, h, d, COL.tubInner);
     mesh.position.set(x, y, z);
     mesh.name = name;
     root.add(mesh);
+    tubLinings.push(mesh);
     return mesh;
   }
   addLining('bathtubInnerFront', IN_HW * 2, liningH, liningT, TUB_CX, liningY, TUB_CZ + IN_HD - liningT / 2);
@@ -600,8 +605,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   const winW = 2.55;
-  const winH = 1.72;
-  const winBottom = 0.38;
+  // 落地窗：玻璃從地板（飾邊上緣）一路到接近天花板；窗台長凳維持原高度 WINDOW_SILL_BASE_Y。
+  const WINDOW_SILL_BASE_Y = 0.38;
+  const winBottom = 0.07;
+  const winH = 2.3;
   const winTop = winBottom + winH;
   const winLeft = -winW / 2;
   const winRight = winW / 2;
@@ -625,6 +632,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   // 貼在浴缸後牆，不要放在天花板高度（常用機位會看成窗上橫條）。
   tubBackWarmWash.position.set(TUB_CX, 0.38, backZTub - WALL_THICK / 2 - 0.01);
   tubBackWarmWash.name = 'tubBackWarmWash';
+  // 浴缸後面沒有牆，這片暖光牆洗會變成浮在半空的半透明灰片（秘書身後）：隱藏。
+  tubBackWarmWash.visible = false;
   root.add(tubBackWarmWash);
   // 不再放天花板水平亮帶：從常用機位會看成窗戶上方的破圖橫條。暖色洗牆改由 tubBackWarmWash 承擔。
 
@@ -806,7 +815,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   frameBar(winW + 0.14, 0.05, 0, glassY);
 
   const sillZ = backZ + 0.13;
-  const sillY = winBottom + 0.03;
+  const sillY = WINDOW_SILL_BASE_Y + 0.03;
   const windowSill = box(winW + 0.04, 0.06, 0.16, COL.frame);
   windowSill.position.set(0, sillY, sillZ);
   windowSill.name = 'windowSill';
@@ -900,6 +909,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   const windowMoonlightWall = new THREE.Mesh(new THREE.PlaneGeometry(winW + 0.2, winBottom + 0.04), moonWallMat);
   windowMoonlightWall.position.set(0, winBottom / 2 + 0.01, backZ + 0.012);
   windowMoonlightWall.name = 'windowMoonlightWall';
+  // 落地窗下方已無窗下牆帶，這片貼牆月光會懸在玻璃上：隱藏。
+  windowMoonlightWall.visible = false;
   root.add(windowMoonlightWall);
   const flankW = FLOOR_HALF - winRight;
   const flankXOff = (winRight + FLOOR_HALF) / 2;
@@ -907,7 +918,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const flankY = 0.92;
   const flankZ = backZ + 0.012;
   const flankMat = moonWallMat.clone();
-  flankMat.opacity = 0.4;
+  flankMat.opacity = 0.16;
   const windowMoonlightWallRight = new THREE.Mesh(new THREE.PlaneGeometry(flankW, flankH), flankMat);
   windowMoonlightWallRight.position.set(flankXOff, flankY, flankZ);
   windowMoonlightWallRight.name = 'windowMoonlightWallRight';
@@ -924,6 +935,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     LEFT_POSTER_H = leftPosterWallMaxH;
     LEFT_POSTER_W = (LEFT_POSTER_H * 16) / 9;
   }
+  // 左牆畫縮小（原本幾乎佔滿整面牆）；吊燈、燈罩、光錐都由 W／H 推算，會跟著縮。
+  const LEFT_POSTER_SCALE = 0.7;
+  LEFT_POSTER_W *= LEFT_POSTER_SCALE;
+  LEFT_POSTER_H *= LEFT_POSTER_SCALE;
 
   /* 左牆月光洗牆不要蓋住壁畫：半透明加法材質若與畫布重疊，透明排序一翻
      整幅畫就會整片亮暗閃。畫比洗牆還高時改成兩側窄條，中間完全讓給壁畫。 */
@@ -1264,12 +1279,13 @@ export function mountPrivateTeamScene(canvas, opts) {
   addLowPolyPlant(root, -1.15, 0.82);
 
   const bathPillowTubAnchor = new THREE.Group();
-  bathPillowTubAnchor.position.set(SECRETARY_TUB_POSITION.x, 0, SECRETARY_TUB_POSITION.z);
+  bathPillowTubAnchor.position.set(SECRETARY_TUB_POSITION.x, SECRETARY_TUB_POSITION.y, SECRETARY_TUB_POSITION.z);
   root.add(bathPillowTubAnchor);
   addBathPillow(bathPillowTubAnchor);
 
   const secretaryRoot = new THREE.Group();
-  secretaryRoot.position.set(SECRETARY_TUB_POSITION.x, SECRETARY_TUB_POSITION.y, SECRETARY_TUB_POSITION.z);
+  secretaryRoot.position.set(SECRETARY_TUB_POSITION.x, SECRETARY_TUB_ROOT_Y, SECRETARY_TUB_POSITION.z);
+  secretaryRoot.scale.set(SECRETARY_TUB_SCALE, SECRETARY_TUB_SCALE, SECRETARY_TUB_SCALE);
   root.add(secretaryRoot);
 
   const shadowMat = new THREE.MeshBasicMaterial({
@@ -1619,7 +1635,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     depthWrite: false
   });
   const bubble = new THREE.Mesh(new THREE.PlaneGeometry(0.78, 0.3), bubbleMat);
-  const bubbleFloatMin = 1.68;
+  const bubbleFloatMin = SECRETARY_TUB_ROOT_Y + (SECRETARY_SPRITE_HEIGHT + 0.02) * SECRETARY_TUB_SCALE + 0.2;
   const bubbleFloatSpan = 0.07;
   const bubbleRestY = bubbleFloatMin + bubbleFloatSpan / 2;
   bubble.position.set(secretaryBubbleX, bubbleRestY, 0.72);
@@ -1662,10 +1678,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     } else {
       secretaryRoot.position.set(
         SECRETARY_TUB_POSITION.x,
-        SECRETARY_TUB_POSITION.y,
+        SECRETARY_TUB_ROOT_Y,
         SECRETARY_TUB_POSITION.z
       );
-      secretaryRoot.scale.set(1, 1, 1);
+      secretaryRoot.scale.set(SECRETARY_TUB_SCALE, SECRETARY_TUB_SCALE, SECRETARY_TUB_SCALE);
       secretaryRoot.rotation.y = 0;
       shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
       bubble.position.set(secretaryBubbleX, bubble.position.y, SECRETARY_BUBBLE_TUB.z);
@@ -2180,6 +2196,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     ) {
       floorAquariumState = buildFloorAquarium(root, WATER_Y);
       applyTubFloorAquariumPeek(tubFloor);
+      for (let li = 0; li < tubLinings.length; li++) tubLinings[li].visible = false;
     }
     if (floorAquariumState) {
       tickFloorAquarium(floorAquariumState, elapsed, reducedMotion);

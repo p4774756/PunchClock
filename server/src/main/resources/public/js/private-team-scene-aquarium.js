@@ -1,11 +1,14 @@
 import * as THREE from './vendor/three.module.min.js';
 import { FLOOR_SIZE, box, makeBathtubCausticsTexture } from './private-team-scene-room.js';
 
-/** 盆緣高出地板約 12cm */
-export const PRIVATE_TEAM_TUB_RIM_TOP_Y = 0.125;
+/** 盆緣與地板齊平（地板頂約 0.047），不突出地面 */
+export const PRIVATE_TEAM_TUB_RIM_TOP_Y = 0.056;
 /** 浴缸外殼下緣與水族箱底對齊 */
-export const PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y = -0.88;
-export const PRIVATE_TEAM_AQUARIUM_DEPTH = 0.86;
+export const PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y = -3.1;
+/** 水族箱深度（舊版 0.86，加深約 3.6 倍）。 */
+export const PRIVATE_TEAM_AQUARIUM_DEPTH = 3.1;
+/** 浴缸尚未建立水族箱時的淺坑底（約 0.4 深，仍與地板齊平）。 */
+export const PRIVATE_TEAM_TUB_PIT_FLOOR_Y = -0.36;
 export const PRIVATE_TEAM_AQUARIUM_TOP_Y = -0.038;
 /** 鏡頭尚高但已大角度下拉時也建立水族箱 */
 export const PRIVATE_TEAM_AQUARIUM_LAZY_CAMERA_Y = 1.85;
@@ -207,6 +210,11 @@ export function buildFloorAquarium(root, waterY) {
   aquaGlow.name = 'aquariumGlow';
   group.add(aquaGlow);
 
+  const midGlow = new THREE.PointLight(0x58b0d8, 0.9, 4.2, 1.3);
+  midGlow.position.set(0, -1.2, 0.04);
+  midGlow.name = 'aquariumMidGlow';
+  group.add(midGlow);
+
   const underGlow = new THREE.PointLight(0x48a0d8, PRIVATE_TEAM_AQUARIUM_UNDER_GLOW, 5.8, 1.4);
   underGlow.position.set(0, tankBottom + 0.08, 0.04);
   underGlow.name = 'aquariumUnderGlow';
@@ -220,10 +228,12 @@ export function buildFloorAquarium(root, waterY) {
   const fishMat = new THREE.MeshBasicMaterial({ color: 0xf4c878 });
   const fishBodies = [];
   const fishSeeds = [
-    { x: -0.45, z: 0.2, phase: 0.1 },
-    { x: 0.35, z: -0.15, phase: 1.7 },
-    { x: -0.15, z: 0.55, phase: 2.9 },
-    { x: 0.7, z: 0.4, phase: 4.2 }
+    { x: -0.45, z: 0.2, phase: 0.1, y: -0.7 },
+    { x: 0.35, z: -0.15, phase: 1.7, y: -1.3 },
+    { x: -0.15, z: 0.55, phase: 2.9, y: -1.9 },
+    { x: 0.7, z: 0.4, phase: 4.2, y: -2.4 },
+    { x: -0.8, z: -0.5, phase: 5.1, y: -2.8 },
+    { x: 0.9, z: -0.45, phase: 3.3, y: -1.6 }
   ];
   for (let fi = 0; fi < fishSeeds.length; fi++) {
     const f = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.028, 0.1), fishMat);
@@ -231,7 +241,7 @@ export function buildFloorAquarium(root, waterY) {
     tail.position.set(-0.038, 0, 0);
     const g = new THREE.Group();
     g.add(f, tail);
-    g.position.set(fishSeeds[fi].x, tankBottom + 0.28, 0.04 + fishSeeds[fi].z);
+    g.position.set(fishSeeds[fi].x, fishSeeds[fi].y, 0.04 + fishSeeds[fi].z);
     g.name = 'aquariumFish' + fi;
     fishGroup.add(g);
     fishBodies.push({ group: g, seed: fishSeeds[fi], baseX: fishSeeds[fi].x, baseZ: fishSeeds[fi].z });
@@ -274,13 +284,13 @@ export function tickFloorAquarium(state, elapsed, reducedMotion) {
   }
 }
 
-/** 腿底停在水族箱沙面上方（沙在 tankBottom≈-0.86）。 */
-export const PRIVATE_TEAM_BATH_LEG_BOTTOM_Y = -0.62;
+/** 腿底停在水族箱沙面上方（沙在 tankBottom≈-3.08，腿在水中段懸空）。 */
+export const PRIVATE_TEAM_BATH_LEG_BOTTOM_Y = -1.05;
 /** 精靈圖有內容的底緣（腰臀／大腿裁切處）離圖片底邊的比例高度（占 SECRETARY_SPRITE_HEIGHT）。 */
 export const PRIVATE_TEAM_BATH_HIP_FROM_SPRITE_BOTTOM = 0.1;
 /** 兩條腿中心相對精靈中線的水平間距（精靈本地 x）。 */
 export const PRIVATE_TEAM_BATH_LEG_SPREAD = 0.2;
-const SKIN = 0xf0c8b4;
+const SKIN = 0xf3cdb8;
 
 /** 腿從髖部往下的總長（世界 y 往下，下限避免鏡頭貼近時縮成一點）。 */
 export function secretaryBathLegLength(hipY) {
@@ -299,8 +309,8 @@ export function addSecretaryBathLegs(parent) {
   group.name = 'secretaryBathLegs';
   const skinMat = new THREE.MeshLambertMaterial({
     color: SKIN,
-    emissive: 0x8a5a48,
-    emissiveIntensity: 0.55
+    emissive: 0xa86c56,
+    emissiveIntensity: 0.62
   });
   const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.2, 0.05), skinMat);
   pelvis.name = 'bathLegPelvis';
@@ -310,9 +320,13 @@ export function addSecretaryBathLegs(parent) {
     thigh.name = 'bathLegThigh' + side;
     const shin = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.05, 1, 10), skinMat);
     shin.name = 'bathLegShin' + side;
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.05, 0.17), skinMat);
+    // 圓潤的腳掌（拉長的橢球）＋膝蓋關節球，從側面看不再是灰色方塊。
+    const foot = new THREE.Mesh(new THREE.SphereGeometry(0.06, 14, 10), skinMat);
+    foot.scale.set(0.9, 0.5, 1.9);
     foot.name = 'bathLegFoot' + side;
-    return [thigh, shin, foot];
+    const knee = new THREE.Mesh(new THREE.SphereGeometry(0.078, 14, 10), skinMat);
+    knee.name = 'bathLegKnee' + side;
+    return [thigh, shin, foot, knee];
   }
   group.add(...leg('L'), ...leg('R'));
   for (let ci = 0; ci < group.children.length; ci++) {
@@ -369,6 +383,8 @@ export function syncSecretaryBathLegs(parent, sprite, spriteHeight) {
   const px = parent.position.x;
   const pz = parent.position.z;
   const py = parent.position.y;
+  // 根節點可能被縮放（泡澡比例 < 1）：世界偏移要除以縮放才是本地座標。
+  const rs = parent.scale && parent.scale.y > 0 ? parent.scale.y : 1;
 
   const pelvis = group.getObjectByName('bathLegPelvis');
   if (pelvis) {
@@ -383,15 +399,17 @@ export function syncSecretaryBathLegs(parent, sprite, spriteHeight) {
     // 沿精靈本地 x（隨鏡頭轉向）攤開，腿身仍在世界垂直方向。
     _off.set(sign * PRIVATE_TEAM_BATH_LEG_SPREAD, -0.04, 0).applyQuaternion(sprite.quaternion);
     _a.copy(_hipLocal).add(_off);
-    const kneeWx = clamp(_a.x + px, -TUB_WORLD_X_MAX, TUB_WORLD_X_MAX);
-    const kneeWz = clamp(_a.z + pz + PRIVATE_TEAM_BATH_KNEE_FORWARD, TUB_WORLD_Z_MIN, TUB_WORLD_Z_MAX);
-    _b.set(kneeWx - px, _a.y - 0.08, kneeWz - pz);
+    const kneeWx = clamp(_a.x * rs + px, -TUB_WORLD_X_MAX, TUB_WORLD_X_MAX);
+    const kneeWz = clamp(_a.z * rs + pz + PRIVATE_TEAM_BATH_KNEE_FORWARD, TUB_WORLD_Z_MIN, TUB_WORLD_Z_MAX);
+    _b.set((kneeWx - px) / rs, _a.y - 0.08, (kneeWz - pz) / rs);
     placeLimb(group.getObjectByName('bathLegThigh' + side), _a, _b);
     _a.copy(_b);
-    _b.set(_a.x, PRIVATE_TEAM_BATH_LEG_BOTTOM_Y - py, _a.z);
+    const kneeMesh = group.getObjectByName('bathLegKnee' + side);
+    if (kneeMesh) kneeMesh.position.copy(_a);
+    _b.set(_a.x, (PRIVATE_TEAM_BATH_LEG_BOTTOM_Y - py) / rs, _a.z);
     if (_a.y - _b.y < 0.25) _b.y = _a.y - 0.25;
     placeLimb(group.getObjectByName('bathLegShin' + side), _a, _b);
     const foot = group.getObjectByName('bathLegFoot' + side);
-    if (foot) foot.position.set(_b.x, _b.y - 0.02, _b.z + 0.04);
+    if (foot) foot.position.set(_b.x, _b.y - 0.01, _b.z + 0.05);
   }
 }

@@ -100,3 +100,12 @@ test('左牆壁畫：分離月光洗牆與畫布深度，避免手機 z-fighting
   assert.doesNotMatch(block, /,\s*0\.018\s*\)/);
   assert.match(block, /,\s*0\.01\s*\)/);
 });
+test('落地窗接近地板到天花板、左牆畫縮到 0.7 倍', () => {
+  const src = readPrivateTeamSceneBundle();
+  assert.match(src, /const winBottom = 0\.07;/);
+  const h = Number(/const winH = ([0-9.]+);/.exec(src)[1]);
+  const wallH = Number(/const wallH = ([0-9.]+);/.exec(src)[1]);
+  assert.ok(0.07 + h <= wallH && wallH - (0.07 + h) < 0.15, 'window top should reach near ceiling');
+  assert.match(src, /LEFT_POSTER_SCALE = 0\.7/);
+  assert.match(src, /LEFT_POSTER_W \*= LEFT_POSTER_SCALE/);
+});
