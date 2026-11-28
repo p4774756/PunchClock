@@ -81,6 +81,10 @@ public final class AuthService {
         sessionsByTokenHash.clear();
     }
 
+    public String csrfTokenForSession(String sessionToken) {
+        return CsrfTokens.tokenForSession(sessionToken, heartbeatSecret);
+    }
+
     public boolean isHeartbeatAuthorized(Context ctx) {
         String authHeader = ctx.header("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {

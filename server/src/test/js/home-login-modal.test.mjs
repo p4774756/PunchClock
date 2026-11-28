@@ -397,12 +397,10 @@ test('登入彈窗錯誤用 textContent，解析失敗不寫死剩餘 4 次', { 
   modal.open();
   board.querySelector('[data-login-form]').dispatchEvent({ type: 'submit' });
   await flush();
-  const countdown = board.querySelector('[data-login-countdown]');
-  assert.equal(countdown.textContent, '1 分 30 秒');
+  assert.equal(board.querySelector('[data-login-countdown]'), null);
   assert.equal(board.querySelector('#xss-proof'), null);
-  assert.match(board.querySelector('[data-login-submit]').textContent, /冷卻鎖定中/);
-  intervals[intervals.length - 1]();
-  assert.equal(countdown.textContent, '1 分 29 秒');
+  assert.match(board.querySelector('.error-alert').textContent, /密碼錯誤/);
+  assert.equal(board.querySelector('[data-login-submit]').disabled, true);
   modal.destroy();
 });
 

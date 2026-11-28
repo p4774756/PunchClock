@@ -2,13 +2,8 @@
 
 import { ensureHomeLoginCss } from './home-panel-css-loader.js';
 
-function lockTimeDisplay(remainingSec) {
-  const mins = Math.floor(remainingSec / 60);
-  const secs = remainingSec % 60;
-  return mins > 0 ? mins + ' 分 ' + secs + ' 秒' : secs + ' 秒';
-}
-
 const LOGIN_RESULT_UNKNOWN = '[警告] 登入失敗，請稍後再試';
+const LOGIN_FAILURE_MESSAGE = '[警告] 密碼錯誤';
 
 export function wireHomeLoginModal(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
@@ -32,9 +27,6 @@ export function wireHomeLoginModal(opts) {
 
   let open = false;
   let lastFocus = null;
-  let lockTimer = null;
-  let lockRemainingSec = 0;
-
   function setOpen(next, meta) {
     const want = !!next;
     if (want === open) return;
@@ -63,53 +55,13 @@ export function wireHomeLoginModal(opts) {
     alertBox.appendChild(box);
   }
 
-  function stopLockTimer() {
-    if (lockTimer != null) {
-      win.clearInterval(lockTimer);
-      lockTimer = null;
-    }
-  }
-
   function setFormLocked(locked) {
     if (pwdInput) pwdInput.disabled = locked;
     if (toggleBtn) toggleBtn.disabled = locked;
     if (submitBtn) {
       submitBtn.disabled = locked;
-      submitBtn.textContent = locked ? '冷卻鎖定中…' : '登入';
+      submitBtn.textContent = '登入';
     }
-  }
-
-  function startLockCountdown(remainingSec) {
-    stopLockTimer();
-    lockRemainingSec = Math.max(0, Number(remainingSec) || 0);
-    if (lockRemainingSec <= 0) {
-      setFormLocked(false);
-      clearAlert();
-      return;
-    }
-    setFormLocked(true);
-    if (!alertBox) return;
-    alertBox.textContent = '';
-    const box = doc.createElement('div');
-    box.className = 'error-alert';
-    box.setAttribute('data-login-lock-alert', '');
-    const countdown = doc.createElement('span');
-    countdown.setAttribute('data-login-countdown', '');
-    countdown.textContent = lockTimeDisplay(lockRemainingSec);
-    box.appendChild(doc.createTextNode('[警告] 嘗試錯誤過多！帳號已鎖定，請等待 '));
-    box.appendChild(countdown);
-    box.appendChild(doc.createTextNode('。'));
-    alertBox.appendChild(box);
-    lockTimer = win.setInterval(() => {
-      lockRemainingSec -= 1;
-      if (lockRemainingSec > 0) {
-        countdown.textContent = lockTimeDisplay(lockRemainingSec);
-        return;
-      }
-      stopLockTimer();
-      setFormLocked(false);
-      clearAlert();
-    }, 1000);
   }
 
   function applyFailurePayload(body) {
@@ -118,8 +70,9 @@ export function wireHomeLoginModal(opts) {
       setFormLocked(false);
       return;
     }
-    if (body.locked && Number(body.remainingSec) > 0) {
-      startLockCountdown(body.remainingSec);
+    if (body.locked) {
+      showError(LOGIN_FAILURE_MESSAGE);
+      setFormLocked(true);
       return;
     }
     const msg =
@@ -131,7 +84,6 @@ export function wireHomeLoginModal(opts) {
   }
 
   function resetFormFields() {
-    stopLockTimer();
     clearAlert();
     setFormLocked(false);
     if (form && typeof form.reset === 'function') form.reset();
@@ -254,7 +206,6 @@ export function wireHomeLoginModal(opts) {
     },
     destroy() {
       doc.removeEventListener('keydown', onDocKey);
-      stopLockTimer();
       close();
     }
   };

@@ -566,7 +566,8 @@ button.pt-hud-id-plate {
   display: none !important;
 }
 
-.pt-hud-id-menu a.pt-hud-id-logout {
+.pt-hud-id-menu a.pt-hud-id-logout,
+.pt-hud-id-menu button.pt-hud-id-logout {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -588,7 +589,8 @@ button.pt-hud-id-plate {
   box-shadow: inset 0 1px 0 var(--maple-gold-hi, #f8dc6e);
 }
 
-.pt-hud-id-menu a.pt-hud-id-logout:hover {
+.pt-hud-id-menu a.pt-hud-id-logout:hover,
+.pt-hud-id-menu button.pt-hud-id-logout:hover {
   background: var(--maple-gold-hi, #f8dc6e);
 }
 
@@ -1371,7 +1373,8 @@ button.pt-hud-id-plate {
     padding: 0.25rem 0.3rem;
   }
 
-  .pt-hud-id-menu a.pt-hud-id-logout {
+  .pt-hud-id-menu a.pt-hud-id-logout,
+.pt-hud-id-menu button.pt-hud-id-logout {
     font-size: 0.7rem;
     padding: 0.28rem 0.5rem;
   }

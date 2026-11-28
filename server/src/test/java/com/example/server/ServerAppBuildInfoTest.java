@@ -43,12 +43,22 @@ public class ServerAppBuildInfoTest {
     }
 
     @Test
-    public void pingReportsVersionAndBuildTimeFromPom() throws Exception {
-        HttpResponse<String> ping = http.send(
+    public void pingGuestHidesVersionButAdminSeesBuildInfo() throws Exception {
+        HttpResponse<String> guestPing = http.send(
                 HttpRequest.newBuilder(URI.create(base + "/ping")).GET().timeout(Duration.ofSeconds(5)).build(),
                 HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, ping.statusCode());
-        JsonObject body = JsonParser.parseString(ping.body()).getAsJsonObject();
+        assertEquals(200, guestPing.statusCode());
+        JsonObject guest = JsonParser.parseString(guestPing.body()).getAsJsonObject();
+        assertEquals("pong", guest.get("message").getAsString());
+        assertFalse(guest.has("version"));
+        assertFalse(guest.has("buildTime"));
+
+        HttpResponse<String> adminPing = http.send(
+                HttpRequest.newBuilder(URI.create(base + "/ping"))
+                        .header("Cookie", adminCookie)
+                        .GET().timeout(Duration.ofSeconds(5)).build(),
+                HttpResponse.BodyHandlers.ofString());
+        JsonObject body = JsonParser.parseString(adminPing.body()).getAsJsonObject();
         assertTrue(body.get("version").getAsString().matches("\\d+\\.\\d+\\.\\d+"));
         assertNotNull(Instant.parse(body.get("buildTime").getAsString()));
     }

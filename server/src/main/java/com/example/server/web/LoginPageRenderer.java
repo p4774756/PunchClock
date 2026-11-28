@@ -15,7 +15,6 @@ public final class LoginPageRenderer {
     public static String render(String alertMessage, LoginLockStatus lockStatus, String version, String nextPath) {
         String safeAlert = alertMessage == null ? "" : alertMessage;
         boolean locked = lockStatus.isLocked();
-        int remainingSec = lockStatus.remainingSec;
         String nextField = "";
         if (nextPath != null && !nextPath.isEmpty()) {
             nextField = "            <input type=\"hidden\" name=\"next\" value=\"" + HtmlEscape.escape(nextPath) + "\" />\n";
@@ -63,7 +62,7 @@ public final class LoginPageRenderer {
                 + "            </div>\n"
                 + "          </div>\n"
                 + "          <button type=\"submit\" id=\"btnSubmit\" class=\"btn btn-primary btn-submit\" "
-                + (locked ? "disabled" : "") + ">" + (locked ? "冷卻鎖定中…" : "登入") + "</button>\n"
+                + (locked ? "disabled" : "") + ">登入</button>\n"
                 + "        </form>\n"
                 + "      </div>\n"
                 + "    </section>\n"
@@ -81,35 +80,6 @@ public final class LoginPageRenderer {
                 + "        pwdInput.type = 'password';\n"
                 + "        toggleBtn.textContent = '顯示';\n"
                 + "      }\n"
-                + "    }\n"
-                + "\n"
-                + "    let remainingSec = " + remainingSec + ";\n"
-                + "    if (remainingSec > 0) {\n"
-                + "      const timerSpan = document.getElementById('countdown');\n"
-                + "      const submitBtn = document.getElementById('btnSubmit');\n"
-                + "      const passwordInput = document.getElementById('password');\n"
-                + "      const lockAlert = document.getElementById('lockAlert');\n"
-                + "\n"
-                + "      const interval = setInterval(() => {\n"
-                + "        remainingSec--;\n"
-                + "        if (remainingSec > 0) {\n"
-                + "          const mins = Math.floor(remainingSec / 60);\n"
-                + "          const secs = remainingSec % 60;\n"
-                + "          if (timerSpan) {\n"
-                + "            timerSpan.textContent = mins > 0 ? `${mins} 分 ${secs} 秒` : `${secs} 秒`;\n"
-                + "          }\n"
-                + "        } else {\n"
-                + "          clearInterval(interval);\n"
-                + "          if (passwordInput) passwordInput.disabled = false;\n"
-                + "          if (submitBtn) {\n"
-                + "            submitBtn.disabled = false;\n"
-                + "            submitBtn.textContent = '登入';\n"
-                + "          }\n"
-                + "          if (lockAlert) {\n"
-                + "            lockAlert.style.display = 'none';\n"
-                + "          }\n"
-                + "        }\n"
-                + "      }, 1000);\n"
                 + "    }\n"
                 + "  </script>\n"
                 + "</body>\n"
