@@ -101,6 +101,11 @@ import {
   PRIVATE_TEAM_WINDOW_SKY_Z,
   PRIVATE_TEAM_WINDOW_SKYLINE_PARALLAX,
   PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_RIVER_OPACITY,
+  privateTeamWindowRiverShimmerMul,
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT,
   privateTeamWindowSkylineParallaxOffset,
   privateTeamWindowAmbientMotionEnabled,
   privateTeamWindowTowerBeaconOpacity,
@@ -248,6 +253,11 @@ export {
   PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y,
   PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y,
   PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_RIVER_OPACITY,
+  privateTeamWindowRiverShimmerMul,
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT,
   privateTeamWindowAirplaneXNorm,
   PRIVATE_TEAM_LEFT_POSTER_IDX_KEY,
   LEFT_WALL_POSTER_URLS,
@@ -671,7 +681,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       map: skylineFlicker.tex,
       transparent: true,
       depthWrite: false,
-      opacity: 0.88,
+      opacity: 0.76,
       blending: THREE.AdditiveBlending
     })
   );
@@ -719,16 +729,16 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const streetTrafficTex = makeWindowVistaTrafficOverlayTexture();
   const windowStreetTraffic = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.02, winH * 0.32),
+    new THREE.PlaneGeometry(winW + 0.02, winH * 0.22),
     new THREE.MeshBasicMaterial({
       map: streetTrafficTex,
       transparent: true,
       depthWrite: false,
-      opacity: 0.72,
+      opacity: 0.42,
       blending: THREE.AdditiveBlending
     })
   );
-  const trafficY = winBottom + winH * 0.18;
+  const trafficY = winBottom + winH * 0.24;
   const trafficZ = beaconZ + 0.006;
   windowStreetTraffic.position.set(0, trafficY, trafficZ);
   windowStreetTraffic.name = 'windowStreetTraffic';
@@ -737,16 +747,17 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const riverShimmerTex = makeWindowRiverShimmerTexture();
   const windowVistaRiver = new THREE.Mesh(
-    new THREE.PlaneGeometry(winW + 0.02, winH * 0.18),
+    new THREE.PlaneGeometry(winW + 0.02, winH * 0.14),
     new THREE.MeshBasicMaterial({
       map: riverShimmerTex,
       transparent: true,
       depthWrite: false,
-      opacity: 0.38,
+      opacity: PRIVATE_TEAM_WINDOW_RIVER_OPACITY.night,
       blending: THREE.AdditiveBlending
     })
   );
-  const riverY = winBottom + winH * 0.08;
+  windowVistaRiver.userData.riverBaseOpacity = PRIVATE_TEAM_WINDOW_RIVER_OPACITY.night;
+  const riverY = winBottom + winH * 0.06;
   const riverZ = trafficZ + 0.004;
   windowVistaRiver.position.set(0, riverY, riverZ);
   windowVistaRiver.name = 'windowVistaRiver';
@@ -1218,11 +1229,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     windowVistaBeacon.visible = period === 'night' || period === 'sunset';
     windowVistaFlicker.visible = period === 'night' || period === 'sunset';
     windowVistaAirBeacon.visible = period === 'night' || period === 'sunset';
-    windowVistaClouds.visible = period === 'day' || period === 'sunset';
-    windowVistaClouds.material.opacity = period === 'day' ? 0.46 : 0.34;
-    const riverOp = period === 'day' ? 0.22 : period === 'sunset' ? 0.32 : 0.38;
+    windowVistaClouds.visible = period === 'day';
+    windowVistaClouds.material.opacity = 0.4;
+    const riverOp = PRIVATE_TEAM_WINDOW_RIVER_OPACITY[period] || PRIVATE_TEAM_WINDOW_RIVER_OPACITY.night;
+    windowVistaRiver.userData.riverBaseOpacity = riverOp;
     windowVistaRiver.material.opacity = riverOp;
-    windowStreetTraffic.material.opacity = period === 'day' ? 0.55 : 0.72;
+    windowStreetTraffic.material.opacity = period === 'day' ? 0.32 : 0.4;
   }
 
   applyWindowScenePeriod(windowVistaPeriod);
@@ -2213,8 +2225,12 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
 
     if (privateTeamWindowAmbientMotionEnabled(reducedMotion)) {
-      streetTrafficTex.offset.x = (elapsed * 0.048) % 1;
-      riverShimmerTex.offset.x = (elapsed * 0.02) % 1;
+      streetTrafficTex.offset.x = (elapsed * PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC) % 1;
+      riverShimmerTex.offset.x = 0;
+      const riverBase = windowVistaRiver.userData.riverBaseOpacity;
+      if (Number.isFinite(riverBase)) {
+        windowVistaRiver.material.opacity = riverBase * privateTeamWindowRiverShimmerMul(elapsed, reducedMotion);
+      }
       towerBeacon.paint(elapsed);
       towerBeacon.tex.needsUpdate = true;
       const beaconOp = privateTeamWindowTowerBeaconOpacity(elapsed, reducedMotion);
@@ -2232,13 +2248,17 @@ export function mountPrivateTeamScene(canvas, opts) {
         const airOp = privateTeamWindowAirplaneBeaconOpacity(elapsed, reducedMotion);
         windowVistaAirBeacon.material.opacity = airOp * (windowVistaPeriod === 'sunset' ? 0.55 : 0.78);
       }
-      if (windowVistaPeriod === 'day' || windowVistaPeriod === 'sunset') {
+      if (windowVistaPeriod === 'day') {
         dayCloudTex.offset.x = (elapsed * PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC) % 1;
         dayCloudTex.needsUpdate = true;
       }
     } else {
       streetTrafficTex.offset.x = 0;
       riverShimmerTex.offset.x = 0;
+      const riverBaseStatic = windowVistaRiver.userData.riverBaseOpacity;
+      if (Number.isFinite(riverBaseStatic)) {
+        windowVistaRiver.material.opacity = riverBaseStatic;
+      }
       towerBeacon.paint(null);
       towerBeacon.tex.needsUpdate = true;
       windowVistaBeacon.material.opacity = windowVistaPeriod === 'night' ? 0.72 : 0;
@@ -2248,7 +2268,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         vistaAirplane.tex.needsUpdate = true;
         windowVistaAirBeacon.material.opacity = 0.62;
       }
-      if (windowVistaPeriod === 'day' || windowVistaPeriod === 'sunset') {
+      if (windowVistaPeriod === 'day') {
         dayCloudTex.offset.x = 0;
       }
     }

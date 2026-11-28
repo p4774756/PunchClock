@@ -188,20 +188,51 @@ export function privateTeamWindowSkylineParallaxOffset(yawRad, pitchRad, paralla
 
 /** 夜間窗景貼圖上 101 塔尖航空燈（UV 0–1，y 愈小愈靠天際）。 */
 export const PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS = [
-  { x: 0.542, y: 0.392, r: 1.15, primary: true },
-  { x: 0.518, y: 0.468, r: 0.95 },
-  { x: 0.612, y: 0.498, r: 0.85 },
-  { x: 0.388, y: 0.522, r: 0.8 }
+  { x: 0.542, y: 0.448, r: 1.15, primary: true },
+  { x: 0.518, y: 0.512, r: 0.95 },
+  { x: 0.612, y: 0.538, r: 0.85 },
+  { x: 0.388, y: 0.558, r: 0.8 }
 ];
 
 /** 白點飛機燈水平路徑所在天空帶（貼圖 UV，須在天際線之上）。 */
 export const PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y = 0.155;
 
 /** 天際線大致上緣（UV）；航空燈 y 應不低於此，飛機 y 應明顯低於此。 */
-export const PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y = 0.34;
+export const PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y = 0.38;
+
+/** 樓窗閃爍燈撒點下緣（UV，須在天際線之下的大樓帶內）。 */
+export const PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN = PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y + 0.04;
+
+/** 樓窗閃爍燈撒點高度帶（UV 跨度）。 */
+export const PRIVATE_TEAM_WINDOW_FLICKER_Y_SPAN = 0.46;
 
 /** 白天窗景雲層漂移速度（貼圖 repeat U／秒）。 */
-export const PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC = 0.041;
+export const PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC = 0.024;
+
+/** 橋面車流光點數量與車道 UV、水平捲動速度。 */
+export const PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT = 12;
+export const PRIVATE_TEAM_WINDOW_TRAFFIC_LANE_Y_NORM = 0.78;
+export const PRIVATE_TEAM_WINDOW_TRAFFIC_LANE_HALF_PX = 5;
+export const PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC = 0.018;
+
+/** 河面波光各時段基礎透明度（疊乘閃爍倍率，無水平位移）。 */
+export const PRIVATE_TEAM_WINDOW_RIVER_OPACITY = {
+  day: 0.14,
+  sunset: 0.18,
+  night: 0.22
+};
+
+/** 河面波光明滅倍率（reducedMotion 時固定 1）。 */
+export function privateTeamWindowRiverShimmerMul(elapsedSec, reducedMotion) {
+  if (reducedMotion) return 1;
+  const t = Number(elapsedSec);
+  if (!Number.isFinite(t)) return 1;
+  return (
+    0.8 +
+    ((Math.sin(t * 1.35) + 1) / 2) * 0.16 +
+    ((Math.sin(t * 3.2 + 0.5) + 1) / 2) * 0.07
+  );
+}
 
 /** 101 航空障礙燈緩慢明滅係數（0.35–1）。 */
 export function privateTeamWindowTowerBeaconOpacity(elapsedSec, reducedMotion) {
@@ -299,20 +330,35 @@ export function makeDayVistaCloudLayerTexture() {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const rand = privateTeamSeededRand(61);
-  for (let i = 0; i < 7; i++) {
-    const cx = rand() * canvas.width;
+  const edgeMargin = canvas.width * 0.1;
+  for (let i = 0; i < 6; i++) {
+    const cx = edgeMargin + rand() * (canvas.width - edgeMargin * 2);
     const cy = 22 + rand() * 72;
-    const rw = 85 + rand() * 130;
-    const rh = 26 + rand() * 34;
+    const rwMax = Math.min(
+      95 + rand() * 95,
+      (cx - edgeMargin) * 0.92,
+      (canvas.width - edgeMargin - cx) * 0.92
+    );
+    const rw = Math.max(48, rwMax);
+    const rh = 22 + rand() * 30;
     const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, rw);
-    g.addColorStop(0, 'rgba(255,255,255,0.42)');
-    g.addColorStop(0.5, 'rgba(248,252,255,0.18)');
+    g.addColorStop(0, 'rgba(255,255,255,0.36)');
+    g.addColorStop(0.5, 'rgba(248,252,255,0.14)');
     g.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = g;
     ctx.beginPath();
     ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+  const edgeFade = ctx.createLinearGradient(0, 0, canvas.width, 0);
+  edgeFade.addColorStop(0, 'rgba(0,0,0,0)');
+  edgeFade.addColorStop(0.07, 'rgba(255,255,255,1)');
+  edgeFade.addColorStop(0.93, 'rgba(255,255,255,1)');
+  edgeFade.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.fillStyle = edgeFade;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.globalCompositeOperation = 'source-over';
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.ClampToEdgeWrapping;
@@ -328,12 +374,13 @@ export function makeWindowVistaTrafficOverlayTexture() {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   const rand = privateTeamSeededRand(157);
-  const laneY = canvas.height * 0.62;
-  for (let t = 0; t < 22; t++) {
+  const laneY = canvas.height * PRIVATE_TEAM_WINDOW_TRAFFIC_LANE_Y_NORM;
+  const half = PRIVATE_TEAM_WINDOW_TRAFFIC_LANE_HALF_PX;
+  for (let t = 0; t < PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT; t++) {
     const tx = rand() * canvas.width;
-    const ty = laneY + (rand() - 0.5) * 14;
-    ctx.fillStyle = 'rgba(255,78,62,' + (0.48 + rand() * 0.42) + ')';
-    ctx.fillRect(tx, ty, 2 + rand() * 3.5, 1.1 + rand() * 1.2);
+    const ty = laneY + (rand() - 0.5) * half * 2;
+    ctx.fillStyle = 'rgba(255,78,62,' + (0.28 + rand() * 0.32) + ')';
+    ctx.fillRect(tx, ty, 1.8 + rand() * 2.4, 1 + rand() * 0.9);
   }
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
@@ -350,9 +397,9 @@ export function makeWindowRiverShimmerTexture() {
   const ctx = canvas.getContext('2d');
   const g = ctx.createLinearGradient(0, 0, canvas.width, 0);
   g.addColorStop(0, 'rgba(180,210,255,0)');
-  g.addColorStop(0.25, 'rgba(200,225,255,0.22)');
-  g.addColorStop(0.5, 'rgba(165,195,250,0.08)');
-  g.addColorStop(0.75, 'rgba(210,230,255,0.18)');
+  g.addColorStop(0.25, 'rgba(200,225,255,0.12)');
+  g.addColorStop(0.5, 'rgba(165,195,250,0.05)');
+  g.addColorStop(0.75, 'rgba(210,230,255,0.1)');
   g.addColorStop(1, 'rgba(180,210,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, canvas.height * 0.42, canvas.width, canvas.height * 0.22);
@@ -553,18 +600,25 @@ export function makeSkylineFlickerLightsTexture() {
   canvas.height = 144;
   const ctx = canvas.getContext('2d');
   const rand = privateTeamSeededRand(89);
+  const yMin = PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN;
+  const ySpan = PRIVATE_TEAM_WINDOW_FLICKER_Y_SPAN;
   const lights = [];
-  for (let i = 0; i < 56; i++) {
+  for (let i = 0; i < 42; i++) {
     lights.push({
       x: rand() * canvas.width,
-      y: canvas.height * (0.36 + rand() * 0.58),
-      w: 1.5 + rand() * 2.8,
-      h: 2 + rand() * 3.5,
-      on: rand() > 0.28,
+      y: canvas.height * (yMin + rand() * ySpan),
+      w: 1.5 + rand() * 2.4,
+      h: 2 + rand() * 3,
+      on: rand() > 0.32,
       warm: rand() > 0.42
     });
   }
-  const antenna = { x: canvas.width * 0.68, y: canvas.height * 0.4, on: false };
+  const primaryAnchor = PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS.find((a) => a.primary);
+  const antenna = {
+    x: canvas.width * (primaryAnchor ? primaryAnchor.x : 0.542),
+    y: canvas.height * (primaryAnchor ? primaryAnchor.y : 0.448),
+    on: false
+  };
   const paint = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     for (let li = 0; li < lights.length; li++) {

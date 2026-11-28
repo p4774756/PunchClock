@@ -22,6 +22,11 @@ const {
   PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y,
   PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y,
   PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC,
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN,
+  PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT,
+  PRIVATE_TEAM_WINDOW_RIVER_OPACITY,
+  privateTeamWindowRiverShimmerMul,
   privateTeamWindowAirplaneXNorm
 } = await loadPublicModule('private-team-scene.js');
 
@@ -125,13 +130,25 @@ test('大樓窗戶燈閃爍不再誤呼叫 flicker.rand()', () => {
 test('航空燈與飛機白燈錨點落於天際線上下帶', () => {
   const primary = PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS.find((b) => b.primary);
   assert.ok(primary);
-  assert.ok(primary.y >= PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y - 0.12);
+  assert.ok(primary.y >= PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y);
   assert.ok(primary.y <= 0.58);
   assert.ok(PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y < PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y - 0.08);
-  assert.ok(PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC >= 0.03);
+  assert.ok(PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC <= 0.03);
   assert.match(sceneSrc, /windowVistaAirBeacon/);
   assert.match(sceneSrc, /windowVistaClouds/);
   const x0 = privateTeamWindowAirplaneXNorm(0);
   const x1 = privateTeamWindowAirplaneXNorm(13);
   assert.ok(x1 - x0 > 0.2 || x1 < x0);
+});
+
+test('窗景疊層：樓燈帶、雲僅白天、車流河面較淡且河面無橫移', () => {
+  assert.ok(PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN >= PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y);
+  assert.equal(PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT, 12);
+  assert.ok(PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC < 0.03);
+  assert.ok(PRIVATE_TEAM_WINDOW_RIVER_OPACITY.night <= 0.25);
+  assert.equal(privateTeamWindowRiverShimmerMul(0, true), 1);
+  assert.match(sceneSrc, /windowVistaClouds\.visible = period === 'day'/);
+  assert.match(sceneSrc, /riverShimmerTex\.offset\.x = 0/);
+  assert.match(sceneSrc, /PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC/);
+  assert.doesNotMatch(sceneSrc, /riverShimmerTex\.offset\.x = \(elapsed \* 0\.02\)/);
 });
