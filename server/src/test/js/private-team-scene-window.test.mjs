@@ -24,6 +24,8 @@ const {
   PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
   PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC,
   PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN,
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MAX,
+  PRIVATE_TEAM_WINDOW_FLICKER_ANCHORS,
   PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT,
   PRIVATE_TEAM_WINDOW_RIVER_OPACITY,
   privateTeamWindowRiverShimmerMul,
@@ -143,6 +145,16 @@ test('航空燈與飛機白燈錨點落於天際線上下帶', () => {
 
 test('窗景疊層：樓燈帶、雲僅白天、車流河面較淡且河面無橫移', () => {
   assert.ok(PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN >= PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y);
+  assert.ok(PRIVATE_TEAM_WINDOW_FLICKER_Y_MAX <= 0.68);
+  assert.equal(PRIVATE_TEAM_WINDOW_FLICKER_ANCHORS.length, 42);
+  for (const a of PRIVATE_TEAM_WINDOW_FLICKER_ANCHORS) {
+    assert.ok(a.y >= PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN);
+    assert.ok(a.y <= PRIVATE_TEAM_WINDOW_FLICKER_Y_MAX);
+    assert.ok(a.x >= 0.08 && a.x <= 0.92);
+  }
+  assert.match(sceneSrc, /PRIVATE_TEAM_WINDOW_FLICKER_ANCHORS/);
+  assert.match(sceneSrc, /for \(let i = 0; i < anchors\.length; i\+\+\)/);
+  assert.doesNotMatch(sceneSrc, /x: rand\(\) \* canvas\.width/);
   assert.equal(PRIVATE_TEAM_WINDOW_TRAFFIC_LIGHT_COUNT, 12);
   assert.ok(PRIVATE_TEAM_WINDOW_TRAFFIC_DRIFT_U_PER_SEC < 0.03);
   assert.ok(PRIVATE_TEAM_WINDOW_RIVER_OPACITY.night <= 0.25);

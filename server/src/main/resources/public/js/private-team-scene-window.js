@@ -203,8 +203,60 @@ export const PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y = 0.38;
 /** 樓窗閃爍燈撒點下緣（UV，須在天際線之下的大樓帶內）。 */
 export const PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN = PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y + 0.04;
 
-/** 樓窗閃爍燈撒點高度帶（UV 跨度）。 */
-export const PRIVATE_TEAM_WINDOW_FLICKER_Y_SPAN = 0.46;
+/** 樓窗閃爍燈撒點上緣（UV，須低於高架／河面前景帶）。 */
+export const PRIVATE_TEAM_WINDOW_FLICKER_Y_MAX = 0.66;
+
+/** 樓窗閃爍燈撒點高度帶（UV 跨度，錨點取樣時夾於 MIN–MAX）。 */
+export const PRIVATE_TEAM_WINDOW_FLICKER_Y_SPAN =
+  PRIVATE_TEAM_WINDOW_FLICKER_Y_MAX - PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN;
+
+/**
+ * 夜間窗景貼圖上已對準大樓窗格的樓燈 UV（依 taipei-window-night／day 量測，非全幅隨機）。
+ */
+export const PRIVATE_TEAM_WINDOW_FLICKER_ANCHORS = [
+  { x: 0.647, y: 0.496 },
+  { x: 0.769, y: 0.496 },
+  { x: 0.459, y: 0.504 },
+  { x: 0.825, y: 0.512 },
+  { x: 0.895, y: 0.521 },
+  { x: 0.637, y: 0.529 },
+  { x: 0.127, y: 0.537 },
+  { x: 0.094, y: 0.546 },
+  { x: 0.234, y: 0.546 },
+  { x: 0.272, y: 0.546 },
+  { x: 0.436, y: 0.546 },
+  { x: 0.717, y: 0.546 },
+  { x: 0.389, y: 0.554 },
+  { x: 0.755, y: 0.554 },
+  { x: 0.319, y: 0.562 },
+  { x: 0.492, y: 0.562 },
+  { x: 0.797, y: 0.579 },
+  { x: 0.544, y: 0.588 },
+  { x: 0.684, y: 0.588 },
+  { x: 0.727, y: 0.588 },
+  { x: 0.173, y: 0.596 },
+  { x: 0.272, y: 0.596 },
+  { x: 0.408, y: 0.596 },
+  { x: 0.511, y: 0.596 },
+  { x: 0.591, y: 0.596 },
+  { x: 0.844, y: 0.596 },
+  { x: 0.459, y: 0.604 },
+  { x: 0.113, y: 0.613 },
+  { x: 0.244, y: 0.613 },
+  { x: 0.300, y: 0.621 },
+  { x: 0.558, y: 0.621 },
+  { x: 0.591, y: 0.629 },
+  { x: 0.647, y: 0.629 },
+  { x: 0.347, y: 0.637 },
+  { x: 0.684, y: 0.637 },
+  { x: 0.863, y: 0.637 },
+  { x: 0.417, y: 0.646 },
+  { x: 0.450, y: 0.646 },
+  { x: 0.487, y: 0.646 },
+  { x: 0.792, y: 0.646 },
+  { x: 0.103, y: 0.654 },
+  { x: 0.173, y: 0.654 }
+];
 
 /** 白天窗景雲層漂移速度（貼圖 repeat U／秒）。 */
 export const PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC = 0.024;
@@ -601,12 +653,20 @@ export function makeSkylineFlickerLightsTexture() {
   const ctx = canvas.getContext('2d');
   const rand = privateTeamSeededRand(89);
   const yMin = PRIVATE_TEAM_WINDOW_FLICKER_Y_MIN;
-  const ySpan = PRIVATE_TEAM_WINDOW_FLICKER_Y_SPAN;
+  const yMax = PRIVATE_TEAM_WINDOW_FLICKER_Y_MAX;
+  const jitterU = 0.006;
+  const jitterV = 0.005;
   const lights = [];
-  for (let i = 0; i < 42; i++) {
+  const anchors = PRIVATE_TEAM_WINDOW_FLICKER_ANCHORS;
+  for (let i = 0; i < anchors.length; i++) {
+    const a = anchors[i];
+    let xNorm = a.x + (rand() - 0.5) * 2 * jitterU;
+    let yNorm = a.y + (rand() - 0.5) * 2 * jitterV;
+    xNorm = Math.min(0.98, Math.max(0.02, xNorm));
+    yNorm = Math.min(yMax, Math.max(yMin, yNorm));
     lights.push({
-      x: rand() * canvas.width,
-      y: canvas.height * (yMin + rand() * ySpan),
+      x: canvas.width * xNorm,
+      y: canvas.height * yNorm,
       w: 1.5 + rand() * 2.4,
       h: 2 + rand() * 3,
       on: rand() > 0.32,
