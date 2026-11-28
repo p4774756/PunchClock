@@ -8,6 +8,31 @@ export const SECRETARY_SPRITE_URL_IDLE = '/assets/private-team/secretary-idle-te
 export const SECRETARY_SPRITE_URL_READ = '/assets/private-team/secretary-read.webp';
 export const SECRETARY_SPRITE_URL_PHONE = '/assets/private-team/secretary-phone.webp';
 export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.webp';
+export const SECRETARY_SPRITE_URL_SOFA = '/assets/private-team/secretary-sofa.webp';
+
+export function isWorkingTigerStatus(status) {
+  const s = status == null ? '' : String(status).trim();
+  return s.startsWith('工作中');
+}
+
+export function isLoungeTigerStatus(status) {
+  const s = status == null ? '' : String(status).trim();
+  return s === '待命中' || s === '待機' || s === '休息中';
+}
+
+/** 沙發立繪無法載入時，沿用浴缸區既有立繪。 */
+export function secretaryTubFallbackUrlForStatus(status) {
+  const s = status == null ? '' : String(status).trim();
+  if (s.startsWith('工作中')) return SECRETARY_SPRITE_URL_TYPING;
+  if (s === '休息中') return SECRETARY_SPRITE_URL_SLEEP;
+  if (s === '待命中' || s === '待機') return SECRETARY_SPRITE_URL_IDLE;
+  return SECRETARY_SPRITE_URL_IDLE;
+}
+
+export function isSecretarySofaSpriteUrl(url) {
+  const u = url == null ? '' : String(url).trim();
+  return u === SECRETARY_SPRITE_URL_SOFA;
+}
 
 export const SECRETARY_STANDBY_IDLE_URLS = [
   SECRETARY_SPRITE_URL_IDLE,

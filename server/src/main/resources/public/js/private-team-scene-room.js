@@ -265,6 +265,13 @@ function stepSkylineFlickerLights(flicker) {
   flicker.paint();
 }
 
+export function stripUnderwaterTint(mat) {
+  if (!mat) return;
+  mat.onBeforeCompile = null;
+  mat.customProgramCacheKey = () => 'meshbasic-vanilla';
+  mat.needsUpdate = true;
+}
+
 export function applyUnderwaterTint(mat, waterYUniform) {
   mat.alphaTest = 0.02;
   mat.onBeforeCompile = (shader) => {

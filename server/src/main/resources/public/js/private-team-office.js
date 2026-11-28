@@ -210,13 +210,13 @@ export function taskProgressFromTiger(tiger) {
 const SPRITE_TYPING = '/assets/private-team/secretary-typing-a.webp';
 const SPRITE_IDLE_TEA = '/assets/private-team/secretary-idle-tea.webp';
 const SPRITE_SLEEP = '/assets/private-team/secretary-sleep.webp';
+const SPRITE_SOFA = '/assets/private-team/secretary-sofa.webp';
 
-/** 秘書狀態對應立繪（工作中打字 A、待命中喝茶、休息中趴睡）。 */
+/** 秘書狀態對應立繪（工作中浴缸打字；待命／休息出浴沙發，素材缺失時場景回退浴缸立繪）。 */
 export function secretarySpriteUrlForStatus(status) {
   const s = status == null ? '' : String(status).trim();
   if (s.startsWith('工作中')) return SPRITE_TYPING;
-  if (s === '休息中') return SPRITE_SLEEP;
-  if (s === '待命中' || s === '待機') return SPRITE_IDLE_TEA;
+  if (s === '待命中' || s === '待機' || s === '休息中') return SPRITE_SOFA;
   return SPRITE_IDLE_TEA;
 }
 
