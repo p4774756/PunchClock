@@ -42,11 +42,12 @@ public class HomeBubbleAnchorTest {
     @Test
     public void mouthNormMapsInsideDrawRect() {
         Rectangle stage = new Rectangle(0, 0, 380, 460);
+        int crop = HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.CHERRY_PARK_D, IMG_H);
         Rectangle draw = HomeBubbleAnchor.imageDrawRect(
-                stage.width, stage.height, IMG_W, IMG_H, true);
+                stage.width, stage.height, IMG_W, IMG_H, crop);
         HomeBubbleAnchor.Spec spec = HomeBubbleAnchor.specFor(HomeIllustration.CHERRY_PARK_D);
         var mouth = HomeBubbleAnchor.imageNormToPanel(
-                spec.mouthX, spec.mouthY, draw, IMG_W, IMG_H);
+                spec.mouthX, spec.mouthY, draw, IMG_W, IMG_H, crop);
         assertTrue(draw.contains(mouth.x, mouth.y));
     }
 }

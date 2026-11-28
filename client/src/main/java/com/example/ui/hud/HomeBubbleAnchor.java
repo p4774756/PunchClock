@@ -59,26 +59,67 @@ public final class HomeBubbleAnchor {
         return id != null && BY_ID.containsKey(id.trim().toLowerCase());
     }
 
+    /** 多數 3:4 場景圖（d–f）頂端約四分之一為 AI 填補糊帶；頂樓泳池（c）人物靠上，不裁頂；夜晚房間（b）無此帶。 */
+    private static final double SCENE_TOP_PADDING_NORM = 0.25;
+
+    public static int sourceTopCropPx(HomeIllustration illustration, int imgH) {
+        if (illustration == null || imgH <= 0) {
+            return 0;
+        }
+        if (illustration == HomeIllustration.ROOM_B || illustration == HomeIllustration.POOL_C) {
+            return 0;
+        }
+        return (int) Math.round(imgH * SCENE_TOP_PADDING_NORM);
+    }
+
+    public static Rectangle imageDrawRect(int panelW, int panelH, int imgW, int imgH) {
+        return imageDrawRect(panelW, panelH, imgW, imgH, 0);
+    }
+
     public static Rectangle imageDrawRect(
-            int panelW, int panelH, int imgW, int imgH, boolean preferTopWhenVerticalCrop) {
+            int panelW, int panelH, int imgW, int imgH, int sourceTopPx) {
         if (panelW < 1 || panelH < 1 || imgW < 1 || imgH < 1) {
             return new Rectangle(0, 0, panelW, panelH);
         }
-        double scale = Math.max(panelW / (double) imgW, panelH / (double) imgH);
+        int crop = Math.max(0, Math.min(sourceTopPx, imgH - 1));
+        int contentH = imgH - crop;
+        double scale = Math.max(panelW / (double) imgW, panelH / (double) contentH);
         int dw = (int) Math.ceil(imgW * scale);
-        int dh = (int) Math.ceil(imgH * scale);
+        int dh = (int) Math.ceil(contentH * scale);
         int x = (panelW - dw) / 2;
-        int y = preferTopWhenVerticalCrop && dh > panelH ? 0 : (panelH - dh) / 2;
+        int y = coverOffsetY(panelH, dh, contentH, scale);
         return new Rectangle(x, y, dw, dh);
+    }
+
+    /** cover 縮放後上下裁切：裁切時以原圖與面板各約上 1/3 對齊，略過圖檔頂端填補帶。 */
+    static int coverOffsetY(int panelH, int dh, int imgH, double scale) {
+        if (dh <= panelH) {
+            return (panelH - dh) / 2;
+        }
+        int y = panelH / 3 - (int) Math.round(imgH / 3.0 * scale);
+        int minY = panelH - dh;
+        return Math.max(minY, Math.min(0, y));
     }
 
     public static Point imageNormToPanel(
             double normX, double normY, Rectangle drawRect, int imgW, int imgH) {
+        return imageNormToPanel(normX, normY, drawRect, imgW, imgH, 0);
+    }
+
+    public static Point imageNormToPanel(
+            double normX,
+            double normY,
+            Rectangle drawRect,
+            int imgW,
+            int imgH,
+            int sourceTopPx) {
         double scale = drawRect.width / (double) imgW;
         int ix = (int) Math.round(normX * imgW);
         int iy = (int) Math.round(normY * imgH);
         int px = drawRect.x + (int) Math.round(ix * scale);
-        int py = drawRect.y + (int) Math.round(iy * scale);
+        int crop = Math.max(0, Math.min(sourceTopPx, imgH - 1));
+        int contentY = Math.max(0, iy - crop);
+        int py = drawRect.y + (int) Math.round(contentY * scale);
         return new Point(px, py);
     }
 
@@ -91,10 +132,10 @@ public final class HomeBubbleAnchor {
             int boxH,
             Rectangle topRightAvoid) {
         Spec spec = specFor(illustration);
-        boolean preferTop = illustration != null && illustration.preferTopWhenVerticalCrop();
-        Rectangle draw = imageDrawRect(stage.width, stage.height, imgW, imgH, preferTop);
-        Point mouth = imageNormToPanel(spec.mouthX, spec.mouthY, draw, imgW, imgH);
-        Point anchor = imageNormToPanel(spec.bubbleX, spec.bubbleY, draw, imgW, imgH);
+        int sourceTop = sourceTopCropPx(illustration, imgH);
+        Rectangle draw = imageDrawRect(stage.width, stage.height, imgW, imgH, sourceTop);
+        Point mouth = imageNormToPanel(spec.mouthX, spec.mouthY, draw, imgW, imgH, sourceTop);
+        Point anchor = imageNormToPanel(spec.bubbleX, spec.bubbleY, draw, imgW, imgH, sourceTop);
         int x = anchor.x - boxW / 2;
         int y = anchor.y - boxH - 8;
         if (mouth.x < anchor.x) {

@@ -28,11 +28,6 @@ public enum HomeIllustration {
         return "/hud/anime/home-" + id + ".jpg";
     }
 
-    /** 3:4 圖上下裁切時偏上對齊以保住臉部（頂樓泳池與新場景）。 */
-    public boolean preferTopWhenVerticalCrop() {
-        return this != ROOM_B;
-    }
-
     public static HomeIllustration fromId(String id) {
         if (id == null || id.isBlank()) {
             return ROOM_B;

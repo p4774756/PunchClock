@@ -53,12 +53,89 @@ public class HomeIllustrationTest {
     }
 
     @Test
-    public void preferTopWhenVerticalCrop_roomBOnlyFalse() {
-        assertFalse(HomeIllustration.ROOM_B.preferTopWhenVerticalCrop());
-        assertTrue(HomeIllustration.POOL_C.preferTopWhenVerticalCrop());
-        assertTrue(HomeIllustration.CHERRY_PARK_D.preferTopWhenVerticalCrop());
-        assertTrue(HomeIllustration.NIGHT_MARKET_E.preferTopWhenVerticalCrop());
-        assertTrue(HomeIllustration.OVERTIME_F.preferTopWhenVerticalCrop());
+    public void coverFillsIllustrationPanelWithoutTopGaps() throws Exception {
+        int[][] shells = {
+                {ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT},
+                {417, 644},
+        };
+        for (HomeIllustration illustration : HomeIllustration.values()) {
+            try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(illustration.resourcePath())) {
+                assertNotNull(in);
+                var img = ImageIO.read(in);
+                int imgW = img.getWidth();
+                int imgH = img.getHeight();
+                for (int[] shell : shells) {
+                    int panelH = shell[1] - ShellDimensions.TAB_BAR_HEIGHT;
+                    int panelW = shell[0];
+                    int crop = HomeBubbleAnchor.sourceTopCropPx(illustration, imgH);
+                    java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
+                            panelW, panelH, imgW, imgH, crop);
+                    assertTrue(draw.width >= panelW);
+                    assertTrue(draw.height >= panelH);
+                    assertTrue("top gap", draw.y <= 0);
+                    assertTrue("bottom gap", draw.y + draw.height >= panelH);
+                    assertTrue("left gap", draw.x <= 0);
+                    assertTrue("right gap", draw.x + draw.width >= panelW);
+                }
+            }
+        }
+    }
+
+    /** 原圖 home-c.jpg 臉部（髮頂）上緣像素 Y，用於驗證 cover 未切頭。 */
+    private static final int POOL_C_HEAD_TOP_SRC_Y = 123;
+
+    @Test
+    public void poolCKeepsHeadAtReviewSizes() throws Exception {
+        int[][] shells = {{380, 520}, {417, 644}};
+        try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(HomeIllustration.POOL_C.resourcePath())) {
+            assertNotNull(in);
+            var img = ImageIO.read(in);
+            int imgW = img.getWidth();
+            int imgH = img.getHeight();
+            assertEquals(0, HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.POOL_C, imgH));
+            for (int[] shell : shells) {
+                int panelH = shell[1] - ShellDimensions.TAB_BAR_HEIGHT;
+                int panelW = shell[0];
+                java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(panelW, panelH, imgW, imgH, 0);
+                double scale = draw.width / (double) imgW;
+                int visibleTopSrcY = (int) Math.round((-draw.y) / scale);
+                assertTrue(
+                        "c @" + shell[0] + "x" + shell[1] + " topY=" + visibleTopSrcY,
+                        visibleTopSrcY < POOL_C_HEAD_TOP_SRC_Y);
+            }
+        }
+    }
+
+    @Test
+    public void sceneIllustrationsSkipTopPaddingBand() throws Exception {
+        int[][] shells = {{380, 520}, {417, 644}};
+        HomeIllustration[] scenes = {
+                HomeIllustration.CHERRY_PARK_D,
+                HomeIllustration.NIGHT_MARKET_E,
+                HomeIllustration.OVERTIME_F,
+        };
+        assertEquals(0, HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.ROOM_B, 1152));
+        assertEquals(0, HomeBubbleAnchor.sourceTopCropPx(HomeIllustration.POOL_C, 1152));
+        for (HomeIllustration illustration : scenes) {
+            try (InputStream in = HomeIllustrationTest.class.getResourceAsStream(illustration.resourcePath())) {
+                var img = ImageIO.read(in);
+                int imgW = img.getWidth();
+                int imgH = img.getHeight();
+                int crop = HomeBubbleAnchor.sourceTopCropPx(illustration, imgH);
+                assertEquals(illustration.id() + " crop", 288, crop);
+                for (int[] shell : shells) {
+                    int panelH = shell[1] - ShellDimensions.TAB_BAR_HEIGHT;
+                    int panelW = shell[0];
+                    java.awt.Rectangle draw = HomeBubbleAnchor.imageDrawRect(
+                            panelW, panelH, imgW, imgH, crop);
+                    assertTrue(draw.width >= panelW);
+                    assertTrue(draw.height >= panelH);
+                    double scale = draw.width / (double) imgW;
+                    int visibleTopSrcY = (int) Math.round((-draw.y) / scale) + crop;
+                    assertTrue(illustration.id() + " @" + shell[0] + "x" + shell[1], visibleTopSrcY >= crop);
+                }
+            }
+        }
     }
 
     @Test
