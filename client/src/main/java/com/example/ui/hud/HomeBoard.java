@@ -425,17 +425,7 @@ final class HomeBoard {
             Area outline =
                     new Area(new RoundRectangle2D.Float(box.x, box.y, box.width, box.height, radius, radius));
             if (mouth != null) {
-                int baseY = box.y + box.height;
-                int baseX = Math.max(box.x + 16, Math.min(box.x + box.width - 16, mouth.x));
-                int tipX = Math.max(box.x + 6, Math.min(baseX - 10, mouth.x));
-                int reach = mouth.y - baseY;
-                int tipY = baseY + Math.min(24, Math.max(16, reach > 4 ? Math.min(reach, 24) : 18));
-                Path2D tail = new Path2D.Float();
-                tail.moveTo(baseX - 12, baseY - 1);
-                tail.lineTo(baseX + 5, baseY - 1);
-                tail.lineTo(tipX, tipY);
-                tail.closePath();
-                outline.add(new Area(tail));
+                appendTailTowardMouth(outline, box, mouth);
             }
             g.setColor(PANEL);
             g.fill(outline);
@@ -447,6 +437,88 @@ final class HomeBoard {
                 g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
             }
         }
+    }
+
+
+    /**
+     * 尾巴從泡泡最靠近臉的那一邊長出，尖角沿指向嘴／臉中心的方向，不要固定垂直朝下。
+     */
+    static void appendTailTowardMouth(Area outline, Rectangle box, Point mouth) {
+        if (outline == null || box == null || mouth == null) {
+            return;
+        }
+        double cx = box.x + box.width / 2.0;
+        double cy = box.y + box.height / 2.0;
+        double dx = mouth.x - cx;
+        double dy = mouth.y - cy;
+        double len = Math.hypot(dx, dy);
+        if (len < 1) {
+            dx = 0;
+            dy = 1;
+            len = 1;
+        }
+        double ux = dx / len;
+        double uy = dy / len;
+        Point base = tailBaseOnBubbleEdge(box, ux, uy);
+        double reach = Math.hypot(mouth.x - base.x, mouth.y - base.y);
+        double tipLen = Math.max(18, Math.min(26, reach * 0.5));
+        if (reach < tipLen + 4) {
+            tipLen = Math.max(14, reach * 0.7);
+        }
+        int tipX = (int) Math.round(base.x + ux * tipLen);
+        int tipY = (int) Math.round(base.y + uy * tipLen);
+        if (mouth.y > box.y + box.height && tipY < box.y + box.height + 16) {
+            tipY = box.y + box.height + 16;
+            if (Math.abs(uy) > 1e-6) {
+                tipX = (int) Math.round(base.x + ux * ((tipY - base.y) / uy));
+            }
+        }
+        double px = -uy;
+        double py = ux;
+        Path2D tail = new Path2D.Float();
+        tail.moveTo(base.x + px * 8, base.y + py * 8);
+        tail.lineTo(base.x - px * 9, base.y - py * 9);
+        tail.lineTo(tipX, tipY);
+        tail.closePath();
+        outline.add(new Area(tail));
+    }
+
+    /** 從泡泡中心沿方向向量碰到圓角矩形邊的點，當尾巴根部。 */
+    static Point tailBaseOnBubbleEdge(Rectangle box, double ux, double uy) {
+        int inset = 2;
+        double left = box.x + inset;
+        double right = box.x + box.width - inset;
+        double top = box.y + inset;
+        double bottom = box.y + box.height - inset;
+        double cx = box.x + box.width / 2.0;
+        double cy = box.y + box.height / 2.0;
+        double bestT = Double.POSITIVE_INFINITY;
+        if (Math.abs(ux) > 1e-6) {
+            double edgeX = ux > 0 ? right : left;
+            double t = (edgeX - cx) / ux;
+            if (t > 0) {
+                double y = cy + t * uy;
+                if (y >= top - 0.5 && y <= bottom + 0.5) {
+                    bestT = Math.min(bestT, t);
+                }
+            }
+        }
+        if (Math.abs(uy) > 1e-6) {
+            double edgeY = uy > 0 ? bottom : top;
+            double t = (edgeY - cy) / uy;
+            if (t > 0) {
+                double x = cx + t * ux;
+                if (x >= left - 0.5 && x <= right + 0.5) {
+                    bestT = Math.min(bestT, t);
+                }
+            }
+        }
+        if (!Double.isFinite(bestT)) {
+            return new Point((int) Math.round(cx), (int) Math.round(bottom));
+        }
+        return new Point(
+                (int) Math.round(cx + ux * bestT),
+                (int) Math.round(cy + uy * bestT));
     }
 
     private static List<String> wrap(Graphics2D g, String text, int width) {

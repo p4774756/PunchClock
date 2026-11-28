@@ -30,6 +30,7 @@ public class Issue865HomeAlbumTest {
                 AnimeShell shell = shellHome(380, 520);
                 shell.showHome();
                 shell.configureHomeAlbum(true, dir, 0, false);
+                shell.awaitHomeAlbumForTests();
                 shell.doLayout();
                 assertTrue(shell.homeAlbumActiveForTests());
                 assertTrue(isMostlyRed(shell.paintHomeFrameForTests()));
@@ -52,14 +53,17 @@ public class Issue865HomeAlbumTest {
             SwingUtilities.invokeAndWait(() -> {
                 AnimeShell shell = shellHome(380, 520);
                 shell.configureHomeAlbum(false, empty, 30, false);
+                shell.awaitHomeAlbumForTests();
                 assertFalse(shell.homeAlbumActiveForTests());
                 assertTrue(hasBuiltinIllustrationPixels(shell.paintHomeFrameForTests()));
 
                 shell.configureHomeAlbum(true, empty, 30, false);
+                shell.awaitHomeAlbumForTests();
                 assertFalse(shell.homeAlbumActiveForTests());
                 assertTrue(hasBuiltinIllustrationPixels(shell.paintHomeFrameForTests()));
 
                 shell.configureHomeAlbum(true, broken, 30, false);
+                shell.awaitHomeAlbumForTests();
                 assertFalse(shell.homeAlbumActiveForTests());
                 assertTrue(hasBuiltinIllustrationPixels(shell.paintHomeFrameForTests()));
             });
@@ -80,6 +84,7 @@ public class Issue865HomeAlbumTest {
                         () -> { }, () -> true, () -> 40, true);
                 slideshow.configure(true, dir, 15, false);
                 slideshow.reload();
+                slideshow.awaitReloadForTests(4000);
                 slideshow.syncRotateTimer();
                 assertTrue(slideshow.isRotateTimerRunning());
                 long beforeManual = slideshow.rotateTimerStartedAtMsForTests();
@@ -116,6 +121,7 @@ public class Issue865HomeAlbumTest {
                     shell.showHome();
                     Rectangle builtin = shell.homeCoverDrawRectInShellCoordsForTests();
                     shell.configureHomeAlbum(true, dir, 0, false);
+                shell.awaitHomeAlbumForTests();
                     assertTrue(shell.homeAlbumActiveForTests());
                     Rectangle album = shell.homeCoverDrawRectInShellCoordsForTests();
                     assertRectsClose(builtin, album, 3);
@@ -136,12 +142,15 @@ public class Issue865HomeAlbumTest {
                 AnimeShell shell = shellHome(380, 520);
                 shell.showHome();
                 shell.configureHomeAlbum(true, dir, 15, false);
+                shell.awaitHomeAlbumForTests();
                 assertTrue(shell.homeAlbumRotateTimerRunningForTests());
 
                 shell.configureHomeAlbum(true, dir, 0, false);
+                shell.awaitHomeAlbumForTests();
                 assertFalse(shell.homeAlbumRotateTimerRunningForTests());
 
                 shell.configureHomeAlbum(true, dir, 15, false);
+                shell.awaitHomeAlbumForTests();
                 assertTrue(shell.homeAlbumRotateTimerRunningForTests());
 
                 shell.openTab(0);

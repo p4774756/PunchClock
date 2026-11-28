@@ -233,6 +233,10 @@ public final class HomeBubbleAnchor {
         Point anchor = imageNormToPanel(spec.bubbleX, spec.bubbleY, draw, imgW, imgH, sourceTopPx);
         int x = anchor.x - boxW / 2;
         int y = anchor.y - boxH - 8;
+        // cover 裁切後錨點可能在可視區之上；釘在畫面上緣，避免 clamp 後滑到臉或胸口。
+        if (y < 8) {
+            y = 8;
+        }
         // 內建插畫的泡泡靠近嘴；相簿若把泡泡放在臉的另一側，不要再把框拉回嘴上。
         if (Math.abs(spec.bubbleX - spec.mouthX) < 0.18) {
             if (mouth.x < anchor.x) {
@@ -249,6 +253,10 @@ public final class HomeBubbleAnchor {
                     draw, imgW, imgH, sourceTopPx);
             face.translate(stage.x, stage.y);
             nudgeOffFace(box, face, stage, topRightAvoid);
+            if (box.y >= face.y + Math.max(8, face.height / 3)) {
+                keepInTopBand(box, stage, 8);
+                nudgeOffFace(box, face, stage, topRightAvoid);
+            }
         }
         if (topRightAvoid != null && topRightAvoid.width > 0) {
             nudgeAwayFrom(box, topRightAvoid, stage);
@@ -264,6 +272,22 @@ public final class HomeBubbleAnchor {
         }
         mouth.translate(stage.x, stage.y);
         return new Placement(box, mouth);
+    }
+
+
+    private static void keepInTopBand(Rectangle box, Rectangle stage, int margin) {
+        if (box == null || stage == null) {
+            return;
+        }
+        int top = stage.y + margin;
+        int bandBottom = stage.y + Math.max(box.height + margin, (int) Math.round(stage.height * 0.34));
+        int maxY = Math.max(top, bandBottom - box.height);
+        if (box.y > maxY) {
+            box.y = maxY;
+        }
+        if (box.y < top) {
+            box.y = top;
+        }
     }
 
     private static void clampToStage(Rectangle box, Rectangle stage, int margin) {
@@ -287,10 +311,12 @@ public final class HomeBubbleAnchor {
             return;
         }
         int margin = 8;
-        box.y = Math.max(stage.y + margin, avoid.y + avoid.height + margin);
+        // 換圖按鈕在右上：優先往左或再往上讓，不要整框往下推到臉上或胸口。
+        box.x = Math.max(stage.x + margin, avoid.x - box.width - margin);
         if (box.intersects(grown)) {
-            box.x = Math.max(stage.x + margin, avoid.x - box.width - margin);
+            box.y = Math.max(stage.y + margin, Math.min(box.y, avoid.y - box.height - margin));
         }
+        keepInTopBand(box, stage, margin);
         clampToStage(box, stage, margin);
     }
 
@@ -303,15 +329,17 @@ public final class HomeBubbleAnchor {
         int margin = 8;
         int origX = box.x;
         int origY = box.y;
+        int topY = Math.max(stage.y + margin, face.y - box.height - margin);
+        int bandY = Math.max(stage.y + margin, Math.min(origY, face.y - box.height - margin));
         int[][] deltas = {
-                {face.x - box.width - margin, origY},
-                {face.x + face.width + margin, origY},
-                {origX, face.y - box.height - margin},
-                {face.x - box.width - margin, face.y - box.height - margin},
-                {face.x + face.width + margin, face.y - box.height - margin},
-                {origX, face.y + face.height + margin},
-                {face.x - box.width - margin, face.y + 8},
-                {face.x + face.width + margin, face.y + 8}
+                {face.x - box.width - margin, topY},
+                {face.x + face.width + margin, topY},
+                {stage.x + margin, topY},
+                {stage.x + stage.width - box.width - margin, topY},
+                {origX, topY},
+                {face.x - box.width - margin, bandY},
+                {face.x + face.width + margin, bandY},
+                {origX, face.y - box.height - margin}
         };
         Rectangle best = null;
         int bestScore = Integer.MIN_VALUE;
@@ -344,12 +372,21 @@ public final class HomeBubbleAnchor {
             score -= hit.width * hit.height;
         }
         if (topRightAvoid != null && topRightAvoid.width > 0 && box.intersects(grown(topRightAvoid, 6))) {
-            score -= 500;
+            score -= 800;
         }
-        if (box.y + box.height <= stage.y + (int) (stage.height * 0.48)) {
-            score += 80;
+        int topBand = stage.y + (int) Math.round(stage.height * 0.34);
+        if (box.y + box.height <= topBand) {
+            score += 600;
+        } else if (box.y <= topBand) {
+            score += 200;
+        } else {
+            score -= 400;
         }
-        score -= Math.abs(box.x - origX) + Math.abs(box.y - origY);
+        // 禁止把「臉下方胸口」當成後備位置：那是使用者連續回報的失敗模式。
+        if (box.y >= grownFace.y + Math.max(8, grownFace.height / 3)) {
+            score -= 900;
+        }
+        score -= Math.abs(box.x - origX) / 2 + Math.abs(box.y - origY);
         return score;
     }
 

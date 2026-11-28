@@ -1705,15 +1705,10 @@ public final class DesktopPetWindow extends JFrame {
             if (grabInStage != null) {
                 radians = Math.toRadians(animation.leanDegrees());
                 if (Math.abs(radians) >= 1e-4) {
-                    int size = DesktopPetSpriteLoader.DISPLAY;
-                    int spriteX = (WIDTH - size) / 2;
-                    int spriteY = BUBBLE_SLOT;
                     pivotX = grabInStage.x + view.x;
                     pivotY = grabInStage.y + view.y;
-                    scale = fitScale(
-                            spriteX - view.x, spriteY - view.y, size,
-                            grabInStage.x, grabInStage.y, radians,
-                            Math.max(1, view.width), Math.max(1, view.height), 2);
+                    // 拖曳時保持原尺寸。依傾角縮放會讓角色忽大忽小。
+                    scale = 1;
                 }
             }
             int w = Math.max(1, view.width);
@@ -1814,14 +1809,10 @@ public final class DesktopPetWindow extends JFrame {
             int spriteY = milu != null ? BUBBLE_SLOT : HEIGHT - size - 12 + animation.bob();
             int pivotX = grabInStage.x + view.x;
             int pivotY = grabInStage.y + view.y;
-            double scale = fitScale(
-                    spriteX - view.x, spriteY - view.y, size,
-                    grabInStage.x, grabInStage.y, radians,
-                    Math.max(1, view.width), Math.max(1, view.height), 2);
             Graphics2D layer = (Graphics2D) g.create();
             layer.translate(pivotX, pivotY);
             layer.rotate(radians);
-            layer.scale(scale, scale);
+            layer.scale(1, 1);
             layer.translate(-pivotX, -pivotY);
             return layer;
         }

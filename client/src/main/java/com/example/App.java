@@ -84,8 +84,6 @@ import java.util.function.Consumer;
 public class App extends JFrame {
 
     private static final String SELF_PEER_SUFFIX = "（本機）";
-    static final int MAIN_TAB_ALBUM = 4;
-
     final ServerConfigRefs serverRefs = new ServerConfigRefs();
     final PeerInteractionRefs peerRefs = new PeerInteractionRefs();
     private final SlotPanelRefs slotRefs = new SlotPanelRefs();
@@ -106,9 +104,6 @@ public class App extends JFrame {
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
     private JTabbedPane mainTabs;
-    private PrivateAlbumPanel privateAlbumPanel;
-    private JComponent privateAlbumTab;
-    private boolean privateAlbumTabPresent;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
     private java.util.List<Image> baseAppIconImages = java.util.Collections.emptyList();
@@ -322,12 +317,6 @@ public class App extends JFrame {
         bindCheckInUiSwitch();
         bindDockIconSwimsuitSwitch();
         bindPrivateAlbumControls();
-        privateAlbumPanel = new PrivateAlbumPanel(mainFont, boldFont);
-        JPanel albumBody = new JPanel(new BorderLayout());
-        albumBody.setOpaque(false);
-        albumBody.setBorder(new EmptyBorder(8, 8, 8, 8));
-        albumBody.add(privateAlbumPanel, BorderLayout.CENTER);
-        privateAlbumTab = CompactShellPanels.wrapFill(albumBody, true);
         JPanel settingsTab = new JPanel(new BorderLayout());
         settingsTab.setOpaque(false);
         settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
@@ -536,7 +525,6 @@ public class App extends JFrame {
         if (suppressConfigSave) {
             return;
         }
-        refreshPrivateAlbumFromSettings();
         pushHomeAlbumToShell();
         saveCloudConfig();
     }
@@ -577,56 +565,13 @@ public class App extends JFrame {
         return PrivateAlbumPaths.resolveDirectory(custom);
     }
 
-    private void refreshPrivateAlbumFromSettings() {
-        if (privateAlbumPanel == null) {
-            return;
-        }
-        privateAlbumPanel.setAlbumDirectory(resolvePrivateAlbumDirectory());
-        privateAlbumPanel.reload();
-    }
-
     private void applyPrivateAlbumVisible(boolean visible, boolean persist) {
         if (slotController != null && slotController.getConfig() != null) {
             slotController.getConfig().privateAlbumVisible = visible;
         }
-        setPrivateAlbumTabPresent(visible);
-        if (shell != null) {
-            shell.setPrivateAlbumNavVisible(visible);
-        }
-        if (visible) {
-            refreshPrivateAlbumFromSettings();
-        }
         pushHomeAlbumToShell();
         if (persist) {
             saveCloudConfig();
-        }
-    }
-
-    private void setPrivateAlbumTabPresent(boolean present) {
-        if (mainTabs == null || privateAlbumTab == null) {
-            return;
-        }
-        if (present == privateAlbumTabPresent) {
-            return;
-        }
-        if (present) {
-            if (mainTabs.getTabCount() <= MAIN_TAB_ALBUM) {
-                mainTabs.addTab("私房相簿", privateAlbumTab);
-            }
-            privateAlbumTabPresent = true;
-        } else {
-            int selected = mainTabs.getSelectedIndex();
-            if (mainTabs.getTabCount() > MAIN_TAB_ALBUM) {
-                mainTabs.removeTabAt(MAIN_TAB_ALBUM);
-            }
-            privateAlbumTabPresent = false;
-            if (selected == MAIN_TAB_ALBUM) {
-                if (shell != null) {
-                    shell.showHome();
-                }
-            } else if (selected > MAIN_TAB_ALBUM) {
-                mainTabs.setSelectedIndex(selected - 1);
-            }
         }
     }
 
@@ -689,7 +634,6 @@ public class App extends JFrame {
             }
         }
         applyPrivateAlbumVisible(visible, false);
-        refreshPrivateAlbumFromSettings();
     }
 
     private void persistHomeAlbumUiToConfig() {

@@ -34,6 +34,11 @@ final class HomeAlbumSlideshow {
     private Path directory = PrivateAlbumPaths.defaultDirectory();
     private int intervalSeconds = 30;
     private boolean randomOrder;
+    private static final int MAX_EDGE = 1600;
+
+    private final Object loadLock = new Object();
+    private int loadGeneration;
+    private int loadedGeneration = -1;
 
     private final List<BufferedImage> images = new ArrayList<>();
     private final List<HomeBubbleAnchor.Spec> anchors = new ArrayList<>();
@@ -60,29 +65,98 @@ final class HomeAlbumSlideshow {
     }
 
     void reload() {
-        images.clear();
-        anchors.clear();
-        index = 0;
-        outgoing = null;
-        crossfading = false;
-        fadeStart = 0;
+        int generation;
+        synchronized (loadLock) {
+            generation = ++loadGeneration;
+            images.clear();
+            anchors.clear();
+            index = 0;
+            outgoing = null;
+            crossfading = false;
+            fadeStart = 0;
+            if (!enabled) {
+                loadedGeneration = generation;
+            }
+        }
         if (!enabled) {
             syncRotateTimer();
             return;
         }
-        try {
-            List<Path> paths = PrivateAlbumPaths.listImages(directory);
-            for (Path path : paths) {
-                BufferedImage img = loadImage(path);
-                if (img != null) {
-                    images.add(img);
-                    anchors.add(HomeAlbumAnchor.resolve(path, img));
+        final int gen = generation;
+        final Path dir = directory;
+        Thread thread = new Thread(() -> {
+            loadGeneration(gen, dir);
+            SwingUtilities.invokeLater(() -> {
+                if (gen == loadGeneration) {
+                    syncRotateTimer();
+                    repaint.run();
+                }
+            });
+        }, "home-album-load");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    /** 測試用：在呼叫執行緒上等本輪載入結束（EDT 上會改為同步載入，避免跟 invokeLater 互鎖）。 */
+    void awaitReloadForTests(long timeoutMs) {
+        int gen = loadGeneration;
+        if (SwingUtilities.isEventDispatchThread()) {
+            loadGeneration(gen, directory);
+            syncRotateTimer();
+            return;
+        }
+        long deadline = System.currentTimeMillis() + Math.max(1L, timeoutMs);
+        while (System.currentTimeMillis() < deadline) {
+            synchronized (loadLock) {
+                if (loadedGeneration >= gen) {
+                    break;
                 }
             }
-        } catch (IOException ignored) {
-            // 後備：無相簿圖
+            try {
+                Thread.sleep(15);
+            } catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                break;
+            }
         }
-        syncRotateTimer();
+        try {
+            SwingUtilities.invokeAndWait(this::syncRotateTimer);
+        } catch (Exception ignored) {
+            // 測試後援
+        }
+    }
+
+    private void loadGeneration(int generation, Path dir) {
+        synchronized (loadLock) {
+            if (loadedGeneration >= generation) {
+                return;
+            }
+            if (generation != loadGeneration) {
+                return;
+            }
+            images.clear();
+            anchors.clear();
+            if (!enabled) {
+                loadedGeneration = generation;
+                return;
+            }
+            try {
+                List<Path> paths = PrivateAlbumPaths.listImages(dir);
+                for (Path path : paths) {
+                    if (generation != loadGeneration) {
+                        return;
+                    }
+                    BufferedImage img = loadImage(path);
+                    if (img != null) {
+                        images.add(img);
+                        anchors.add(HomeAlbumAnchor.resolve(path, img));
+                    }
+                }
+            } catch (IOException ignored) {
+                // 後備：無相簿圖
+            }
+            loadedGeneration = generation;
+        }
     }
 
     boolean active() {
@@ -294,10 +368,38 @@ final class HomeAlbumSlideshow {
 
     private static BufferedImage loadImage(Path path) {
         try {
-            return ImageIO.read(path.toFile());
+            BufferedImage raw = ImageIO.read(path.toFile());
+            return downscale(raw, MAX_EDGE);
         } catch (IOException | RuntimeException ex) {
             return null;
         }
+    }
+
+    static BufferedImage downscale(BufferedImage raw, int maxEdge) {
+        if (raw == null) {
+            return null;
+        }
+        int w = raw.getWidth();
+        int h = raw.getHeight();
+        if (w <= 0 || h <= 0) {
+            return raw;
+        }
+        int edge = Math.max(w, h);
+        if (edge <= maxEdge) {
+            return raw;
+        }
+        double scale = maxEdge / (double) edge;
+        int tw = Math.max(1, (int) Math.round(w * scale));
+        int th = Math.max(1, (int) Math.round(h * scale));
+        BufferedImage out = new BufferedImage(tw, th, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = out.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.drawImage(raw, 0, 0, tw, th, null);
+        } finally {
+            g.dispose();
+        }
+        return out;
     }
 
     private static void drawCover(Graphics2D g, BufferedImage img, Rectangle content, float alpha) {

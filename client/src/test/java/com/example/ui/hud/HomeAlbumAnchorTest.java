@@ -110,6 +110,7 @@ public class HomeAlbumAnchorTest {
                 shell.setSize(380, 520);
                 shell.showHome();
                 shell.configureHomeAlbum(true, dir, 0, false);
+                shell.awaitHomeAlbumForTests();
                 assertTrue(shell.homeAlbumActiveForTests());
                 HomeBubbleAnchor.Spec first = shell.homeAlbumAnchorForTests();
                 assertEquals(0.25, first.mouthX, 0.001);
@@ -136,6 +137,7 @@ public class HomeAlbumAnchorTest {
                 shell.showHome();
                 shell.doLayout();
                 shell.configureHomeAlbum(true, dir, 0, false);
+                shell.awaitHomeAlbumForTests();
                 shell.showHomeBubbleImmediatelyForTests("午安，記得喝口水。");
                 shell.paintHomeFrameForTests();
                 HomeBubbleAnchor.Spec spec = shell.homeAlbumAnchorForTests();

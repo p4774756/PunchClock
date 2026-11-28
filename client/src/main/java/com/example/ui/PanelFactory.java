@@ -325,7 +325,7 @@ public class PanelFactory {
         refs.privateAlbumVisibleSwitch.setSelected(false);
         refs.privateAlbumVisibleSwitch.setFont(boldFont);
         refs.privateAlbumVisibleSwitch.getAccessibleContext().setAccessibleName("顯示私房相簿");
-        String tip = "開啟後主畫面底部分頁會出現私房相簿，從本機資料夾讀取圖片；有圖時首頁也會輪播相簿。";
+        String tip = "開啟後，首頁會輪播本機相簿資料夾裡的圖片；沒有圖片或關閉時，首頁維持原本插畫。";
         refs.privateAlbumVisibleSwitch.setToolTipText(tip);
 
         JLabel title = new JLabel("顯示私房相簿");

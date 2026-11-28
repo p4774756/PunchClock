@@ -60,26 +60,27 @@ public final class AnimeShell extends JPanel {
     private static final Color MUTED = new Color(196, 186, 220);
     private static final Color NAV_INK = new Color(32, 32, 32);
     private static final Color NAV_INK_MUTED = new Color(64, 64, 64);
-    private static final String[] NAV = {"首頁", "排程", "好友傳檔", "相簿", "日誌", "設定"};
+    private static final String[] NAV = {"首頁", "排程", "好友傳檔", "日誌", "設定"};
     private static final String[] NAV_TIPS = {
             "首頁：小寶貝與狀態泡泡",
             "排程任務與打卡紀錄",
             "好友、聊天與傳檔",
-            "本機私房相簿",
             "系統日誌",
             "連線、外觀與關於"
     };
-    /** 分頁：首頁、排程0、好友2、相簿4、日誌3、設定1 */
-    private static final int[] NAV_TO_TAB = {-1, 0, 2, 4, 3, 1};
+    /** 分頁：首頁、排程0、好友2、日誌3、設定1 */
+    private static final int[] NAV_TO_TAB = {-1, 0, 2, 3, 1};
     private static final int SCHEDULE_NAV_ID = 1;
-    private static final int ALBUM_NAV_ID = 3;
     public static final int CHARACTER_HIT = 20;
 
     private final JTabbedPane tabs;
     private final SchedulerService scheduler;
     private final BabyAssets baby = BabyAssets.load();
     private final HomeBoard board = new HomeBoard();
-    private final Map<HomeIllustration, BufferedImage> homeIllustrations = loadHomeIllustrations();
+    private final Map<HomeIllustration, BufferedImage> homeIllustrations =
+            new java.util.EnumMap<>(HomeIllustration.class);
+    private final Object homeIllustrationLock = new Object();
+    private volatile boolean homeIllustrationPrefetchStarted;
     private final Timer timer;
     private HomeIllustration homeIllustration = HomeIllustration.ROOM_B;
     private final boolean reducedMotion = reducedMotion();
@@ -99,7 +100,6 @@ public final class AnimeShell extends JPanel {
     private boolean miniDragging;
     private int friendNavUnread;
     private boolean checkInUiVisible = true;
-    private boolean privateAlbumNavVisible = false;
     private final JButton swapIllustrationButton;
     private Runnable swapIllustrationHandler;
     private final HomeAlbumSlideshow homeAlbum;
@@ -387,25 +387,9 @@ public final class AnimeShell extends JPanel {
         refreshChrome();
     }
 
-    public void setPrivateAlbumNavVisible(boolean visible) {
-        if (privateAlbumNavVisible == visible) {
-            return;
-        }
-        privateAlbumNavVisible = visible;
-        if (!visible && !holdingHome && tabs.getSelectedIndex() == NAV_TO_TAB[ALBUM_NAV_ID]) {
-            showHome();
-        }
-        revalidate();
-        repaint();
-        refreshChrome();
-    }
 
     boolean checkInUiVisibleForTests() {
         return checkInUiVisible;
-    }
-
-    boolean privateAlbumNavVisibleForTests() {
-        return privateAlbumNavVisible;
     }
 
     int visibleNavSlotCountForTests() {
@@ -421,9 +405,6 @@ public final class AnimeShell extends JPanel {
             return false;
         }
         if (id == SCHEDULE_NAV_ID && !checkInUiVisible) {
-            return false;
-        }
-        if (id == ALBUM_NAV_ID && !privateAlbumNavVisible) {
             return false;
         }
         return true;
@@ -575,6 +556,10 @@ public final class AnimeShell extends JPanel {
         repaint(contentBounds());
     }
 
+    void awaitHomeAlbumForTests() {
+        homeAlbum.awaitReloadForTests(4000);
+    }
+
     /** @return true 若已處理相簿換圖（否則應輪換內建插畫） */
     public boolean cycleHomeDisplay() {
         if (homeAlbum.cycleNext(true)) {
@@ -620,7 +605,7 @@ public final class AnimeShell extends JPanel {
                     content.width, content.height,
                     homeAlbum.currentWidth(), homeAlbum.currentHeight());
         } else {
-            BufferedImage background = homeIllustrations.get(homeIllustration);
+            BufferedImage background = homeIllustrationImage(homeIllustration);
             if (background == null) {
                 return new java.awt.Rectangle(content);
             }
@@ -847,7 +832,7 @@ public final class AnimeShell extends JPanel {
                     swapIllustrationButton.getBounds(),
                     homeAlbum.currentAnchor());
         } else {
-            BufferedImage background = homeIllustrations.get(homeIllustration);
+            BufferedImage background = homeIllustrationImage(homeIllustration);
             int imgW = background == null ? 1 : background.getWidth();
             int imgH = background == null ? 1 : background.getHeight();
             board.setIllustrationContext(
@@ -1091,7 +1076,7 @@ public final class AnimeShell extends JPanel {
             g.fillRect(0, 0, getWidth(), getHeight());
             return;
         }
-        BufferedImage background = homeIllustrations.get(homeIllustration);
+        BufferedImage background = homeIllustrationImage(homeIllustration);
         if (background == null) {
             g.setColor(new Color(28, 20, 48));
             g.fillRect(0, 0, getWidth(), getHeight());
@@ -1114,12 +1099,43 @@ public final class AnimeShell extends JPanel {
         g.fillRect(0, 0, getWidth(), getHeight());
     }
 
-    private static Map<HomeIllustration, BufferedImage> loadHomeIllustrations() {
-        Map<HomeIllustration, BufferedImage> images = new HashMap<>();
-        for (HomeIllustration illustration : HomeIllustration.values()) {
-            images.put(illustration, loadImage(illustration.resourcePath()));
+    private BufferedImage homeIllustrationImage(HomeIllustration illustration) {
+        if (illustration == null) {
+            return null;
         }
-        return images;
+        synchronized (homeIllustrationLock) {
+            if (homeIllustrations.containsKey(illustration)) {
+                return homeIllustrations.get(illustration);
+            }
+            BufferedImage image = loadImage(illustration.resourcePath());
+            homeIllustrations.put(illustration, image);
+        }
+        startHomeIllustrationPrefetch();
+        synchronized (homeIllustrationLock) {
+            return homeIllustrations.get(illustration);
+        }
+    }
+
+    int loadedHomeIllustrationCountForTests() {
+        synchronized (homeIllustrationLock) {
+            return homeIllustrations.size();
+        }
+    }
+
+    private void startHomeIllustrationPrefetch() {
+        if (homeIllustrationPrefetchStarted) {
+            return;
+        }
+        homeIllustrationPrefetchStarted = true;
+        Thread thread = new Thread(this::prefetchRemainingHomeIllustrations, "home-illustration-prefetch");
+        thread.setDaemon(true);
+        thread.start();
+    }
+
+    private void prefetchRemainingHomeIllustrations() {
+        for (HomeIllustration illustration : HomeIllustration.values()) {
+            homeIllustrationImage(illustration);
+        }
     }
 
     private static BufferedImage loadImage(String resource) {
