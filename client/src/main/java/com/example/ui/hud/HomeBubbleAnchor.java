@@ -59,11 +59,14 @@ public final class HomeBubbleAnchor {
         return id != null && BY_ID.containsKey(id.trim().toLowerCase());
     }
 
-    /** 3:4 場景圖（c–f）頂端約四分之一為 AI 填補糊帶，繪製前先略過；夜晚房間（b）無此帶。 */
+    /** 多數 3:4 場景圖（d–f）頂端約四分之一為 AI 填補糊帶；頂樓泳池（c）人物靠上，不裁頂；夜晚房間（b）無此帶。 */
     private static final double SCENE_TOP_PADDING_NORM = 0.25;
 
     public static int sourceTopCropPx(HomeIllustration illustration, int imgH) {
-        if (illustration == null || illustration == HomeIllustration.ROOM_B || imgH <= 0) {
+        if (illustration == null || imgH <= 0) {
+            return 0;
+        }
+        if (illustration == HomeIllustration.ROOM_B || illustration == HomeIllustration.POOL_C) {
             return 0;
         }
         return (int) Math.round(imgH * SCENE_TOP_PADDING_NORM);
