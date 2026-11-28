@@ -12,6 +12,8 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
+import java.awt.event.HierarchyEvent;
+import java.awt.event.HierarchyListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 
@@ -24,7 +26,8 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     static final Color FILL = new Color(0xFF, 0x78, 0xB5);
 
     private static final int TRACK_HEIGHT = 12;
-    private static final int STRING_RESERVE = 44;
+    private static final int TEXT_PAD = 2;
+    private static final int PET_TEXT_GAP = 2;
     private static final int WALK_MS = 120;
     private static final int RUN_MS = 70;
     private static final int INDET_MS = 110;
@@ -51,6 +54,12 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     private int prevTargetValue;
     private Timer motionTimer;
     private PropertyChangeListener valueListener;
+    private PropertyChangeListener indeterminateListener;
+    private HierarchyListener hierarchyListener;
+    private int lastFillEdgeX;
+    private int lastPetMinX;
+    private int lastPetMaxX;
+    private int lastTextLeftX;
 
     @Override
     public void installUI(JComponent c) {
@@ -61,8 +70,11 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
         prevTargetValue = targetValue;
         lastTargetChangeMs = System.currentTimeMillis();
         valueListener = this::onValueChanged;
+        indeterminateListener = e -> resetIndeterminate();
+        hierarchyListener = this::onHierarchyChanged;
         progressBar.addPropertyChangeListener("value", valueListener);
-        progressBar.addPropertyChangeListener("indeterminate", e -> resetIndeterminate());
+        progressBar.addPropertyChangeListener("indeterminate", indeterminateListener);
+        progressBar.addHierarchyListener(hierarchyListener);
         syncMotion();
     }
 
@@ -73,8 +85,39 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
             progressBar.removePropertyChangeListener("value", valueListener);
             valueListener = null;
         }
+        if (indeterminateListener != null) {
+            progressBar.removePropertyChangeListener("indeterminate", indeterminateListener);
+            indeterminateListener = null;
+        }
+        if (hierarchyListener != null) {
+            progressBar.removeHierarchyListener(hierarchyListener);
+            hierarchyListener = null;
+        }
         frames = null;
         super.uninstallUI(c);
+    }
+
+    /** 對話框關閉或聊天卡結束時停表，避免隱藏後計時器仍重繪。 */
+    static void stopMotionIfPresent(JProgressBar bar) {
+        if (bar != null && bar.getUI() instanceof PetWalkerProgressBarUI) {
+            ((PetWalkerProgressBarUI) bar.getUI()).stopMotionTimer();
+        }
+    }
+
+    private void onHierarchyChanged(HierarchyEvent event) {
+        long flags = event.getChangeFlags();
+        if ((flags & (HierarchyEvent.SHOWING_CHANGED | HierarchyEvent.DISPLAYABILITY_CHANGED)) == 0) {
+            return;
+        }
+        if (isBarActive()) {
+            syncMotion();
+        } else {
+            stopMotionTimer();
+        }
+    }
+
+    private boolean isBarActive() {
+        return progressBar != null && progressBar.isVisible() && progressBar.isDisplayable();
     }
 
     private void onValueChanged(PropertyChangeEvent event) {
@@ -104,6 +147,10 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     }
 
     void syncMotion() {
+        if (!isBarActive()) {
+            stopMotionTimer();
+            return;
+        }
         if (progressBar.isIndeterminate()) {
             motion = Motion.INDETERMINATE;
             ensureMotionTimer(INDET_MS);
@@ -144,6 +191,10 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     }
 
     private void ensureMotionTimer(int delayMs) {
+        if (!isBarActive()) {
+            stopMotionTimer();
+            return;
+        }
         if (motionTimer != null && motionTimer.getDelay() == delayMs && motionTimer.isRunning()) {
             return;
         }
@@ -235,6 +286,22 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
         return displayValue;
     }
 
+    int lastFillEdgeXForTest() {
+        return lastFillEdgeX;
+    }
+
+    int lastPetMinXForTest() {
+        return lastPetMinX;
+    }
+
+    int lastPetMaxXForTest() {
+        return lastPetMaxX;
+    }
+
+    int lastTextLeftXForTest() {
+        return lastTextLeftX;
+    }
+
     @Override
     protected void paintDeterminate(Graphics g, JComponent c) {
         paintBar(g, c, false);
@@ -256,36 +323,42 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
         try {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             int x = b.left;
             int y = b.top;
-            int stringReserve = progressBar.isStringPainted() ? STRING_RESERVE : 0;
-            int barWidth = Math.max(0, width - stringReserve);
+            PetMetrics pet = measurePet();
+            String text = progressBar.isStringPainted() ? progressBar.getString() : null;
+            int textLeft = x + width;
+            if (text != null && !text.isEmpty()) {
+                FontMetrics fm = g2.getFontMetrics();
+                int sw = fm.stringWidth(text);
+                textLeft = x + width - sw - TEXT_PAD;
+            }
+            int petMinX = x;
+            int petMaxX = Math.max(petMinX, text == null || text.isEmpty() ? x + width : textLeft - PET_TEXT_GAP);
+            int trackRight = Math.max(x, petMaxX - pet.rightOverhang);
+            int barWidth = Math.max(0, trackRight - x);
             int trackY = y + height - TRACK_HEIGHT;
             g2.setColor(TRACK);
             g2.fillRoundRect(x, trackY, barWidth, TRACK_HEIGHT, 6, 6);
 
-            int amount;
             int fillEdgeX;
             if (indeterminate) {
                 boxRect = getBox(boxRect);
                 if (boxRect != null) {
-                    g2.setColor(FILL);
-                    g2.fillRoundRect(
-                            boxRect.x,
-                            trackY,
-                            boxRect.width,
-                            TRACK_HEIGHT,
-                            6,
-                            6);
-                    fillEdgeX = boxRect.x + boxRect.width;
-                    amount = boxRect.width;
+                    int boxX = Math.max(x, boxRect.x);
+                    int boxW = Math.min(boxRect.width, Math.max(0, trackRight - boxX));
+                    if (boxW > 0) {
+                        g2.setColor(FILL);
+                        g2.fillRoundRect(boxX, trackY, boxW, TRACK_HEIGHT, 6, 6);
+                    }
+                    fillEdgeX = boxX + boxW;
                 } else {
                     fillEdgeX = x;
-                    amount = 0;
                 }
             } else {
                 int max = Math.max(1, progressBar.getMaximum());
-                amount = (int) Math.round(barWidth * (displayValue / max));
+                int amount = (int) Math.round(barWidth * (displayValue / max));
                 amount = Math.min(barWidth, Math.max(0, amount));
                 if (amount > 0) {
                     g2.setColor(FILL);
@@ -293,11 +366,15 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
                 }
                 fillEdgeX = x + amount;
             }
+            lastFillEdgeX = fillEdgeX;
+            lastPetMinX = petMinX;
+            lastPetMaxX = petMaxX;
+            lastTextLeftX = textLeft;
 
-            drawPet(g2, fillEdgeX, trackY + TRACK_HEIGHT);
+            drawPet(g2, fillEdgeX, trackY + TRACK_HEIGHT, pet, petMinX, petMaxX);
 
-            if (progressBar.isStringPainted()) {
-                paintStringRight(g2, x, y, width, height, progressBar.getString());
+            if (text != null && !text.isEmpty()) {
+                paintStringRight(g2, x, y, width, height, text);
             }
         } finally {
             g2.dispose();
@@ -305,36 +382,31 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     }
 
     private void paintStringRight(Graphics2D g2, int x, int y, int width, int height, String text) {
-        if (text == null || text.isEmpty()) {
-            return;
-        }
         FontMetrics fm = g2.getFontMetrics();
         int sw = fm.stringWidth(text);
-        int sx = x + width - sw - 2;
+        int sx = x + width - sw - TEXT_PAD;
         int sy = y + (height - fm.getHeight()) / 2 + fm.getAscent();
         g2.setColor(Color.WHITE);
         g2.drawString(text, sx, sy);
     }
 
-    private void drawPet(Graphics2D g2, int footX, int footBaselineY) {
-        if (frames == null) {
+    private void drawPet(Graphics2D g2, int footX, int footBaselineY, PetMetrics pet, int minX, int maxX) {
+        if (pet.sprite == null || pet.drawW <= 0 || pet.drawH <= 0) {
             return;
         }
-        java.awt.image.BufferedImage sprite = pickSprite();
-        if (sprite == null) {
-            return;
-        }
-        double petScale = computePetScale(sprite);
         int hop = hopOffsetY();
-        int imgW = sprite.getWidth();
-        int imgH = sprite.getHeight();
-        int drawW = Math.max(1, (int) Math.round(imgW * petScale));
-        int drawH = Math.max(1, (int) Math.round(imgH * petScale));
-        int anchorX = DesktopPetSpriteLoader.ANCHOR_X;
-        int anchorY = DesktopPetSpriteLoader.ANCHOR_Y;
-        int drawX = footX - (int) Math.round(anchorX * petScale);
-        int drawY = footBaselineY - (int) Math.round(anchorY * petScale) - hop;
-        g2.drawImage(sprite, drawX, drawY, drawW, drawH, null);
+        int drawX = footX - pet.footOffsetX;
+        int drawY = footBaselineY - pet.footOffsetY - hop;
+        if (drawX < minX) {
+            drawX = minX;
+        }
+        if (drawX + pet.drawW > maxX) {
+            drawX = maxX - pet.drawW;
+        }
+        if (drawX < minX) {
+            drawX = minX;
+        }
+        g2.drawImage(pet.sprite, drawX, drawY, pet.drawW, pet.drawH, null);
     }
 
     private int hopOffsetY() {
@@ -346,6 +418,24 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
             phase = 2 - phase;
         }
         return (int) Math.round(HOP_PEAK * Math.sin(phase * Math.PI));
+    }
+
+    private PetMetrics measurePet() {
+        PetMetrics metrics = new PetMetrics();
+        if (frames == null) {
+            return metrics;
+        }
+        metrics.sprite = pickSprite();
+        if (metrics.sprite == null) {
+            return metrics;
+        }
+        double petScale = computePetScale(metrics.sprite);
+        metrics.drawW = Math.max(1, (int) Math.round(metrics.sprite.getWidth() * petScale));
+        metrics.drawH = Math.max(1, (int) Math.round(metrics.sprite.getHeight() * petScale));
+        metrics.footOffsetX = (int) Math.round(DesktopPetSpriteLoader.ANCHOR_X * petScale);
+        metrics.footOffsetY = (int) Math.round(DesktopPetSpriteLoader.ANCHOR_Y * petScale);
+        metrics.rightOverhang = Math.max(0, metrics.drawW - metrics.footOffsetX);
+        return metrics;
     }
 
     private double computePetScale(java.awt.image.BufferedImage sprite) {
@@ -378,5 +468,14 @@ public final class PetWalkerProgressBarUI extends BasicProgressBarUI {
     @Override
     protected Color getSelectionBackground() {
         return new Color(30, 41, 59);
+    }
+
+    private static final class PetMetrics {
+        java.awt.image.BufferedImage sprite;
+        int drawW;
+        int drawH;
+        int footOffsetX;
+        int footOffsetY;
+        int rightOverhang;
     }
 }

@@ -182,6 +182,7 @@ public final class TransferProgressDialog {
     public void close() {
         OPEN.remove(this);
         SwingUtilities.invokeLater(() -> {
+            PetWalkerProgressBarUI.stopMotionIfPresent(bar);
             dialog.setVisible(false);
             dialog.dispose();
         });
