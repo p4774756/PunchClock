@@ -92,7 +92,7 @@ public final class NightTheme {
         UIManager.put("ScrollBar.track", new Color(32, 24, 58));
         UIManager.put("TabbedPane.background", HEADER);
         UIManager.put("TabbedPane.foreground", INK);
-        UIManager.put("TabbedPane.selected", new Color(72, 56, 122));
+        UIManager.put("TabbedPane.selected", FIELD);
         UIManager.put("TabbedPane.contentAreaColor", PANEL);
         UIManager.put("TabbedPane.tabAreaBackground", HEADER);
         UIManager.put("TabbedPane.highlight", EDGE);

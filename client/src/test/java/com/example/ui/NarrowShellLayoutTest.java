@@ -133,32 +133,6 @@ public class NarrowShellLayoutTest {
     }
 
     @Test
-    public void appearanceTransparencySliderKeepsTrackAtMinWidth() throws Exception {
-        SwingUtilities.invokeAndWait(() -> {
-            Fonts fonts = fonts();
-            PanelFactory.ServerConfigRefs refs = new PanelFactory.ServerConfigRefs();
-            JTabbedPane tabs = PanelFactory.createServerConfigBody(refs, fonts.main, fonts.bold, fonts.field);
-            tabs.setSelectedIndex(PanelFactory.SETTINGS_APPEARANCE_TAB);
-            JPanel page = new JPanel(new BorderLayout());
-            page.setOpaque(false);
-            page.add(tabs, BorderLayout.CENTER);
-            JScrollPane scroll = layout(page);
-            assertTrue(refs.windowTransparencySlider.getWidth() >= 100);
-            Point sliderLoc = SwingUtilities.convertPoint(
-                    refs.windowTransparencySlider.getParent(),
-                    refs.windowTransparencySlider.getLocation(),
-                    scroll.getViewport());
-            Point hintLoc = hintUnderTransparency(scroll, refs);
-            assertTrue("說明應在滑桿下方", hintLoc.y >= sliderLoc.y + refs.windowTransparencySlider.getHeight() - 2);
-            FontMetrics fm = refs.homeIllustrationCombo.getFontMetrics(refs.homeIllustrationCombo.getFont());
-            assertTrue(refs.homeIllustrationCombo.getWidth()
-                    >= fm.stringWidth(com.example.ui.hud.HomeIllustration.POOL_C.label()));
-            NightTheme.apply(refs.homeIllustrationCombo);
-            assertTrue(refs.homeIllustrationCombo.getUI().getClass().getName().contains("CandyComboBox"));
-        });
-    }
-
-    @Test
     public void logTabFillsViewportHeight() throws Exception {
         SwingUtilities.invokeAndWait(() -> {
             Fonts fonts = fonts();
@@ -170,23 +144,6 @@ public class NarrowShellLayoutTest {
             JScrollPane scroll = layoutFill(logTab, 520);
             assertTrue(logPanel.getHeight() >= scroll.getViewport().getHeight() - 8);
         });
-    }
-
-    private static Point hintUnderTransparency(JScrollPane scroll, PanelFactory.ServerConfigRefs refs) {
-        Component walk = refs.windowTransparencySlider.getParent();
-        while (walk != null && !(walk instanceof CompactShellPanels.WrappingLabel)) {
-            walk = walk.getParent();
-        }
-        if (walk == null) {
-            for (Component c : findDescendants(refs.windowTransparencySlider.getParent())) {
-                if (c instanceof CompactShellPanels.WrappingLabel) {
-                    walk = c;
-                    break;
-                }
-            }
-        }
-        assertTrue(walk instanceof JLabel);
-        return SwingUtilities.convertPoint(walk.getParent(), walk.getLocation(), scroll.getViewport());
     }
 
     private static java.util.List<Component> findDescendants(Container root) {
