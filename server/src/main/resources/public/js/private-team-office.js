@@ -212,18 +212,25 @@ const SPRITE_IDLE_TEA = '/assets/private-team/secretary-idle-tea.webp';
 const SPRITE_SLEEP = '/assets/private-team/secretary-sleep.webp';
 const SPRITE_SOFA = '/assets/private-team/secretary-sofa.webp';
 
+/** 秘書「工作中」：舊文案、「工作中 ×N」與「…結界展開中」。 */
+export function isWorkingStatus(status) {
+  const s = status == null ? '' : String(status).trim();
+  if (s.startsWith('工作中')) return true;
+  return s.endsWith('結界展開中');
+}
+
 /** 秘書狀態對應立繪（工作中浴缸打字；待命／休息坐休憩區沙發，素材缺失時場景改用站姿立繪仍留沙發位）。 */
 export function secretarySpriteUrlForStatus(status) {
   const s = status == null ? '' : String(status).trim();
-  if (s.startsWith('工作中')) return SPRITE_TYPING;
+  if (isWorkingStatus(s)) return SPRITE_TYPING;
   if (s === '待命中' || s === '待機' || s === '休息中') return SPRITE_SOFA;
   return SPRITE_IDLE_TEA;
 }
 
-/** 3D 泡泡用短標（工作中／待命中／休息中；保留「工作中 ×N」）。 */
+/** 3D 泡泡用短標（工作中／待命中／休息中；含結界文案與舊「工作中 ×N」）。 */
 export function bubbleTextForStatus(status) {
   const s = status == null ? '' : String(status).trim();
-  if (s.startsWith('工作中')) return s;
+  if (isWorkingStatus(s)) return s;
   if (s === '待命中') return '待命中';
   if (s === '休息中') return '休息中';
   return '待命中';
@@ -683,6 +690,6 @@ export function fillStatusCard(doc, bodyEl, view, opts) {
 function statusIdleLine(status) {
   const s = status == null ? '' : String(status).trim();
   if (s === '休息中') return '今天先休息，晚點再來看我。';
-  if (s.startsWith('工作中')) return '正在忙，點開上方泡泡可隨時看進度。';
+  if (isWorkingStatus(s)) return '正在忙，點開上方泡泡可隨時看進度。';
   return '待命中，有任務會立刻開工。';
 }
