@@ -100,7 +100,7 @@ public final class AdminTestServer {
     private static void loginPost(Context ctx, AuthService authService) {
         String password = ctx.formParam("password");
         if (authService.checkAdminPassword(password)) {
-            AuthCookies.setAuthCookie(ctx, authService.authCookieValue(), Map.of());
+            AuthCookies.setAuthCookie(ctx, authService.createSessionToken(), Map.of());
             ctx.redirect("/");
             return;
         }
