@@ -20,6 +20,8 @@ export const SECRETARY_BUBBLE_TUB = { x: 0.56, z: 0.72 };
 export const SECRETARY_BUBBLE_SOFA = { x: 1.46, z: 0.26 };
 
 /** 供單測推算沙發左緣與浴缸空隙（浴缸右緣約 x = 0.84） */
+/** 世界座標下的沙發左右縮放（避免加寬後碰到浴缸或右牆） */
+export const SOFA_WORLD_SCALE_X = 1.05;
 export const SOFA_HALF_WIDTH_X = 0.36;
 export const SOFA_ARM_RADIUS = 0.06;
 
@@ -29,7 +31,7 @@ export const SOFA_ARM_RADIUS = 0.06;
  * 只用相對偏移，之後沙發錨點若移動，舞台服會跟著走。
  */
 export const SECRETARY_STAGE_SOFA_SCALE = 0.82;
-export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0.02, y: -0.18, z: 0.08 };
+export const SECRETARY_STAGE_SOFA_OFFSET = { x: 0.02, y: -0.16, z: 0.22 };
 export const SECRETARY_STAGE_SOFA_BUBBLE_OFFSET = { x: 0.12, z: 0.22 };
 export const SECRETARY_STAGE_SOFA_BUBBLE_Y = 1.16;
 
@@ -37,8 +39,8 @@ export const SECRETARY_STAGE_SOFA_BUBBLE_Y = 1.16;
  * 預設服沙發立繪也已去背（只留人物、不含畫上去的沙發），與舞台服一樣縮小後
  * 相對沙發錨點偏移，讓臀部坐在 3D 座墊上。
  */
-export const SECRETARY_DEFAULT_SOFA_SCALE = 0.76;
-export const SECRETARY_DEFAULT_SOFA_OFFSET = { x: 0.05, y: -0.12, z: 0.1 };
+export const SECRETARY_DEFAULT_SOFA_SCALE = 0.68;
+export const SECRETARY_DEFAULT_SOFA_OFFSET = { x: 0.05, y: -0.1, z: 0.18 };
 
 function finiteNumber(value, fallback) {
   const n = Number(value);
@@ -375,7 +377,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
     bumpScale: 1.2,
     color: 0xc9b3a0
   });
-  const rug = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 0.88), rugMat);
+  const rug = new THREE.Mesh(new THREE.PlaneGeometry(1.14, 0.96), rugMat);
   rug.rotation.x = -Math.PI / 2;
   rug.position.set(1.28, 0.062, -0.22);
   rug.name = '編織地毯';
@@ -397,6 +399,8 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   const sofaGrp = new THREE.Group();
   sofaGrp.name = '焦糖棕皮沙發';
   sofaGrp.position.set(sofaSx, 0, sofaSz);
+  // X 僅微放大以免碰到浴缸或右牆；Y/Z 加高加深，讓預設相機看出更大的沙發。
+  sofaGrp.scale.set(SOFA_WORLD_SCALE_X, 1.12, 1.12);
 
   // 座框（含底部暗縫，讓三塊坐墊之間看得出分隔）
   const sofaBase = extrudedRoundedPlate(0.3, 0.2, 0.14, 0.04, leatherDark);
@@ -427,19 +431,19 @@ export function addLoungeFurnishings(root, texLoader, layout) {
     cushion.position.set(cx, 0.235, 0.05);
     cushion.name = 'sofaSeatCushion';
     sofaGrp.add(cushion);
-    const seatPipeF = box(0.19, 0.012, 0.012, 0x3a2212);
+    const seatPipeF = box(0.19, 0.008, 0.008, 0x3a2212);
     seatPipeF.material = pipingMat;
-    seatPipeF.position.set(cx, 0.31, 0.226);
+    seatPipeF.position.set(cx, 0.248, 0.226);
     sofaGrp.add(seatPipeF);
     // 靠墊（直立，微向後傾）
-    const backCushion = extrudedPanel(0.088, 0.145, 0.085, 0.04, leatherLight);
-    backCushion.position.set(cx, 0.465, -0.095);
+    const backCushion = extrudedPanel(0.088, 0.145, 0.07, 0.04, leatherLight);
+    backCushion.position.set(cx, 0.465, -0.145);
     backCushion.rotation.x = -0.14;
     backCushion.name = 'sofaBackCushion';
     sofaGrp.add(backCushion);
     const backPipe = box(0.19, 0.012, 0.012, 0x3a2212);
     backPipe.material = pipingMat;
-    backPipe.position.set(cx, 0.608, -0.108);
+    backPipe.position.set(cx, 0.608, -0.155);
     backPipe.rotation.x = -0.14;
     sofaGrp.add(backPipe);
     // 釦飾（兩顆）

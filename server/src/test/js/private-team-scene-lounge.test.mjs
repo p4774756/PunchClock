@@ -20,12 +20,13 @@ test('休憩區家具名稱與秘書沙發錨點', async () => {
     secretarySofaPlacementForOutfit,
     SOFA_HALF_WIDTH_X,
     SOFA_ARM_RADIUS,
+    SOFA_WORLD_SCALE_X,
     vinylShouldSpin
   } = await loadPublicModule('private-team-scene-lounge.js');
   assert.deepEqual(SECRETARY_SOFA_POSITION, { x: 1.34, y: 0, z: -0.24 });
   assert.deepEqual(SECRETARY_SHADOW_SOFA, { x: -0.03, y: 0.072, z: 0.16 });
   assert.deepEqual(SECRETARY_BUBBLE_SOFA, { x: 1.46, z: 0.26 });
-  const sofaLeftX = SECRETARY_SOFA_POSITION.x - SOFA_HALF_WIDTH_X - SOFA_ARM_RADIUS;
+  const sofaLeftX = SECRETARY_SOFA_POSITION.x - (SOFA_HALF_WIDTH_X + SOFA_ARM_RADIUS) * SOFA_WORLD_SCALE_X;
   assert.ok(sofaLeftX > TUB_RIGHT_EDGE_X + 0.04, '沙發左緣應與浴缸右緣留有 X 向空隙');
   const defSofa = secretarySofaPlacementForOutfit('default');
   const stagePlaceForShadow = secretarySofaPlacementForOutfit('stage');
