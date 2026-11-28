@@ -1,5 +1,7 @@
 /** 心得動態牆資源：開啟覆蓋層時才載入。 */
 
+import { ensureHomeRoadmapCss } from './home-panel-css-loader.js';
+
 let loadPromise = null;
 
 function versionQuery(win) {
@@ -38,6 +40,12 @@ function loadStylesheet(doc, href, path) {
 export function ensureJournalAssets(win, doc) {
   if (loadPromise) return loadPromise;
   const q = versionQuery(win);
-  loadPromise = loadStylesheet(doc, '/css/journal.css' + q, '/css/journal.css');
+  // 先載共用彈窗 CSS（maple 視窗外框、標題、關閉鈕、btn），再載 journal.css 覆寫。
+  loadPromise = ensureHomeRoadmapCss(win, doc)
+    .then(() => loadStylesheet(doc, '/css/journal.css' + q, '/css/journal.css'))
+    .catch((err) => {
+      loadPromise = null;
+      throw err;
+    });
   return loadPromise;
 }

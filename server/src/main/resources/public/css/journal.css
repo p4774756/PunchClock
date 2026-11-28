@@ -1,15 +1,36 @@
 #journalBoard.roadmap-board {
   z-index: 28;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
 }
 
-.home-journal-panel {
+/* 需壓過 roadmap.css 的 .roadmap-panel.maple-window（寬 1120、overflow:auto）。 */
+#journalBoard .home-journal-panel.roadmap-panel.maple-window {
+  align-self: center;
   width: min(720px, 100%);
+  height: auto;
   max-height: min(92vh, 900px);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+#journalBoard .home-journal-panel .roadmap-win-head {
+  flex-shrink: 0;
+}
+
+#journalBoard .home-journal-panel .roadmap-close-x {
+  position: relative;
+  z-index: 2;
 }
 
 .journal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--maple-white, #f8fbff);
+  color: var(--maple-ink, #1f2a3a);
   overflow: auto;
   overscroll-behavior: contain;
   padding: 0.25rem 0.9rem 1rem;
@@ -28,11 +49,19 @@
 }
 
 .journal-input {
+  box-sizing: border-box;
   width: 100%;
   font: inherit;
+  color: var(--maple-ink, #1f2a3a);
+  background: #fff;
   padding: 0.45rem 0.55rem;
-  border-radius: 8px;
-  border: 1px solid rgba(46, 56, 72, 0.22);
+  border-radius: 6px;
+  border: 2px solid var(--maple-navy, #163a70);
+}
+
+.journal-input:focus-visible {
+  outline: 3px solid var(--maple-gold-hi, #f8dc6e);
+  outline-offset: 1px;
 }
 
 .journal-hp {
@@ -124,4 +153,60 @@
 .journal-more {
   margin: 0.5rem auto 0.25rem;
   display: block;
+}
+
+/* 面板內按鈕：對齊 .roadmap-btn 的楓之谷風（index 沒載 dashboard.css 的 .btn）。 */
+#journalBoard .home-journal-panel .btn,
+#journalBoard .home-journal-panel .journal-comment-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-height: 44px;
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  border: 3px solid var(--maple-navy, #163a70);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.28);
+}
+
+#journalBoard .home-journal-panel .btn-primary {
+  background: var(--maple-gold, #ecc440);
+  color: var(--maple-navy, #163a70);
+}
+
+#journalBoard .home-journal-panel .btn-ghost,
+#journalBoard .home-journal-panel .journal-comment-delete {
+  background: var(--maple-white, #f8fbff);
+  color: var(--maple-navy, #163a70);
+}
+
+#journalBoard .home-journal-panel .journal-comment-delete {
+  min-height: 36px;
+  font-size: 0.85rem;
+}
+
+#journalBoard .home-journal-panel .btn:focus-visible {
+  outline: 3px solid var(--maple-gold-hi, #f8dc6e);
+  outline-offset: 2px;
+}
+
+@media (max-width: 719px) {
+  #journalBoard.roadmap-board {
+    padding: 0.75rem;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #journalBoard .home-journal-panel.roadmap-panel.maple-window {
+    width: min(720px, 100%);
+    max-height: min(92vh, 900px);
+    border-radius: 6px;
+  }
+}
+
+#journalBoard .home-journal-panel [hidden] {
+  display: none !important;
 }
