@@ -227,10 +227,39 @@ export function secretarySpriteUrlForStatus(status) {
   return SPRITE_IDLE_TEA;
 }
 
-/** 3D 泡泡用短標（工作中／待命中／休息中；含結界文案與舊「工作中 ×N」）。 */
+const GUARDIAN_BARRIER_NAMES = ['青龍', '白虎', '朱雀', '玄武'];
+
+/** API 工作中狀態字串 → 秘書 3D 泡泡口吻（面板狀態列仍用 API 原字串）。 */
+export function workingBubbleTextFromApiStatus(status) {
+  const s = status == null ? '' : String(status).trim();
+  for (const name of GUARDIAN_BARRIER_NAMES) {
+    if (s === name + '結界展開中') return name + '正在努力中喔';
+  }
+  if (
+    s === '二聖獸結界展開中' ||
+    s === '三聖獸結界展開中' ||
+    s === '四聖獸結界展開中' ||
+    s === '聖獸結界展開中'
+  ) {
+    return '聖獸們都在努力中喔';
+  }
+  if (s.startsWith('工作中')) {
+    const mult = /^工作中\s*×\s*(\d+)$/.exec(s);
+    if (mult) {
+      return Number(mult[1]) >= 2 ? '聖獸們都在努力中喔' : '聖獸正在努力中喔';
+    }
+    return '聖獸正在努力中喔';
+  }
+  if (s.endsWith('結界展開中')) {
+    return '聖獸們都在努力中喔';
+  }
+  return '聖獸正在努力中喔';
+}
+
+/** 3D 泡泡用短標（工作中秘書口吻；待命／休息維持原字）。 */
 export function bubbleTextForStatus(status) {
   const s = status == null ? '' : String(status).trim();
-  if (isWorkingStatus(s)) return s;
+  if (isWorkingStatus(s)) return workingBubbleTextFromApiStatus(s);
   if (s === '待命中') return '待命中';
   if (s === '休息中') return '休息中';
   return '待命中';
