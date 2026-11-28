@@ -21,6 +21,17 @@ public class CandySwitch extends JToggleButton {
     private static final int TRACK_H = 24;
     private static final int KNOB = 18;
 
+    /** 開啟軌道（明亮粉紅，與白色圓點對比達 WCAG AA）。 */
+    static final Color TRACK_ON_TOP = new Color(255, 108, 168);
+    static final Color TRACK_ON_BOTTOM = new Color(200, 36, 102);
+    /** 關閉軌道（淺灰，外框清楚；底部略深以襯出白點）。 */
+    static final Color TRACK_OFF_TOP = new Color(210, 210, 218);
+    static final Color TRACK_OFF_BOTTOM = new Color(124, 124, 136);
+    static final Color TRACK_EDGE_OFF = new Color(56, 56, 68);
+    static final Color TRACK_EDGE_ON = new Color(196, 48, 108);
+    static final Color KNOB_FILL = Color.WHITE;
+    static final Color KNOB_FILL_DISABLED = new Color(244, 244, 248);
+
     private float shown;
     private float target;
     private Timer glide;
@@ -119,21 +130,24 @@ public class CandySwitch extends JToggleButton {
                 float hover = enabled ? CandyTheme.hover(button) : 0f;
                 int trackX = 1;
                 int trackY = Math.max(1, (c.getHeight() - TRACK_H) / 2);
-                Color offTop = enabled ? CandyTheme.FIELD_TOP : CandyTheme.fade(CandyTheme.FIELD_TOP);
-                Color offBottom = enabled ? CandyTheme.FIELD : CandyTheme.fade(CandyTheme.FIELD);
-                Color onTop = enabled ? CandyTheme.PINK_HI : CandyTheme.fade(CandyTheme.PINK_HI);
-                Color onBottom = enabled ? CandyTheme.PINK_DEEP : CandyTheme.fade(CandyTheme.PINK_DEEP);
+                Color offTop = enabled ? TRACK_OFF_TOP : CandyTheme.mix(TRACK_OFF_TOP, CandyTheme.DISABLED, 0.35f);
+                Color offBottom = enabled ? TRACK_OFF_BOTTOM : CandyTheme.mix(TRACK_OFF_BOTTOM, CandyTheme.DISABLED, 0.35f);
+                Color onTop = enabled ? TRACK_ON_TOP : CandyTheme.mix(TRACK_ON_TOP, CandyTheme.DISABLED, 0.35f);
+                Color onBottom = enabled ? TRACK_ON_BOTTOM : CandyTheme.mix(TRACK_ON_BOTTOM, CandyTheme.DISABLED, 0.35f);
                 if (enabled && button.getModel().isPressed()) {
-                    onTop = CandyTheme.mix(onTop, CandyTheme.PINK_DEEP, 0.25f);
-                    onBottom = CandyTheme.mix(onBottom, CandyTheme.NIGHT, 0.2f);
+                    onTop = CandyTheme.mix(onTop, TRACK_ON_BOTTOM, 0.25f);
+                    onBottom = CandyTheme.mix(onBottom, TRACK_ON_BOTTOM, 0.35f);
                 }
                 g.setPaint(new GradientPaint(
                         trackX, trackY, CandyTheme.mix(offTop, onTop, shown),
                         trackX, trackY + TRACK_H, CandyTheme.mix(offBottom, onBottom, shown)));
                 g.fillRoundRect(trackX, trackY, TRACK_W, TRACK_H, TRACK_H, TRACK_H);
-                Color edge = enabled
-                        ? CandyTheme.mix(CandyTheme.EDGE, CandyTheme.EDGE_HOT, Math.max(hover, shown))
-                        : CandyTheme.fade(CandyTheme.EDGE);
+                Color edgeOff = enabled ? TRACK_EDGE_OFF : CandyTheme.mix(TRACK_EDGE_OFF, CandyTheme.DISABLED, 0.35f);
+                Color edgeOn = enabled ? TRACK_EDGE_ON : CandyTheme.mix(TRACK_EDGE_ON, CandyTheme.DISABLED, 0.35f);
+                Color edge = CandyTheme.mix(edgeOff, edgeOn, shown);
+                if (enabled && hover > 0f) {
+                    edge = CandyTheme.mix(edge, edgeOn, hover * 0.45f);
+                }
                 g.setColor(edge);
                 g.drawRoundRect(trackX, trackY, TRACK_W, TRACK_H, TRACK_H, TRACK_H);
                 int travel = TRACK_W - KNOB - 6;
@@ -142,12 +156,12 @@ public class CandySwitch extends JToggleButton {
                 if (enabled && button.getModel().isPressed()) {
                     knobY += 1;
                 }
-                g.setColor(new Color(0, 0, 0, enabled ? 50 : 20));
+                g.setColor(new Color(0, 0, 0, enabled ? 45 : 18));
                 g.fillOval(knobX, knobY + 1, KNOB, KNOB);
-                g.setColor(enabled ? CandyTheme.INK : CandyTheme.fade(CandyTheme.INK));
+                g.setColor(enabled ? KNOB_FILL : KNOB_FILL_DISABLED);
                 g.fillOval(knobX, knobY, KNOB, KNOB);
                 if (enabled && button.isFocusOwner()) {
-                    g.setColor(CandyTheme.PINK);
+                    g.setColor(TRACK_ON_TOP);
                     g.drawRoundRect(trackX - 2, trackY - 2, TRACK_W + 4, TRACK_H + 4, TRACK_H, TRACK_H);
                 }
             } finally {
