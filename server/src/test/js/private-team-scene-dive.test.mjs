@@ -91,7 +91,7 @@ test('場景接上跳水：按鈕、API、不用 emoji、不動 onBeforeCompile 
   const scene = readFileSync(join(publicRoot, 'js/private-team-scene.js'), 'utf8');
   const fx = readFileSync(join(publicRoot, 'js/private-team-scene-dive-fx.js'), 'utf8');
   assert.match(page, /data-pt-dive-btn/);
-  assert.match(page, />跳水<\/button>/);
+  assert.match(page, /data-pt-dive-label>跳水<\/span>/);
   assert.match(page, /scene\.playSecretaryDive\(/);
   assert.match(scene, /playSecretaryDive/);
   assert.match(scene, /refreshSecretaryDisplay\(\) \{\s*if \(dancePlayback \|\| divePlayback\) return;/);

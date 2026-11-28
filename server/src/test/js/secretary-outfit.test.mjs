@@ -136,7 +136,7 @@ test('首頁服裝控制與儲存鍵接線', () => {
   const js = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
   const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
   // 單一切換按鈕，取代舊的下拉選單
-  assert.match(js, /<button type="button" class="pt-hud-outfit" data-pt-secretary-outfit-btn/);
+  assert.match(js, /<button type="button" class="pt-hud-outfit pt-hud-sq" data-pt-secretary-outfit-btn/);
   assert.match(js, /data-pt-secretary-outfit-name/);
   assert.doesNotMatch(js, /data-pt-secretary-outfit-select/);
   assert.doesNotMatch(js, /<select/);
