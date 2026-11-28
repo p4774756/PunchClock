@@ -11,11 +11,15 @@ import { privateTeamSeededRand } from './private-team-scene-window.js';
 import { isLoungeTigerStatus, isWorkingTigerStatus, parseSecretaryOutfitId } from './private-team-scene-secretary.js';
 
 export const SECRETARY_TUB_POSITION = { x: 0.02, y: 0, z: 0.56 };
-export const SECRETARY_SOFA_POSITION = { x: 1.05, y: 0, z: -0.1 };
+export const SECRETARY_SOFA_POSITION = { x: 1.34, y: 0, z: -0.24 };
 export const SECRETARY_SHADOW_TUB = { x: 0.06, y: 0.072, z: -0.42 };
-export const SECRETARY_SHADOW_SOFA = { x: -0.04, y: 0.072, z: 0.18 };
+export const SECRETARY_SHADOW_SOFA = { x: -0.03, y: 0.072, z: 0.16 };
 export const SECRETARY_BUBBLE_TUB = { x: 0.56, z: 0.72 };
-export const SECRETARY_BUBBLE_SOFA = { x: 1.18, z: 0.35 };
+export const SECRETARY_BUBBLE_SOFA = { x: 1.46, z: 0.26 };
+
+/** 供單測推算沙發左緣與浴缸空隙（浴缸右緣約 x = 0.84） */
+export const SOFA_HALF_WIDTH_X = 0.36;
+export const SOFA_ARM_RADIUS = 0.076;
 
 /**
  * 舞台服沙發立繪是去背坐姿（沒有畫上沙發），需縮小並相對
@@ -133,7 +137,7 @@ function makeLeatherGrainTexture() {
   canvas.width = 128;
   canvas.height = 128;
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#8b5a32';
+  ctx.fillStyle = '#3d2a1a';
   ctx.fillRect(0, 0, 128, 128);
   const rand = privateTeamSeededRand(8841);
   for (let i = 0; i < 42; i++) {
@@ -212,9 +216,16 @@ function leatherMaterial(baseColor, grainTex) {
   return new THREE.MeshStandardMaterial({
     color: baseColor,
     map: grainTex,
-    metalness: 0.06,
-    roughness: 0.48
+    metalness: 0.03,
+    roughness: 0.5
   });
+}
+
+function sofaRollArm(radius, length, mat) {
+  const geo = new THREE.CylinderGeometry(radius, radius * 1.04, length, 20);
+  const arm = new THREE.Mesh(geo, mat);
+  arm.rotation.x = Math.PI / 2;
+  return arm;
 }
 
 function walnutMaterial(grainTex, color = 0xffffff) {
@@ -268,53 +279,59 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   const rugMat = new THREE.MeshLambertMaterial({ map: rugTex, color: 0xf2e0c8 });
   const rug = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 0.88), rugMat);
   rug.rotation.x = -Math.PI / 2;
-  rug.position.set(1.02, 0.038, -0.08);
+  rug.position.set(1.28, 0.038, -0.22);
   rug.name = '編織地毯';
   rug.renderOrder = 1;
   root.add(rug);
 
   const leatherTex = makeLeatherGrainTexture();
-  const leatherLight = leatherMaterial(0x8b5a32, leatherTex);
-  const leatherDark = leatherMaterial(0x7a4a28, leatherTex);
+  const leatherLight = leatherMaterial(0x4a3220, leatherTex);
+  const leatherDark = leatherMaterial(0x3a2418, leatherTex);
   const seamMat = new THREE.MeshStandardMaterial({
-    color: 0x5a3820,
+    color: 0x2a1a10,
     metalness: 0.02,
     roughness: 0.72
   });
 
+  const sofaSx = SECRETARY_SOFA_POSITION.x;
+  const sofaSz = SECRETARY_SOFA_POSITION.z;
   const sofaGrp = new THREE.Group();
   sofaGrp.name = '焦糖棕皮沙發';
-  sofaGrp.position.set(1.05, 0, -0.1);
+  sofaGrp.position.set(sofaSx, 0, sofaSz);
   const sofaBase = extrudedRoundedPlate(0.36, 0.22, 0.26, 0.055, leatherLight);
   sofaBase.position.set(0, 0.15, 0);
   sofaGrp.add(sofaBase);
-  for (let si = -1; si <= 1; si++) {
-    const cushion = extrudedRoundedPlate(0.115, 0.2, 0.045, 0.032, leatherLight);
-    cushion.position.set(si * 0.235, 0.29, 0.02);
+  const cushionXs = [-0.24, 0, 0.24];
+  for (let ci = 0; ci < cushionXs.length; ci++) {
+    const cushion = extrudedRoundedPlate(0.108, 0.2, 0.052, 0.036, leatherLight);
+    cushion.position.set(cushionXs[ci], 0.295, 0.025);
     sofaGrp.add(cushion);
-    const seam = box(0.012, 0.22, 0.44, 0x5a3820);
-    seam.material = seamMat;
-    seam.position.set(si * 0.118, 0.2, 0);
-    if (si < 1) sofaGrp.add(seam);
+    if (ci < cushionXs.length - 1) {
+      const gapX = (cushionXs[ci] + cushionXs[ci + 1]) / 2;
+      const seam = box(0.024, 0.26, 0.46, 0x2a1a10);
+      seam.material = seamMat;
+      seam.position.set(gapX, 0.268, 0.01);
+      sofaGrp.add(seam);
+    }
   }
   const sofaBack = extrudedPanel(0.36, 0.21, 0.1, 0.04, leatherDark);
   sofaBack.rotation.x = -Math.PI / 2;
   sofaBack.rotation.z = Math.PI;
   sofaBack.position.set(0, 0.36, -0.22);
   sofaGrp.add(sofaBack);
-  const armGeoR = extrudedPanel(0.06, 0.16, 0.42, 0.035, leatherDark);
-  armGeoR.rotation.y = Math.PI / 2;
-  const sofaArmL = armGeoR.clone();
-  sofaArmL.position.set(-0.33, 0.22, 0);
+  const armLen = 0.4;
+  const armRad = SOFA_ARM_RADIUS;
+  const sofaArmL = sofaRollArm(armRad, armLen, leatherDark);
+  sofaArmL.position.set(-0.33, 0.24, 0);
   sofaGrp.add(sofaArmL);
-  const sofaArmR = armGeoR.clone();
-  sofaArmR.position.set(0.33, 0.22, 0);
+  const sofaArmR = sofaRollArm(armRad, armLen, leatherDark);
+  sofaArmR.position.set(0.33, 0.24, 0);
   sofaGrp.add(sofaArmR);
   root.add(sofaGrp);
 
   const sofaLamp = new THREE.Group();
   sofaLamp.name = 'sofaFloorLamp';
-  sofaLamp.position.set(1.36, 0, -0.36);
+  sofaLamp.position.set(sofaSx + 0.24, 0, sofaSz - 0.28);
   const sfBase = cyl(0.055, 0.062, 0.025, 10, COL.lampBase);
   sfBase.position.set(0, 0.012, 0);
   sofaLamp.add(sfBase);
@@ -330,112 +347,148 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   sofaLamp.add(sfBulb);
   root.add(sofaLamp);
 
-  addMonstera(root, 0.78, -0.42);
+  addMonstera(root, sofaSx - 0.52, sofaSz - 0.2);
 
   const walnutTex = makeWalnutWoodTexture();
   const walnutBodyMat = walnutMaterial(walnutTex, 0xdddddd);
   const walnutTopMat = walnutMaterial(walnutTex, 0xeeeeee);
 
+  const sbScale = 1.5;
+  const sbTopY = 0.285;
+  const sbBodyH = 0.14;
+  const sbX = 0.86;
+  const sbZ = backZ + 0.38;
+  const sbHalfW = 0.31 * sbScale;
+
   const sb = new THREE.Group();
   sb.name = 'walnutSideboard';
-  sb.position.set(0.92, 0, backZ + 0.38);
-  const body = extrudedPanel(0.31, 0.14, 0.3, 0.04, walnutBodyMat);
+  sb.position.set(sbX, 0, sbZ);
+  const body = extrudedPanel(sbHalfW, sbBodyH, 0.3 * sbScale, 0.04, walnutBodyMat);
   body.rotation.x = -Math.PI / 2;
-  body.position.set(0, 0.14, 0);
+  body.position.set(0, sbBodyH, 0);
   sb.add(body);
-  const top = extrudedRoundedPlate(0.32, 0.17, 0.022, 0.028, walnutTopMat);
-  top.position.set(0, 0.285, 0);
+  const top = extrudedRoundedPlate(0.32 * sbScale, 0.17 * sbScale, 0.022, 0.028, walnutTopMat);
+  top.position.set(0, sbTopY, 0);
   sb.add(top);
   const doorLineMat = new THREE.MeshStandardMaterial({ color: 0x1e140e, metalness: 0.02, roughness: 0.8 });
-  for (const dz of [-0.1, 0.1]) {
-    const doorLine = box(0.002, 0.24, 0.26, 0x1e140e);
+  for (const dz of [-0.15, 0.15]) {
+    const doorLine = box(0.002, 0.26, 0.38, 0x1e140e);
     doorLine.material = doorLineMat;
-    doorLine.position.set(0, 0.14, dz);
+    doorLine.position.set(0, sbBodyH, dz);
     sb.add(doorLine);
   }
   const pullMat = new THREE.MeshStandardMaterial({ color: 0xc8b898, metalness: 0.35, roughness: 0.45 });
-  for (const dx of [-0.22, 0.22]) {
-    const pull = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.045, 10), pullMat);
+  for (const dx of [-0.34, 0.34]) {
+    const pull = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.007, 0.05, 10), pullMat);
     pull.rotation.z = Math.PI / 2;
-    pull.position.set(dx, 0.14, 0.14);
+    pull.position.set(dx, sbBodyH, 0.2);
     sb.add(pull);
   }
   const legMat = new THREE.MeshStandardMaterial({ color: 0x2a1e14, metalness: 0.05, roughness: 0.7 });
-  for (const lx of [-0.26, 0.26]) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.08, 12), legMat);
-    leg.position.set(lx, 0.04, 0.12);
+  for (const lx of [-0.4, 0.4]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.022, 0.08, 12), legMat);
+    leg.position.set(lx, 0.04, 0.18);
     sb.add(leg);
     const leg2 = leg.clone();
-    leg2.position.set(lx, 0.04, -0.12);
+    leg2.position.set(lx, 0.04, -0.18);
     sb.add(leg2);
   }
   root.add(sb);
 
+  const sleeveColors = [0x3a4a6a, 0x6a3a3a, 0x4a5a38, 0x5a4840];
+  for (let ri = 0; ri < sleeveColors.length; ri++) {
+    const sleeveMat = new THREE.MeshStandardMaterial({
+      color: sleeveColors[ri],
+      roughness: 0.78,
+      metalness: 0.02
+    });
+    const sleeve = box(0.24, 0.24, 0.005, sleeveColors[ri]);
+    sleeve.material = sleeveMat;
+    sleeve.rotation.y = -0.35 + ri * 0.08;
+    sleeve.position.set(
+      sbX + 0.42 + ri * 0.018,
+      sbTopY + 0.12 + ri * 0.002,
+      sbZ + 0.12 + ri * 0.04
+    );
+    sleeve.name = 'vinylRecordSleeve';
+    root.add(sleeve);
+  }
+
   const turntable = new THREE.Group();
   turntable.name = 'vinylTurntable';
-  turntable.position.set(0.92, 0.3, backZ + 0.38);
+  const ttY = sbTopY + 0.012;
+  turntable.position.set(sbX, ttY, sbZ);
   const baseMat = new THREE.MeshStandardMaterial({ color: 0x2a2420, metalness: 0.12, roughness: 0.55 });
-  const ttBase = extrudedRoundedPlate(0.14, 0.11, 0.038, 0.028, baseMat);
+  const ttBase = extrudedRoundedPlate(0.21, 0.165, 0.038, 0.028, baseMat);
   ttBase.position.set(0, 0.019, 0);
   turntable.add(ttBase);
   const vinylGrooveTex = makeVinylGrooveTexture();
+  const platterR = 0.165;
   const platter = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.11, 0.11, 0.012, 48),
+    new THREE.CylinderGeometry(platterR, platterR, 0.014, 56),
     new THREE.MeshStandardMaterial({
-      color: 0x1a1a1a,
+      color: 0x111111,
       map: vinylGrooveTex,
-      metalness: 0.08,
-      roughness: 0.45
+      metalness: 0.06,
+      roughness: 0.42
     })
   );
-  platter.position.set(0, 0.05, 0);
+  platter.position.set(0, 0.055, 0);
   platter.name = 'vinylDisc';
   turntable.add(platter);
   const spindle = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.008, 0.01, 0.018, 12),
+    new THREE.CylinderGeometry(0.01, 0.012, 0.022, 12),
     new THREE.MeshStandardMaterial({ color: 0x888078, metalness: 0.55, roughness: 0.38 })
   );
-  spindle.position.set(0, 0.064, 0);
+  spindle.position.set(0, 0.072, 0);
   platter.add(spindle);
   const label = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.028, 0.028, 0.014, 24),
+    new THREE.CylinderGeometry(0.042, 0.042, 0.016, 28),
     new THREE.MeshStandardMaterial({ color: 0xc43c3c, roughness: 0.55, metalness: 0.02 })
   );
-  label.position.set(0, 0.008, 0);
+  label.position.set(0, 0.009, 0);
   platter.add(label);
   const armPivot = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.014, 0.014, 0.022, 12),
+    new THREE.CylinderGeometry(0.02, 0.022, 0.028, 14),
     new THREE.MeshStandardMaterial({ color: 0x5a544c, metalness: 0.4, roughness: 0.42 })
   );
-  armPivot.position.set(0.1, 0.055, -0.06);
+  armPivot.position.set(0.15, 0.058, -0.09);
   turntable.add(armPivot);
   const armTube = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.006, 0.007, 0.12, 10),
+    new THREE.CylinderGeometry(0.008, 0.009, 0.18, 12),
     new THREE.MeshStandardMaterial({ color: 0x6a6058, metalness: 0.35, roughness: 0.48 })
   );
-  armTube.rotation.x = 0.35;
-  armTube.rotation.z = -0.55;
-  armTube.position.set(0.105, 0.078, -0.02);
+  armTube.rotation.x = 0.32;
+  armTube.rotation.z = -0.52;
+  armTube.position.set(0.158, 0.088, -0.03);
   turntable.add(armTube);
-  const headshell = box(0.022, 0.014, 0.032, 0x4a443c);
+  const headshell = box(0.032, 0.018, 0.042, 0x4a443c);
   headshell.material = new THREE.MeshStandardMaterial({
     color: 0x4a443c,
     metalness: 0.25,
     roughness: 0.5
   });
-  headshell.position.set(0.13, 0.072, 0.04);
+  headshell.position.set(0.2, 0.078, 0.05);
   turntable.add(headshell);
+  const stylus = box(0.006, 0.016, 0.008, 0x2a2824);
+  stylus.material = new THREE.MeshStandardMaterial({
+    color: 0x2a2824,
+    metalness: 0.15,
+    roughness: 0.6
+  });
+  stylus.position.set(0.214, 0.068, 0.058);
+  turntable.add(stylus);
   const knobMat = new THREE.MeshStandardMaterial({ color: 0x8a8078, metalness: 0.2, roughness: 0.52 });
-  for (const kx of [-0.1, 0.08]) {
-    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.008, 14), knobMat);
-    knob.position.set(kx, 0.042, 0.08);
+  for (const kx of [-0.14, 0.12]) {
+    const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.01, 14), knobMat);
+    knob.position.set(kx, 0.044, 0.12);
     turntable.add(knob);
   }
   root.add(turntable);
 
   const lampGrp = new THREE.Group();
   lampGrp.name = 'loungeLamp';
-  lampGrp.position.set(1.18, 0.3, backZ + 0.38);
+  lampGrp.position.set(sbX + sbHalfW * 0.55, sbTopY + 0.02, sbZ);
   const lampBase = cyl(0.045, 0.05, 0.04, 8, COL.lampBase);
   lampBase.position.set(0, 0.02, 0);
   lampGrp.add(lampBase);
@@ -460,7 +513,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   const notes = [];
   for (let ni = 0; ni < 3; ni++) {
     const note = new THREE.Mesh(new THREE.PlaneGeometry(0.035, 0.05), noteMat.clone());
-    note.position.set(1.02 + ni * 0.06, 0.42 + ni * 0.05, backZ + 0.42);
+    note.position.set(sbX + ni * 0.07, ttY + 0.14 + ni * 0.05, sbZ + 0.22);
     note.name = 'vinylNote';
     note.visible = false;
     root.add(note);
@@ -470,7 +523,7 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   return {
     vinylDisc: platter,
     vinylNotes: notes,
-    sideboardMaxX: 0.92 + 0.32,
+    sideboardMaxX: sbX + 0.32 * sbScale,
     handheldClearX: 0.51
   };
 }
