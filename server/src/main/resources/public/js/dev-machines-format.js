@@ -311,6 +311,10 @@ export function shouldOpenDownloadFromSearch(search) {
   return parseRoadmapOpenParam(search) === 'download';
 }
 
+export function shouldOpenJournalFromSearch(search) {
+  return parseRoadmapOpenParam(search) === 'journal';
+}
+
 function stripOpenSearchFromUrl(win) {
   try {
     const url = new URL(win.location.href);
@@ -348,6 +352,15 @@ export function applyDownloadOpenParam(win, openDownloadFn) {
   if (!win || !win.location || typeof openDownloadFn !== 'function') return false;
   if (!shouldOpenDownloadFromSearch(win.location.search)) return false;
   openDownloadFn();
+  stripOpenSearchFromUrl(win);
+  return true;
+}
+
+/** 帶 open=journal 時開心得牆並清掉 query。 */
+export function applyJournalOpenParam(win, openJournalFn) {
+  if (!win || !win.location || typeof openJournalFn !== 'function') return false;
+  if (!shouldOpenJournalFromSearch(win.location.search)) return false;
+  openJournalFn();
   stripOpenSearchFromUrl(win);
   return true;
 }

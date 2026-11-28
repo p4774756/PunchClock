@@ -1,0 +1,127 @@
+#journalBoard.roadmap-board {
+  z-index: 28;
+}
+
+.home-journal-panel {
+  width: min(720px, 100%);
+  max-height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+}
+
+.journal-body {
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0.25rem 0.9rem 1rem;
+}
+
+.journal-compose {
+  display: grid;
+  gap: 0.45rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(46, 56, 72, 0.16);
+}
+
+.journal-compose[hidden] {
+  display: none !important;
+}
+
+.journal-input {
+  width: 100%;
+  font: inherit;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid rgba(46, 56, 72, 0.22);
+}
+
+.journal-hp {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.journal-post {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgba(46, 56, 72, 0.12);
+}
+
+.journal-post-time {
+  font-size: 0.85rem;
+  color: #5c6570;
+}
+
+.journal-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+
+.journal-tag {
+  font-size: 0.78rem;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(46, 118, 168, 0.12);
+  color: #1a4d73;
+}
+
+.journal-post-body {
+  margin: 0.45rem 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.journal-post-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  margin: 0.35rem 0;
+}
+
+.journal-comments {
+  margin-top: 0.55rem;
+  padding-left: 0.35rem;
+  border-left: 3px solid rgba(46, 56, 72, 0.12);
+}
+
+.journal-comment {
+  margin-bottom: 0.45rem;
+}
+
+.journal-comment-name {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.journal-comment-body {
+  margin: 0.15rem 0;
+  white-space: pre-wrap;
+}
+
+.journal-comment-time {
+  font-size: 0.75rem;
+  color: #6a7480;
+}
+
+.journal-comment-form {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.journal-status {
+  min-height: 1.25rem;
+  color: #5c6570;
+  font-size: 0.9rem;
+}
+
+.journal-more {
+  margin: 0.5rem auto 0.25rem;
+  display: block;
+}

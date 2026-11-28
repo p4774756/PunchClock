@@ -248,6 +248,23 @@
   z-index: 4;
 }
 
+a.pt-hud-journal {
+  align-self: flex-end;
+  margin-bottom: 0.45rem;
+  margin-right: 0.35rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  text-decoration: none;
+  color: rgba(248, 251, 255, 0.92);
+  background: rgba(22, 42, 72, 0.55);
+  border: 1px solid rgba(248, 251, 255, 0.22);
+}
+
+a.pt-hud-journal:hover {
+  background: rgba(32, 62, 102, 0.72);
+}
+
 button.pt-hud-download {
   cursor: pointer;
   padding: 0;

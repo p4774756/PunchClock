@@ -112,6 +112,7 @@ import {
   addMonitor,
   makeHandheldPreviewLcdTexture,
   addWindowSillHandheld,
+  addJournalBoard,
   addLowPolyPlant,
   applyUnderwaterTint,
   stripUnderwaterTint,
@@ -984,6 +985,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   const monitorLook = new THREE.Vector3(0.02, 1.02, 0.72);
   const monitors = [addMonitor(root, monitorLook, -0.96, 0.94, 0.98, 0.02)];
+  const journalBoard = addJournalBoard(root, 1.12, 1.38, backZ + 0.07, monitorLook);
 
   const lampGroup = new THREE.Group();
   lampGroup.position.set(0.78, TRAY_TOP_Y + 0.016, 0.36);
@@ -1460,7 +1462,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   };
   syncSecretaryPlacement();
 
-  const clickables = [windowSillHandheld.group, bubble, leftPosterGroup];
+  const clickables = [windowSillHandheld.group, bubble, leftPosterGroup, journalBoard.group];
   for (let wi = 0; wi < windowVistaClickables.length; wi++) {
     clickables.push(windowVistaClickables[wi]);
   }

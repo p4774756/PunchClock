@@ -593,6 +593,55 @@ export function addWindowSillHandheld(root, sillY, sillZ, mugX) {
   return { group, body, screen, glow, pick };
 }
 
+/** 牆上心得佈告欄（靠後牆右側，不擋窗景與左畫）。 */
+export function addJournalBoard(root, x, y, z, lookTarget) {
+  const group = new THREE.Group();
+  group.name = 'journalBoard';
+  group.userData.pickRole = 'journal';
+  group.position.set(x, y, z);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 192;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#f5f9ff';
+  ctx.fillRect(0, 0, 256, 192);
+  ctx.strokeStyle = '#c9a850';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(10, 10, 236, 172);
+  ctx.fillStyle = '#1f4d73';
+  ctx.font = 'bold 44px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('心得', 128, 78);
+  ctx.fillStyle = '#5c6570';
+  ctx.font = '22px sans-serif';
+  ctx.fillText('動態牆', 128, 124);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.34, 0.26),
+    new THREE.MeshLambertMaterial({ map: tex, color: 0xffffff })
+  );
+  plane.userData.pickRole = 'journal';
+  group.add(plane);
+
+  const pickMat = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  });
+  const pick = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.32, 0.08), pickMat);
+  pick.userData.pickRole = 'journal';
+  group.add(pick);
+
+  if (lookTarget) group.lookAt(lookTarget.x, lookTarget.y, lookTarget.z);
+  root.add(group);
+  return { group, plane };
+}
+
 export function addLowPolyPlant(root, x, z) {
   const pot = cyl(0.09, 0.075, 0.11, 10, COL.pot);
   pot.position.set(x, 0.055, z);
