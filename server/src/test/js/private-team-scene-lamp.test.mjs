@@ -22,6 +22,23 @@ test('privateTeamSceneLighting 夜晚暖光檯燈', () => {
   assert.ok(night.bulbOpacity > 0);
   assert.ok(night.amb < 0.5);
   assert.ok(night.dir < 0.5);
+  assert.ok(night.galleryMul >= 0.8);
+  assert.ok(night.floorWash < 0.55);
+});
+
+test('美術館風嵌燈、軌道射燈與重點光圈', () => {
+  const src = sceneSrc;
+  assert.match(src, /galleryCeilingTrackRail/);
+  assert.match(src, /galleryRecessedTub/);
+  assert.match(src, /galleryTrackHeadSofa/);
+  assert.match(src, /galleryAccentSpotBathtub/);
+  assert.match(src, /galleryAccentSpotSofa/);
+  assert.match(src, /galleryAccentSpotVinyl/);
+  assert.match(src, /galleryAccentSpotPoster/);
+  assert.match(src, /sofaBackIndirectWash/);
+  const shadowCast = src.match(/castShadow\s*=\s*true/g);
+  assert.ok(!shadowCast || shadowCast.length <= 1);
+  assert.doesNotMatch(src, /galleryAccentSpot[\s\S]*castShadow\s*=\s*true/);
 });
 
 test('首頁秘書場景已移除名牌、泡泡錨點下移', () => {

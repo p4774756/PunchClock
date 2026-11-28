@@ -56,9 +56,10 @@ export function privateTeamWindowPreviewToastLabel(mode) {
 
 const SCENE_LIGHTING_BY_PERIOD = {
   day: {
-    amb: 0.68,
-    hemi: 0.42,
-    dir: 0.58,
+    amb: 0.52,
+    hemi: 0.3,
+    dir: 0.4,
+    dirBoost: 0.03,
     point: 0.06,
     spot: 0.28,
     spotDistance: 7.8,
@@ -71,15 +72,19 @@ const SCENE_LIGHTING_BY_PERIOD = {
     ambColor: 0xe8f0ff,
     dirColor: 0xc8d8f8,
     background: 0xc8d4e8,
-    floorWash: 0.44,
-    wallWash: 0.34,
+    floorWash: 0.26,
+    wallWash: 0.28,
     tubWarm: 0.05,
-    candleMul: 0.12
+    candleMul: 0.12,
+    galleryMul: 0.1,
+    galleryPoolMul: 0.08,
+    galleryIndirectMul: 0.12
   },
   sunset: {
-    amb: 0.54,
-    hemi: 0.36,
-    dir: 0.52,
+    amb: 0.4,
+    hemi: 0.24,
+    dir: 0.4,
+    dirBoost: 0.04,
     point: 0.42,
     spot: 1.85,
     spotDistance: 7.8,
@@ -92,15 +97,19 @@ const SCENE_LIGHTING_BY_PERIOD = {
     ambColor: 0xffe8d0,
     dirColor: 0xffc888,
     background: 0x1a1428,
-    floorWash: 0.7,
-    wallWash: 0.52,
+    floorWash: 0.46,
+    wallWash: 0.42,
     tubWarm: 0.14,
-    candleMul: 0.55
+    candleMul: 0.55,
+    galleryMul: 0.42,
+    galleryPoolMul: 0.38,
+    galleryIndirectMul: 0.36
   },
   night: {
-    amb: 0.42,
-    hemi: 0.28,
-    dir: 0.48,
+    amb: 0.28,
+    hemi: 0.16,
+    dir: 0.3,
+    dirBoost: 0.02,
     point: 1.05,
     spot: 5.4,
     spotDistance: 7.8,
@@ -113,10 +122,13 @@ const SCENE_LIGHTING_BY_PERIOD = {
     ambColor: 0xc8d4ff,
     dirColor: 0x8898f8,
     background: 0x050a14,
-    floorWash: 0.9,
-    wallWash: 0.52,
+    floorWash: 0.4,
+    wallWash: 0.44,
     tubWarm: 0.22,
-    candleMul: 1
+    candleMul: 1,
+    galleryMul: 1,
+    galleryPoolMul: 1,
+    galleryIndirectMul: 1
   }
 };
 

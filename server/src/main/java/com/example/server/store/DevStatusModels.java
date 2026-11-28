@@ -64,6 +64,8 @@ public final class DevStatusModels {
         public final Set<Integer> closesIssues;
         /** 與 base 分支有衝突（mergeable=false／mergeable_state=dirty）；CI 不會跑。 */
         public final boolean conflicting;
+        /** 最新 commit 的所有 CI check 都已完成且通過（success／neutral／skipped）；讀不到時為 false。 */
+        public final boolean ciPassed;
 
         public PullRow(int number, String title, boolean open, boolean draft, boolean merged,
                        long createdAt, long updatedAt, Long mergedAt, Long closedAt,
@@ -75,6 +77,13 @@ public final class DevStatusModels {
         public PullRow(int number, String title, boolean open, boolean draft, boolean merged,
                        long createdAt, long updatedAt, Long mergedAt, Long closedAt,
                        Set<Integer> closesIssues, boolean conflicting) {
+            this(number, title, open, draft, merged, createdAt, updatedAt, mergedAt, closedAt,
+                    closesIssues, conflicting, false);
+        }
+
+        public PullRow(int number, String title, boolean open, boolean draft, boolean merged,
+                       long createdAt, long updatedAt, Long mergedAt, Long closedAt,
+                       Set<Integer> closesIssues, boolean conflicting, boolean ciPassed) {
             this.number = number;
             this.title = title == null ? "" : title;
             this.open = open;
@@ -88,6 +97,7 @@ public final class DevStatusModels {
                     ? Collections.emptySet()
                     : Collections.unmodifiableSet(new LinkedHashSet<>(closesIssues));
             this.conflicting = conflicting;
+            this.ciPassed = ciPassed;
         }
 
         public PullRow withConflicting(boolean value) {
@@ -95,7 +105,15 @@ public final class DevStatusModels {
                 return this;
             }
             return new PullRow(number, title, open, draft, merged, createdAt, updatedAt, mergedAt,
-                    closedAt, closesIssues, value);
+                    closedAt, closesIssues, value, ciPassed);
+        }
+
+        public PullRow withCiPassed(boolean value) {
+            if (value == ciPassed) {
+                return this;
+            }
+            return new PullRow(number, title, open, draft, merged, createdAt, updatedAt, mergedAt,
+                    closedAt, closesIssues, conflicting, value);
         }
     }
 

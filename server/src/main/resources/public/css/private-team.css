@@ -1222,6 +1222,15 @@ button.pt-hud-id-plate {
   font-weight: 800;
 }
 
+.pt-status-progress-node.is-waiting .pt-status-progress-node-note {
+  display: inline-block;
+  padding: 0 0.4em;
+  border-radius: 999px;
+  font-weight: 800;
+  color: #5a3d00;
+  background: var(--maple-gold, #ecc440);
+}
+
 .pt-status-progress-node.skipped .pt-status-progress-node-icon {
   background: #eef2f6;
   border: 2px dashed #9aa8b8;
