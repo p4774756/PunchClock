@@ -17,10 +17,6 @@ COPY server/src server/src
 RUN mvn -pl shared,server package -Dmaven.test.skip=true -P '!git-commit-time,!client-tests'
 
 FROM eclipse-temurin:11-jre-jammy
-# 飲品牆把 PowerPoint 轉成 PDF。同時只轉一份。Pages 只取檔內預覽，不經 LibreOffice。
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-impress fonts-noto-cjk \
-    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 COPY --from=build /app/server/target/punchclock-server.jar app.jar

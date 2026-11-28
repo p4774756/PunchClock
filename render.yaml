@@ -5,6 +5,7 @@ services:
     dockerfilePath: ./server/Dockerfile
     dockerContext: .
     plan: free
+    healthCheckPath: /ping
     envVars:
       - key: HEARTBEAT_SECRET
         sync: false
