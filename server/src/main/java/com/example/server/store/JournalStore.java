@@ -30,13 +30,13 @@ import java.util.UUID;
 import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
-/** 站長心得動態牆：文字、選用圖片、標籤；訪客留言存在各則底下。 */
+/** 留言板：站長與訪客都可以發短文；舊的 comments 資料保留但不再新增。 */
 public final class JournalStore {
 
     private static final Logger LOG = Logger.getLogger(JournalStore.class.getName());
     private static final Path PERSISTENT_ROOT = Paths.get("/var/data");
 
-    public static final int BODY_MAX = 1000;
+    public static final int BODY_MAX = 280;
     public static final int COMMENT_MAX = 200;
     public static final int NICKNAME_MAX = 12;
     public static final int TAG_MAX = 24;
@@ -46,16 +46,18 @@ public final class JournalStore {
     public static final int RATE_DAILY_MAX = 20;
     public static final long RATE_DAY_MS = 24L * 60L * 60L * 1000L;
     public static final String ANONYMOUS = "路過的旅人";
+    public static final String OWNER_NAME = "站長";
     public static final String BODY_MESSAGE = "正文不可為空";
-    public static final String BODY_LONG_MESSAGE = "正文太長";
+    public static final String BODY_LONG_MESSAGE = "正文最多 280 個字";
     public static final String COMMENT_LONG_MESSAGE = "留言太長";
     public static final String NICKNAME_MESSAGE = "暱稱最多 12 個字";
     public static final String IMAGE_MESSAGE = "只接受 JPEG、PNG 或 WebP 圖片";
     public static final String SIZE_MESSAGE = "圖片太大了";
-    public static final String RATE_MESSAGE = "留言太頻繁，請稍後再試";
-    public static final String LINK_MESSAGE = "留言不可包含網址或連結";
-    public static final String SPAM_MESSAGE = "留言內容無法刊登";
-    public static final String HONEYPOT_MESSAGE = "無法送出留言，請再試一次";
+    public static final String RATE_MESSAGE = "發文太頻繁，請稍後再試";
+    public static final String LINK_MESSAGE = "不可包含網址或連結";
+    public static final String SPAM_MESSAGE = "內容無法刊登";
+    public static final String HONEYPOT_MESSAGE = "無法送出，請再試一次";
+    public static final String COMMENTS_PAUSED = "留言功能暫停";
 
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     private static final Pattern LINK_PATTERN = Pattern.compile(
@@ -93,7 +95,7 @@ public final class JournalStore {
     }
 
     private static Path logDirectory(Path directory) {
-        LOG.info("心得牆目錄：" + directory);
+        LOG.info("留言板目錄：" + directory);
         return directory;
     }
 
@@ -157,7 +159,58 @@ public final class JournalStore {
         }
     }
 
+    /** 站長發文（略過限流與蜜罐）。既有測試與已登入路由使用。 */
     public synchronized Result createPost(String body, List<String> tags, byte[] imageRaw, long now) {
+        return createOwnedPost(body, tags, imageRaw, now);
+    }
+
+    public synchronized Result createVisitorPost(String body, String nickname, String honeypot, String ip, long now) {
+        if (honeypot != null && !honeypot.isBlank()) {
+            return Result.fail(400, HONEYPOT_MESSAGE);
+        }
+        String name;
+        try {
+            name = normalizeNickname(nickname);
+        } catch (IllegalArgumentException ex) {
+            return Result.fail(400, ex.getMessage());
+        }
+        String text;
+        try {
+            text = normalizeBody(body);
+        } catch (IllegalArgumentException ex) {
+            return Result.fail(400, ex.getMessage());
+        }
+        if (containsForbiddenLink(text)) {
+            return Result.fail(400, LINK_MESSAGE);
+        }
+        if (containsSpam(text)) {
+            return Result.fail(400, SPAM_MESSAGE);
+        }
+        String client = ip == null || ip.isBlank() ? "unknown" : ip.trim();
+        if (!allowWrite(client, now)) {
+            return Result.fail(429, RATE_MESSAGE);
+        }
+        Post post = new Post();
+        post.id = newId();
+        post.body = text;
+        post.tags = new ArrayList<>();
+        post.createdAt = now;
+        post.updatedAt = now;
+        post.imageExt = null;
+        post.comments = new ArrayList<>();
+        post.owner = false;
+        post.authorName = name;
+        try {
+            posts.add(0, post);
+            saveIndex();
+        } catch (IOException ex) {
+            posts.remove(post);
+            return Result.fail(500, "發文失敗，請再試一次");
+        }
+        return Result.okPost(post);
+    }
+
+    private Result createOwnedPost(String body, List<String> tags, byte[] imageRaw, long now) {
         String text;
         try {
             text = normalizeBody(body);
@@ -190,6 +243,8 @@ public final class JournalStore {
         post.updatedAt = now;
         post.imageExt = imageExt;
         post.comments = new ArrayList<>();
+        post.owner = true;
+        post.authorName = OWNER_NAME;
         try {
             if (imageExt != null) {
                 writeImage(post.id, imageExt, imageRaw);
@@ -207,7 +262,7 @@ public final class JournalStore {
     public synchronized Result updatePost(String id, String body, List<String> tags, byte[] imageRaw, boolean clearImage, long now) {
         Post post = findMutable(id);
         if (post == null) {
-            return Result.fail(404, "找不到這篇心得");
+            return Result.fail(404, "找不到這則留言");
         }
         String text;
         try {
@@ -290,7 +345,7 @@ public final class JournalStore {
         }
         Post post = findMutable(postId);
         if (post == null) {
-            return Result.fail(404, "找不到這篇心得");
+            return Result.fail(404, "找不到這則留言");
         }
         String name;
         try {
@@ -311,7 +366,7 @@ public final class JournalStore {
             return Result.fail(400, SPAM_MESSAGE);
         }
         String client = ip == null || ip.isBlank() ? "unknown" : ip.trim();
-        if (!allowComment(client, now)) {
+        if (!allowWrite(client, now)) {
             return Result.fail(429, RATE_MESSAGE);
         }
         Comment comment = new Comment();
@@ -429,7 +484,7 @@ public final class JournalStore {
         return false;
     }
 
-    private boolean allowComment(String ip, long now) {
+    private boolean allowWrite(String ip, long now) {
         Deque<Long> recent = recentByIp.get(ip);
         if (recent != null) {
             while (!recent.isEmpty() && now - recent.peekFirst() >= RATE_GAP_MS) {
@@ -489,6 +544,8 @@ public final class JournalStore {
         copy.createdAt = source.createdAt;
         copy.updatedAt = source.updatedAt;
         copy.imageExt = source.imageExt;
+        copy.owner = source.owner;
+        copy.authorName = source.authorName;
         copy.comments = new ArrayList<>();
         if (source.comments != null) {
             for (int i = 0; i < source.comments.size(); i++) {
@@ -527,7 +584,7 @@ public final class JournalStore {
                     continue;
                 }
                 try {
-                    p.body = normalizeBody(p.body);
+                    p.body = storedBody(p.body);
                 } catch (IllegalArgumentException ex) {
                     continue;
                 }
@@ -535,6 +592,7 @@ public final class JournalStore {
                 if (p.comments == null) {
                     p.comments = new ArrayList<>();
                 }
+                applyStoredAuthor(p);
                 posts.add(p);
             }
             posts.sort((a, b) -> Long.compare(b.createdAt, a.createdAt));
@@ -689,6 +747,33 @@ public final class JournalStore {
         return null;
     }
 
+
+    /** 既有文章可能超過新的 280 字上限，讀檔時不因此丟棄。 */
+    static String storedBody(String raw) {
+        String trimmed = stripControls(raw).trim();
+        if (trimmed.isEmpty()) {
+            throw new IllegalArgumentException(BODY_MESSAGE);
+        }
+        return trimmed;
+    }
+
+    static void applyStoredAuthor(Post post) {
+        if (post.authorName == null || post.authorName.isBlank()) {
+            post.owner = true;
+            post.authorName = OWNER_NAME;
+            return;
+        }
+        if (post.owner) {
+            post.authorName = OWNER_NAME;
+            return;
+        }
+        try {
+            post.authorName = normalizeNickname(post.authorName);
+        } catch (IllegalArgumentException ex) {
+            post.authorName = ANONYMOUS;
+        }
+    }
+
     private static String stripControls(String raw) {
         String source = raw == null ? "" : raw;
         StringBuilder kept = new StringBuilder();
@@ -726,6 +811,8 @@ public final class JournalStore {
         public long createdAt;
         public long updatedAt;
         public String imageExt;
+        public boolean owner;
+        public String authorName;
         public List<Comment> comments;
     }
 

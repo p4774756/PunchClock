@@ -27,7 +27,7 @@ test('跳脫 HTML 字元', () => {
   assert.equal(escapeHtmlText('<b>"\''), '&lt;b&gt;&quot;\'');
 });
 
-test('首屏不載入心得牆樣式與模組', () => {
+test('首屏不載入留言板樣式與模組', () => {
   const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
   const officeJs = readFileSync(join(publicRoot, 'js/office-page.js'), 'utf8');
   assert.doesNotMatch(html, /journal\.css/);
@@ -36,4 +36,22 @@ test('首屏不載入心得牆樣式與模組', () => {
   assert.match(officeJs, /home-journal-panel/);
   assert.match(officeJs, /applyJournalOpenParam/);
   assert.doesNotMatch(officeJs, /from '\.\/journal-panel\.js'/);
+});
+test('可見文案為留言板且短文上限 280', () => {
+  const html = readFileSync(join(publicRoot, 'index.html'), 'utf8');
+  const page = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
+  const room = readFileSync(join(publicRoot, 'js/private-team-scene-room.js'), 'utf8');
+  const core = readFileSync(join(publicRoot, 'js/journal-core.js'), 'utf8');
+  const panel = readFileSync(join(publicRoot, 'js/journal-panel.js'), 'utf8');
+  assert.match(html, /aria-label="留言板"/);
+  assert.match(html, /<h2>留言板<\/h2>/);
+  assert.match(html, /placeholder="寫點什麼…"/);
+  assert.match(html, /maxlength="280"/);
+  assert.doesNotMatch(html, /心得動態牆|心得牆|<h2>心得<\/h2>|寫下心得/);
+  assert.match(page, />留言板<\/a>/);
+  assert.doesNotMatch(page, /心得牆/);
+  assert.match(room, /fillText\('留言板'/);
+  assert.doesNotMatch(room, /fillText\('心得'|fillText\('動態牆'/);
+  assert.match(core, /BODY_MAX = 280/);
+  assert.match(panel, /尚無留言/);
 });

@@ -1,4 +1,4 @@
-/** 心得動態牆資源：開啟覆蓋層時才載入。 */
+/** 留言板資源：開啟覆蓋層時才載入。 */
 
 import { ensureHomeRoadmapCss } from './home-panel-css-loader.js';
 

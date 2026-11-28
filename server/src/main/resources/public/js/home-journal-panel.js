@@ -1,4 +1,4 @@
-/** 首頁心得動態牆浮窗。 */
+/** 首頁留言板浮窗。 */
 
 import { ensureJournalAssets } from './journal-loader.js';
 

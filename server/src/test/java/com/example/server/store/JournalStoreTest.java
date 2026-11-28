@@ -24,7 +24,7 @@ public class JournalStoreTest {
     @Rule
     public TemporaryFolder folder = new TemporaryFolder();
 
-  @Test
+    @Test
     public void persistsAndReloadsNewestFirst() throws Exception {
         Path dir = folder.newFolder().toPath();
         JournalStore store = new JournalStore(dir);
@@ -33,6 +33,8 @@ public class JournalStoreTest {
         JournalStore reloaded = new JournalStore(dir);
         assertEquals(2, reloaded.count());
         assertEquals("第二篇", reloaded.list(null, 10).get(0).body);
+        assertTrue(reloaded.list(null, 10).get(0).owner);
+        assertEquals(JournalStore.OWNER_NAME, reloaded.list(null, 10).get(0).authorName);
         assertTrue(Files.isRegularFile(dir.resolve("index.json")));
     }
 
@@ -101,6 +103,62 @@ public class JournalStoreTest {
         assertTrue(store.deletePost(post.post.id));
         JournalStore again = new JournalStore(dir);
         assertEquals(0, again.count());
+    }
+
+
+    @Test
+    public void visitorPostUsesNicknameAndDefaultsBlank() throws Exception {
+        JournalStore store = newStore();
+        JournalStore.Result named = store.createVisitorPost("哈囉", "小明", "", "1.1.1.1", 10L);
+        assertTrue(named.ok);
+        assertFalse(named.post.owner);
+        assertEquals("小明", named.post.authorName);
+        JournalStore.Result anon = store.createVisitorPost("路過", "  ", "", "2.2.2.2", 20L);
+        assertTrue(anon.ok);
+        assertEquals(JournalStore.ANONYMOUS, anon.post.authorName);
+    }
+
+    @Test
+    public void visitorPostRateLimitAndFilters() throws Exception {
+        JournalStore store = newStore();
+        assertTrue(store.createVisitorPost("一", "甲", "", "9.9.9.9", 10L).ok);
+        JournalStore.Result fast = store.createVisitorPost("二", "甲", "", "9.9.9.9", 20L);
+        assertFalse(fast.ok);
+        assertEquals(429, fast.status);
+        assertEquals(JournalStore.RATE_MESSAGE, fast.message);
+
+        JournalStore.Result link = store.createVisitorPost("看 https://evil.test", "甲", "", "3.3.3.3", 30L);
+        assertFalse(link.ok);
+        assertEquals(JournalStore.LINK_MESSAGE, link.message);
+        JournalStore.Result spam = store.createVisitorPost("免費代購", "甲", "", "3.3.3.3", 40L);
+        assertFalse(spam.ok);
+        assertEquals(JournalStore.SPAM_MESSAGE, spam.message);
+        JournalStore.Result pot = store.createVisitorPost("哈", "甲", "filled", "3.3.3.3", 50L);
+        assertFalse(pot.ok);
+        assertEquals(JournalStore.HONEYPOT_MESSAGE, pot.message);
+        assertFalse(pot.message.toLowerCase().contains("honeypot"));
+    }
+
+    @Test
+    public void rejectsBodyOver280AndKeepsLegacyLongPosts() throws Exception {
+        assertEquals(280, JournalStore.BODY_MAX);
+        JournalStore store = newStore();
+        String tooLong = "字".repeat(281);
+        JournalStore.Result rejected = store.createPost(tooLong, null, null, 1L);
+        assertFalse(rejected.ok);
+        assertEquals(JournalStore.BODY_LONG_MESSAGE, rejected.message);
+
+        Path dir = folder.newFolder().toPath();
+        String longBody = "舊".repeat(400);
+        String json = "{\"posts\":[{\"id\":\"abcd1234ef\",\"body\":\"" + longBody
+                + "\",\"createdAt\":1,\"updatedAt\":1}]}";
+        Files.writeString(dir.resolve("index.json"), json, StandardCharsets.UTF_8);
+        JournalStore reloaded = new JournalStore(dir);
+        assertEquals(1, reloaded.count());
+        JournalStore.Post post = reloaded.list(null, 10).get(0);
+        assertEquals(longBody, post.body);
+        assertTrue(post.owner);
+        assertEquals(JournalStore.OWNER_NAME, post.authorName);
     }
 
     private JournalStore newStore() throws Exception {

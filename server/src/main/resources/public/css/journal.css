@@ -8,7 +8,7 @@
 /* 需壓過 roadmap.css 的 .roadmap-panel.maple-window（寬 1120、overflow:auto）。 */
 #journalBoard .home-journal-panel.roadmap-panel.maple-window {
   align-self: center;
-  width: min(720px, 100%);
+  width: min(600px, 100%);
   height: auto;
   max-height: min(92vh, 900px);
   display: flex;
@@ -73,14 +73,63 @@
   pointer-events: none;
 }
 
+.journal-compose-who {
+  margin: 0;
+  font-weight: 700;
+  color: var(--maple-navy, #163a70);
+}
+
+.journal-compose-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.journal-count {
+  font-size: 0.85rem;
+  color: #5c6570;
+}
+
 .journal-post {
-  padding: 0.75rem 0;
+  padding: 0.85rem 0;
   border-bottom: 1px solid rgba(46, 56, 72, 0.12);
+}
+
+.journal-post-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.65rem;
+}
+
+.journal-author {
+  font-weight: 700;
+  color: var(--maple-ink, #1f2a3a);
 }
 
 .journal-post-time {
   font-size: 0.85rem;
   color: #5c6570;
+}
+
+.journal-post-delete {
+  margin-left: auto;
+  background: none;
+  border: none;
+  padding: 0 0.15rem;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #5c6570;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+#journalBoard .home-journal-panel .journal-post-delete:focus-visible {
+  outline: 3px solid var(--maple-gold-hi, #f8dc6e);
+  outline-offset: 2px;
+  color: var(--maple-navy, #163a70);
 }
 
 .journal-tags {
@@ -99,9 +148,9 @@
 }
 
 .journal-post-body {
-  margin: 0.45rem 0;
+  margin: 0.35rem 0 0;
   white-space: pre-wrap;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
 .journal-post-image {
@@ -201,7 +250,7 @@
   }
 
   #journalBoard .home-journal-panel.roadmap-panel.maple-window {
-    width: min(720px, 100%);
+    width: min(600px, 100%);
     max-height: min(92vh, 900px);
     border-radius: 6px;
   }

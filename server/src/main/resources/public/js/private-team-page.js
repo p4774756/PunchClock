@@ -329,7 +329,7 @@ export function mountPrivateTeamPage(opts) {
       taskHudMarkup() +
       '</div>' +
       '<div class="pt-hud-br">' +
-      '<a href="/?open=journal" class="pt-hud-journal" data-pt-open-journal>心得牆</a>' +
+      '<a href="/?open=journal" class="pt-hud-journal" data-pt-open-journal>留言板</a>' +
       '<button type="button" class="pt-hud-outfit" data-pt-secretary-outfit-btn aria-label="秘書服裝：預設，點一下換成舞台服" title="換服裝">' +
       '<span class="pt-hud-outfit-cap" aria-hidden="true">服裝</span>' +
       '<span class="pt-hud-outfit-name" aria-hidden="true" data-pt-secretary-outfit-name>預設</span>' +

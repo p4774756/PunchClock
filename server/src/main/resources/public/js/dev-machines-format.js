@@ -356,7 +356,7 @@ export function applyDownloadOpenParam(win, openDownloadFn) {
   return true;
 }
 
-/** 帶 open=journal 時開心得牆並清掉 query。 */
+/** 帶 open=journal 時開留言板並清掉 query。 */
 export function applyJournalOpenParam(win, openJournalFn) {
   if (!win || !win.location || typeof openJournalFn !== 'function') return false;
   if (!shouldOpenJournalFromSearch(win.location.search)) return false;
