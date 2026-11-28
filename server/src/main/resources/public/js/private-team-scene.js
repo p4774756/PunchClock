@@ -1,4 +1,4 @@
-import * as THREE from './vendor/three.module.js';
+import * as THREE from './vendor/three.module.min.js';
 import { POCKET_LCD_H, POCKET_LCD_W, drawPocketMaryPreviewLcd } from './private-team-pocket-lcd.js';
 import {
   SECRETARY_SPRITE_URL_TYPING,
@@ -765,11 +765,15 @@ export function mountPrivateTeamScene(canvas, opts) {
   leftPosterGroup.rotation.y = Math.PI / 2;
   leftPosterGroup.userData.pickRole = 'leftPoster';
 
-  const posterTextures = [];
-  for (let li = 0; li < LEFT_WALL_POSTER_URLS.length; li++) {
-    const ptx = texLoader.load(LEFT_WALL_POSTER_URLS[li]);
+  const posterTextures = new Array(LEFT_WALL_POSTER_URLS.length).fill(null);
+  function ensurePosterTexture(index) {
+    const idx = Number(index);
+    if (!Number.isFinite(idx) || idx < 0 || idx >= LEFT_WALL_POSTER_URLS.length) return null;
+    if (posterTextures[idx]) return posterTextures[idx];
+    const ptx = texLoader.load(LEFT_WALL_POSTER_URLS[idx]);
     ptx.colorSpace = THREE.SRGBColorSpace;
-    posterTextures.push(ptx);
+    posterTextures[idx] = ptx;
+    return ptx;
   }
   let leftPosterIndex = readLeftPosterIndexFromStorage((key) => {
     try {
@@ -778,8 +782,9 @@ export function mountPrivateTeamScene(canvas, opts) {
       return null;
     }
   });
+  ensurePosterTexture(leftPosterIndex);
   const posterMat = new THREE.MeshLambertMaterial({
-    map: posterTextures[leftPosterIndex] || posterTextures[0],
+    map: posterTextures[leftPosterIndex] || ensurePosterTexture(0),
     color: 0xfff4ec,
     emissive: 0x120c08,
     emissiveIntensity: 0.07
@@ -1103,7 +1108,10 @@ export function mountPrivateTeamScene(canvas, opts) {
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
 
-  (function preloadSecretaryCelebrateFrames() {
+  let secretaryCelebrateFramesPrimed = false;
+  let secretaryStandbyIdleFramesPrimed = false;
+
+  function preloadSecretaryCelebrateFrames() {
     const seen = new Set();
     for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
       const step = SECRETARY_CELEBRATE_STEPS[i];
@@ -1113,11 +1121,26 @@ export function mountPrivateTeamScene(canvas, opts) {
       seen.add(url);
       loader.load(url, () => {}, undefined, () => {});
     }
+  }
+
+  function preloadSecretaryStandbyIdleFrames() {
     for (let i = 0; i < SECRETARY_STANDBY_IDLE_URLS.length; i++) {
       const url = SECRETARY_STANDBY_IDLE_URLS[i];
       if (url) loader.load(url, () => {}, undefined, () => {});
     }
-  })();
+  }
+
+  function primeSecretaryCelebrateFramesIfNeeded() {
+    if (secretaryCelebrateFramesPrimed) return;
+    secretaryCelebrateFramesPrimed = true;
+    preloadSecretaryCelebrateFrames();
+  }
+
+  function primeSecretaryStandbyIdleFramesIfNeeded() {
+    if (secretaryStandbyIdleFramesPrimed) return;
+    secretaryStandbyIdleFramesPrimed = true;
+    preloadSecretaryStandbyIdleFrames();
+  }
 
   function refreshPoseAnimMode() {
     spriteAnimMode = spriteAnimModeForUrl(statusBaseUrl);
@@ -1166,6 +1189,7 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function playSecretaryDance(now) {
     if (reducedMotion) return;
+    primeSecretaryCelebrateFramesIfNeeded();
     const t = Number.isFinite(now) ? now : performance.now();
     overlayActive = null;
     overlayPending = null;
@@ -1476,7 +1500,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     }
     if (target === 'leftPoster') {
       leftPosterIndex = nextLeftPosterIndex(leftPosterIndex);
-      if (posterTextures[leftPosterIndex]) posterMat.map = posterTextures[leftPosterIndex];
+      const posterTex = ensurePosterTexture(leftPosterIndex);
+      if (posterTex) posterMat.map = posterTex;
       try {
         if (win.localStorage) {
           win.localStorage.setItem(
@@ -1795,6 +1820,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       lastIdleRotateMs != null &&
       now - lastIdleRotateMs >= SECRETARY_IDLE_ROTATE_MS
     ) {
+      primeSecretaryStandbyIdleFramesIfNeeded();
       lastIdleRotateMs = now;
       statusBaseUrl = pickNextStandbyIdleUrl(statusBaseUrl, Math.floor(Math.random() * 1e6));
       refreshPoseAnimMode();

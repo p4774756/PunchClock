@@ -104,6 +104,7 @@ test('開啟裝置窗時會準備裝置面板', () => {
   const js = readFileSync(join(publicRoot, 'js/home-tasks-panel.js'), 'utf8');
   assert.match(js, /PunchclockHomeDevicesPanel/);
   assert.match(js, /prepareDevicesPanel/);
+  assert.match(js, /ensureHomeDashboardAssets/);
 });
 
 test('任務面板標題列固定，內容區捲動', () => {
