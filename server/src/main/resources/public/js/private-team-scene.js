@@ -128,7 +128,6 @@ import {
   makeBathtubCausticsTexture,
   addRomanceCandle,
   addBathPillow,
-  makeScreenPainter,
   makeBubbleDrawer,
   lampGlowTexture,
   softShadowTexture,
@@ -1709,13 +1708,23 @@ export function mountPrivateTeamScene(canvas, opts) {
     return monitorHovered || now < monitorHighlightUntil;
   }
 
-  function setMonitorBezelHighlight(on) {
+  function setMonitorPanelHighlight(on) {
     for (let mi = 0; mi < monitors.length; mi++) {
-      const bezel = monitors[mi].bezel;
-      const mat = bezel && bezel.material;
-      if (!mat || !mat.emissive) continue;
-      mat.emissive.setHex(on ? 0x8ec8ff : 0x000000);
-      mat.emissiveIntensity = on ? 0.65 : 0;
+      const panel = monitors[mi].panel;
+      const edge = monitors[mi].edge;
+      if (panel && panel.material) {
+        panel.material.opacity = on ? 0.98 : 0.9;
+      }
+      if (edge && edge.material) {
+        edge.material.opacity = on ? 0.66 : 0.38;
+      }
+    }
+  }
+
+  function setMonitorHud(data) {
+    if (!data || typeof data !== 'object') return;
+    for (let mi = 0; mi < monitors.length; mi++) {
+      monitors[mi].painter.setHudData(data);
     }
   }
 
@@ -1923,7 +1932,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         applyMonitorHighlight(false);
         applyHandheldHighlight(false);
         applyLeftPosterHighlight(false);
-        setMonitorBezelHighlight(false);
+        setMonitorPanelHighlight(false);
       }
       return;
     }
@@ -1938,7 +1947,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     if (hand && !mon) {
       canvas.style.cursor = 'pointer';
     }
-    setMonitorBezelHighlight(mon || monitorHighlightActive(performance.now()));
+    setMonitorPanelHighlight(mon || monitorHighlightActive(performance.now()));
   }
 
   function handleHoverMove(ev) {
@@ -1951,7 +1960,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     canvas.style.cursor = '';
     applyMonitorHighlight(false);
     applyLeftPosterHighlight(false);
-    setMonitorBezelHighlight(monitorHighlightActive(performance.now()));
+    setMonitorPanelHighlight(monitorHighlightActive(performance.now()));
   }
 
   function clearPointer(ev) {
@@ -2201,13 +2210,26 @@ export function mountPrivateTeamScene(canvas, opts) {
 
     const pulse = (Math.sin(elapsed * 3) + 1) / 2;
     for (let mi = 0; mi < monitors.length; mi++) {
-      monitors[mi].painter.draw(pulse);
+      const mon = monitors[mi];
+      mon.painter.tickRedraw(now, reducedMotion);
+      const base = mon.animBase;
+      if (reducedMotion) {
+        mon.group.position.set(base.x, base.y, base.z);
+        mon.group.rotation.z = 0;
+      } else {
+        const seed = mon.floatSeed;
+        const floatY = Math.sin(elapsed * 0.92 + seed) * 0.016;
+        const swayX = Math.sin(elapsed * 0.68 + seed * 1.17) * 0.01;
+        mon.group.position.set(base.x + swayX, base.y + floatY, base.z);
+        mon.group.lookAt(monitorLook.x, monitorLook.y, monitorLook.z);
+        mon.group.rotateZ(Math.sin(elapsed * 0.48 + seed) * 0.032);
+      }
       const hi = monitorHighlightActive(now);
-      monitors[mi].screenGlow.intensity = (hi ? 0.72 : 0.22) + pulse * (hi ? 0.28 : 0.12);
+      mon.screenGlow.intensity = (hi ? 0.72 : 0.22) + (reducedMotion ? 0 : pulse * (hi ? 0.28 : 0.12));
       if (!monitorHovered && now >= monitorHighlightUntil) {
-        setMonitorBezelHighlight(false);
+        setMonitorPanelHighlight(false);
       } else if (hi) {
-        setMonitorBezelHighlight(true);
+        setMonitorPanelHighlight(true);
       }
     }
 
@@ -2383,6 +2405,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     playSecretaryYeah,
     playSecretaryDance,
     noteTigerStatus,
+    setMonitorHud,
     setSceneInputEnabled(next) {
       sceneInputEnabled = !!next;
     },

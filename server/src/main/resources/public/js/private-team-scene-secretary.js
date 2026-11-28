@@ -1,4 +1,3 @@
-import * as THREE from './vendor/three.module.min.js';
 import { isWorkingStatus } from './private-team-office.js';
 import {
   secretarySpritePackForOutfit,
@@ -163,85 +162,6 @@ export {
   secretaryOutfitPreloadUrls,
   parseSecretaryOutfitId
 } from './private-team-secretary-outfit.js';
-
-function makeScreenPainter() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 160;
-  canvas.height = 110;
-  const ctx = canvas.getContext('2d');
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.MeshBasicMaterial({ map: tex });
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.56, 0.38), mat);
-  mesh.position.z = 0.04;
-  function draw(pulse) {
-    ctx.fillStyle = '#121a2c';
-    ctx.fillRect(0, 0, 160, 110);
-    const glow = '#b9e2ff';
-    ctx.fillStyle = 'rgba(94, 186, 255, ' + (0.45 + pulse * 0.45) + ')';
-    ctx.fillRect(12, 14, 136, 82);
-    ctx.fillStyle = glow;
-    const slide = (pulse * 28) | 0;
-    ctx.fillRect(22, 26, 48 + slide, 10);
-    ctx.fillRect(22, 46, 90, 8);
-    ctx.fillRect(22, 64, 62 + (18 - slide / 2), 8);
-    tex.needsUpdate = true;
-  }
-  return { mesh, draw };
-}
-
-function makeBubbleDrawer() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 320;
-  canvas.height = 112;
-  const ctx = canvas.getContext('2d');
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  function draw(text) {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const x = 20;
-    const y = 16;
-    const w = 272;
-    const h = 56;
-    const r = h / 2;
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.arc(x + w - r, y + r, r, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(x + 168, y + h);
-    ctx.lineTo(x + 154, y + h + 12);
-    ctx.lineTo(x + 148, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.arc(x + r, y + r, r, Math.PI / 2, -Math.PI / 2);
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(18,32,58,0.74)';
-    ctx.fill();
-    ctx.strokeStyle = '#c9a850';
-    ctx.lineWidth = 2.2;
-    ctx.stroke();
-    ctx.fillStyle = '#52d86e';
-    ctx.beginPath();
-    ctx.arc(x + 22, y + r, 5, 0, Math.PI * 2);
-    ctx.fill();
-    const label = text == null || String(text).trim() === '' ? '…' : String(text);
-    const size = label.length > 6 ? 26 : label.length > 4 ? 30 : 34;
-    ctx.fillStyle = '#e6f0ff';
-    ctx.font = size + 'px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(label, x + w / 2 + 6, y + r);
-    tex.needsUpdate = true;
-  }
-  draw('…');
-  return { tex, draw };
-}
-function spriteAspectFromTexture(tex) {
-  const img = tex && tex.image;
-  if (img && img.width > 0 && img.height > 0) {
-    return img.width / img.height;
-  }
-  return 526 / 768;
-}
 
 const SECRETARY_TYPING_FRAME_MS = 500;
 const SECRETARY_WAVE_MS = 3000;

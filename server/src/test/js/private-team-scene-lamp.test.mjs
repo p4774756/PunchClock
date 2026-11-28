@@ -49,7 +49,10 @@ test('下沉浴缸、托盤與單螢幕支架', () => {
   assert.match(src, /monitorHighlightActive/);
   assert.equal((src.match(/addMonitor\(root, monitorLook/g) || []).length, 1);
   assert.doesNotMatch(src, /addMonitor\(root, monitorLook, -0\.68/);
-  assert.match(src, /basePlate/);
+  assert.match(src, /hologramPanel/);
+  assert.match(src, /hologramEmitter/);
+  assert.match(src, /depthWrite: false/);
+  assert.doesNotMatch(src, /basePlate/);
   assert.match(src, /bathPillow/);
   assert.doesNotMatch(src, /addBathPillow\(secretarySprite\)/);
   assert.match(src, /addBathPillow\(bathPillowTubAnchor\)/);

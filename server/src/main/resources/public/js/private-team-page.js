@@ -9,6 +9,7 @@ import {
   hasNewCompletedToday,
   secretarySpriteUrlForStatus,
   taskProgressFromTiger,
+  progressBoardViewFromTiger,
   tigerFromPublic
 } from './private-team-office.js';
 import {
@@ -649,6 +650,13 @@ export function mountPrivateTeamPage(opts) {
     scene.noteTigerStatus(tigerView.status, now);
     scene.setSecretarySprite(secretarySpriteUrlForStatus(tigerView.status, secretaryOutfitId));
     scene.setBubbleText(bubbleLabel());
+    const board = progressBoardViewFromTiger(tigerView, devQueue.length);
+    scene.setMonitorHud({
+      cpuPercent: tigerView.cpuPercent,
+      ramPercent: tigerView.ramPercent,
+      status: tigerView.status,
+      issueLine: board.issueLine
+    });
   }
 
   function mountSceneWhenReady() {
