@@ -81,8 +81,22 @@ function addRecessedDownlight(parent, x, y, z, name) {
   parent.add(emitter);
 }
 
-function addTrackHead(parent, x, y, z, name, tiltX) {
-  const tilt = tiltX != null ? tiltX : 0.72;
+const _aimDown = new THREE.Vector3(0, -1, 0);
+const _aimDir = new THREE.Vector3();
+
+/** 燈頭朝向：杯口（本地 -y）對準目標，並限制不要太水平，避免燈杯躺平。 */
+export function trackHeadAimQuaternion(from, target) {
+  _aimDir.subVectors(target, from);
+  if (_aimDir.lengthSq() < 1e-8) _aimDir.set(0, -1, 0);
+  _aimDir.normalize();
+  if (_aimDir.y > -0.4) {
+    _aimDir.y = -0.4;
+    _aimDir.normalize();
+  }
+  return new THREE.Quaternion().setFromUnitVectors(_aimDown, _aimDir);
+}
+
+function addTrackHead(parent, x, y, z, name, aimTarget) {
   const arm = new THREE.Mesh(
     new THREE.BoxGeometry(0.038, 0.022, 0.034),
     new THREE.MeshStandardMaterial({ color: TRACK_COLOR, metalness: 0.45, roughness: 0.42 })
@@ -94,7 +108,11 @@ function addTrackHead(parent, x, y, z, name, tiltX) {
   // 燈頭整組跟著杯體傾斜，透鏡貼在開口上，斜角才看得到發光面（舊版透鏡不跟著轉，看起來像關著的黑杯子）。
   const group = new THREE.Group();
   group.position.set(x, y - 0.028, z);
-  group.rotation.x = tilt;
+  if (aimTarget) {
+    group.quaternion.copy(trackHeadAimQuaternion(group.position, aimTarget));
+  } else {
+    group.rotation.x = 0.72;
+  }
   group.name = name + 'Group';
   parent.add(group);
 
@@ -181,11 +199,6 @@ export function addPrivateTeamGalleryLighting(root, layout) {
     { x: 1.14, name: 'galleryTrackHeadSofa' },
     { x: 1.46, name: 'galleryTrackHeadVinyl' }
   ];
-  const heads = [];
-  for (let i = 0; i < trackHeadDefs.length; i++) {
-    heads.push(addTrackHead(fixtureRoot, trackHeadDefs[i].x, ceilingY, -0.38, trackHeadDefs[i].name));
-  }
-
   addRecessedDownlight(fixtureRoot, -0.28, ceilingY, 0.08, 'galleryRecessedTub');
   addRecessedDownlight(fixtureRoot, 1.48, ceilingY, -0.72, 'galleryRecessedLounge');
   addRecessedDownlight(fixtureRoot, -0.72, ceilingY, 0.62, 'galleryRecessedDesk');
@@ -196,6 +209,18 @@ export function addPrivateTeamGalleryLighting(root, layout) {
   const sofaZ = SECRETARY_SOFA_POSITION.z;
   const vinylX = 0.86;
   const vinylZ = backZ + 0.38;
+
+  // 四顆燈頭各自朝不同方向：左牆畫、浴缸地面、沙發、窗邊櫃。
+  const headAims = [
+    new THREE.Vector3(posterX, posterY, 0),
+    new THREE.Vector3(tubCx, rimTopY - 0.05, tubCz),
+    new THREE.Vector3(sofaX, 0.38, sofaZ),
+    new THREE.Vector3(vinylX, 0.62, vinylZ)
+  ];
+  const heads = [];
+  for (let i = 0; i < trackHeadDefs.length; i++) {
+    heads.push(addTrackHead(fixtureRoot, trackHeadDefs[i].x, ceilingY, -0.38, trackHeadDefs[i].name, headAims[i]));
+  }
 
   const fromY = ceilingY - 0.1;
   const spots = [
@@ -211,7 +236,7 @@ export function addPrivateTeamGalleryLighting(root, layout) {
       distance: 4.2,
       angle: Math.PI / 6.8,
       penumbra: 0.58,
-      poolRadius: 0.42
+      poolRadius: 0 // 目標在牆上：不在地板打光圈，避免地面出現零散亮斑
     }),
     addSpotWithPool(root, {
       name: 'galleryAccentSpotBathtub',
@@ -253,7 +278,7 @@ export function addPrivateTeamGalleryLighting(root, layout) {
       distance: 4.4,
       angle: Math.PI / 6.2,
       penumbra: 0.62,
-      poolRadius: 0.38
+      poolRadius: 0 // 目標在窗邊櫃上，同上
     })
   ];
 

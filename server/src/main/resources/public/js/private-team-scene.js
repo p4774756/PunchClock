@@ -892,7 +892,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const moonFloorMat = new THREE.MeshBasicMaterial({
     map: moonTex,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.36,
     depthWrite: false,
     blending: THREE.AdditiveBlending
   });
@@ -1245,7 +1245,8 @@ export function mountPrivateTeamScene(canvas, opts) {
       windowVistaMat.map = periodTex;
       windowVistaMat.needsUpdate = true;
     }
-    moonFloorMat.opacity = lt.floorWash;
+    // 窗格月光地面光斑在手機上像零散亮斑（#911）：減弱。
+    moonFloorMat.opacity = lt.floorWash * 0.4;
     moonWallMat.opacity = lt.wallWash;
     windowMoonlightWallRight.material.opacity = lt.wallWash * 0.78;
     windowMoonlightWallLeftFlank.material.opacity = lt.wallWash * 0.78;
