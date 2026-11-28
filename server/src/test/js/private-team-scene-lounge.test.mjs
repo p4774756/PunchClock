@@ -23,9 +23,9 @@ test('休憩區家具名稱與秘書沙發錨點', async () => {
     SOFA_WORLD_SCALE_X,
     vinylShouldSpin
   } = await loadPublicModule('private-team-scene-lounge.js');
-  assert.deepEqual(SECRETARY_SOFA_POSITION, { x: 1.34, y: 0, z: -0.24 });
+  assert.deepEqual(SECRETARY_SOFA_POSITION, { x: 1.38, y: 0, z: -0.3 });
   assert.deepEqual(SECRETARY_SHADOW_SOFA, { x: -0.03, y: 0.072, z: 0.16 });
-  assert.deepEqual(SECRETARY_BUBBLE_SOFA, { x: 1.46, z: 0.26 });
+  assert.deepEqual(SECRETARY_BUBBLE_SOFA, { x: 1.5, z: 0.2 });
   const sofaLeftX = SECRETARY_SOFA_POSITION.x - (SOFA_HALF_WIDTH_X + SOFA_ARM_RADIUS) * SOFA_WORLD_SCALE_X;
   assert.ok(sofaLeftX > TUB_RIGHT_EDGE_X + 0.04, '沙發左緣應與浴缸右緣留有 X 向空隙');
   const defSofa = secretarySofaPlacementForOutfit('default');
@@ -107,3 +107,83 @@ test('訪客／無效服裝的沙發擺位永遠是有限數字', async () => {
   assert.deepEqual(secretarySofaPlacementForOutfit(''), def);
   assert.deepEqual(secretarySofaPlacementForOutfit('foo'), def);
 });
+
+test('浴缸佔地常數與場景原始碼的 TUB_* 一致', async () => {
+  const { LOUNGE_TUB_FOOTPRINT } = await loadPublicModule('private-team-scene-lounge.js');
+  const num = (name) => {
+    const m = sceneSrc.match(new RegExp('const ' + name + ' = (-?[0-9.]+);'));
+    assert.ok(m, name);
+    return Number(m[1]);
+  };
+  assert.equal(LOUNGE_TUB_FOOTPRINT.cx, num('TUB_CX'));
+  assert.equal(LOUNGE_TUB_FOOTPRINT.cz, num('TUB_CZ'));
+  // 外緣滾邊（+0.03）與地板收邊（+0.04／+0.038）
+  assert.ok(Math.abs(LOUNGE_TUB_FOOTPRINT.hw - (num('TUB_HW') + 0.04)) < 1e-9);
+  assert.ok(Math.abs(LOUNGE_TUB_FOOTPRINT.hd - (num('TUB_HD') + 0.04)) < 1e-9);
+  assert.match(sceneSrc, /export const FLOOR_SIZE = 3\.6;/);
+});
+
+test('休憩區家具彼此不重疊、浴缸與沙發之間留有通道，家具都在地板內', async () => {
+  const L = await loadPublicModule('private-team-scene-lounge.js');
+  const f = L.loungeObstacleFootprints();
+  const names = Object.keys(f);
+  for (let i = 0; i < names.length; i++) {
+    for (let j = i + 1; j < names.length; j++) {
+      const gap = L.rectGap(f[names[i]], f[names[j]]);
+      assert.ok(gap > 0, names[i] + ' 與 ' + names[j] + ' 重疊');
+    }
+    const r = f[names[i]];
+    assert.ok(Math.abs(r.cx) + r.hw <= L.LOUNGE_FLOOR_HALF, names[i] + ' X 超出地板');
+    assert.ok(Math.abs(r.cz) + r.hd <= L.LOUNGE_FLOOR_HALF, names[i] + ' Z 超出地板');
+  }
+  // 浴缸右緣與沙發左緣的通道至少一個肩寬的一半多一點
+  assert.ok(L.rectGap(f.tub, f.sofa) >= 0.12, '浴缸與沙發太近：' + L.rectGap(f.tub, f.sofa));
+  // 盆栽離浴缸與沙發都至少一個身體半徑，不再卡在兩者之間
+  assert.ok(L.rectGap(f.plant, f.tub) >= L.SECRETARY_ROUTE_BODY_RADIUS);
+  assert.ok(L.rectGap(f.plant, f.sofa) >= L.SECRETARY_ROUTE_BODY_RADIUS);
+  assert.ok(L.rectGap(f.lamp, f.sofa) >= 0.05);
+  // 地毯貼地：不能壓到浴缸，且要把整個沙發包進去
+  const rug = { cx: L.LOUNGE_RUG.cx, cz: L.LOUNGE_RUG.cz, hw: L.LOUNGE_RUG.w / 2, hd: L.LOUNGE_RUG.d / 2 };
+  assert.ok(L.rectGap(rug, f.tub) > 0, '地毯壓到浴缸');
+  assert.ok(Math.abs(rug.cx) + rug.hw <= L.LOUNGE_FLOOR_HALF + 0.03, '地毯超出地板太多');
+  assert.ok(rug.cx - rug.hw <= f.sofa.cx - f.sofa.hw && rug.cx + rug.hw >= f.sofa.cx + f.sofa.hw - 0.05);
+});
+
+test('秘書浴缸到沙發的路線點與整段線段都離家具有淨空', async () => {
+  const L = await loadPublicModule('private-team-scene-lounge.js');
+  const f = L.loungeObstacleFootprints();
+  const need = L.SECRETARY_ROUTE_BODY_RADIUS + 0.06;
+  const route = L.SECRETARY_LOUNGE_ROUTE;
+  assert.ok(route.length >= 3);
+  const check = (x, z, label) => {
+    assert.ok(Math.abs(x) <= L.LOUNGE_FLOOR_HALF - L.SECRETARY_ROUTE_BODY_RADIUS, label + ' 超出地板 X');
+    assert.ok(Math.abs(z) <= L.LOUNGE_FLOOR_HALF - L.SECRETARY_ROUTE_BODY_RADIUS, label + ' 超出地板 Z');
+    for (const [name, rect] of Object.entries(f)) {
+      const d = L.distancePointToRect(x, z, rect);
+      assert.ok(d >= need, label + ' 離 ' + name + ' 只有 ' + d.toFixed(3) + '，需要 ' + need.toFixed(3));
+    }
+  };
+  for (let i = 0; i < route.length; i++) {
+    check(route[i].x, route[i].z, route[i].name);
+    if (i === 0) continue;
+    const a = route[i - 1];
+    const b = route[i];
+    for (let k = 1; k < 20; k++) {
+      const t = k / 20;
+      check(a.x + (b.x - a.x) * t, a.z + (b.z - a.z) * t, a.name + '→' + b.name + ' @' + t);
+    }
+  }
+  // 起點在浴缸右側、終點在沙發前方
+  assert.ok(route[0].x > f.tub.cx + f.tub.hw);
+  const last = route[route.length - 1];
+  assert.ok(last.z > f.sofa.cz + f.sofa.hd);
+  assert.ok(last.x > f.sofa.cx - f.sofa.hw && last.x < f.sofa.cx + f.sofa.hw);
+});
+
+test('舊配置（盆栽卡在浴缸與沙發之間）確實不合格，測試有抓到', async () => {
+  const L = await loadPublicModule('private-team-scene-lounge.js');
+  const f = L.loungeObstacleFootprints();
+  const oldPlant = { cx: 0.84, cz: 0.0, hw: L.LOUNGE_MONSTERA_RADIUS, hd: L.LOUNGE_MONSTERA_RADIUS };
+  assert.equal(L.rectGap(oldPlant, f.tub), 0, '舊盆栽位置與浴缸重疊');
+});
+
