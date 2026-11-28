@@ -66,9 +66,6 @@ public final class DesktopPetWindow extends JFrame {
     /** 對話框留白。喵露耳朵在畫布上方約 20px，泡泡畫在這條留白裡。 */
     static final int BUBBLE_SLOT = 44;
     /** 台詞泡泡：本機糖果色，不走已被 Win95 換裝改寫的 {@link CandyTheme#PINK_*}。 */
-    private static final Color SPEECH_BUBBLE_FILL = new Color(255, 228, 240);
-    private static final Color SPEECH_BUBBLE_EDGE = new Color(220, 140, 170);
-    private static final Color SPEECH_BUBBLE_INK = new Color(72, 36, 56);
     private static final int SCALE = 3;
     private static final int DRAG_THRESHOLD = 4;
 
@@ -118,16 +115,11 @@ public final class DesktopPetWindow extends JFrame {
     /** 待機角色加影子的穩定外框。頭頂就是這塊的上緣。 */
     private Rectangle fittedShell;
     private boolean fitting;
-    private static final int VISIBLE_ALPHA = 16;
     /** 左右差幾像素以內不重縮視窗，避免呼吸影格帶動座標。 */
-    private static final int SHELL_SLACK = 3;
     /**
      * 抓起時角色會略為升高。這段不把視窗往上長，否則拖曳中的座標會跳；
      * 多出來的幾像素裁在視窗外，待機頭頂仍貼著上緣。
      */
-    private static final int CARRY_CLIP = 14;
-    private static final List<CachedBody> BODY_CACHE = new ArrayList<CachedBody>();
-    private static volatile Rectangle ESTIMATED_MILU_SHELL;
 
     DesktopPetWindow(DesktopPetSettings settings) {
         super("桌面寵物");
@@ -554,7 +546,7 @@ public final class DesktopPetWindow extends JFrame {
                     .getDefaultScreenDevice()
                     .getDefaultConfiguration();
         }
-        return usable(gc);
+        return DesktopPetScreenPlacement.usable(gc);
     }
 
     void setNoticeEnded(Runnable noticeEnded) {
@@ -1279,106 +1271,15 @@ public final class DesktopPetWindow extends JFrame {
     /**
      * 旋轉後的角色圖層要留在視窗裡。繞抓取點縮小到四個角都進得了留白。
      */
-    static double fitScale(
-            int spriteX, int spriteY, int spriteSize,
+    static double fitScale(int spriteX, int spriteY, int spriteSize,
             int pivotX, int pivotY, double radians,
             int canvasWidth, int canvasHeight, int margin) {
-        if (Math.abs(radians) < 1e-4) {
-            return 1;
-        }
-        if (cornersFit(1, spriteX, spriteY, spriteSize, pivotX, pivotY, radians,
-                canvasWidth, canvasHeight, margin)) {
-            return 1;
-        }
-        double low = 0.45;
-        double high = 1;
-        for (int i = 0; i < 14; i++) {
-            double mid = (low + high) / 2;
-            if (cornersFit(mid, spriteX, spriteY, spriteSize, pivotX, pivotY, radians,
-                    canvasWidth, canvasHeight, margin)) {
-                low = mid;
-            } else {
-                high = mid;
-            }
-        }
-        return low;
-    }
-
-    private static boolean cornersFit(
-            double scale, int spriteX, int spriteY, int spriteSize,
-            int pivotX, int pivotY, double radians,
-            int canvasWidth, int canvasHeight, int margin) {
-        double cos = Math.cos(radians);
-        double sin = Math.sin(radians);
-        int[] xs = {spriteX, spriteX + spriteSize};
-        int[] ys = {spriteY, spriteY + spriteSize};
-        for (int x : xs) {
-            for (int y : ys) {
-                double dx = x - pivotX;
-                double dy = y - pivotY;
-                double rx = pivotX + scale * (dx * cos - dy * sin);
-                double ry = pivotY + scale * (dx * sin + dy * cos);
-                if (rx < margin || ry < margin
-                        || rx > canvasWidth - margin || ry > canvasHeight - margin) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    private void summonMainWindow() {
-        if (summonMain == null) {
-            return;
-        }
-        try {
-            summonMain.run();
-        } catch (RuntimeException ex) {
-            System.err.println("[桌面寵物] 無法把主視窗叫到前面：" + ex.getMessage());
-        }
-    }
-
-    /** macOS 點到一般視窗會啟動整個程式。POPUP 才不會把被擋住的主視窗拉上來。 */
-    static boolean keepsAppInBackground() {
-        String os = System.getProperty("os.name", "");
-        return os.startsWith("Mac") || os.startsWith("Darwin");
-    }
-
-    static Type backgroundWindowType() {
-        return keepsAppInBackground() ? Type.POPUP : Type.UTILITY;
-    }
-
-    /** 操控模式要可成為 key window；macOS 上 POPUP 不行，暫改 NORMAL。 */
-    static Type controlModeWindowType() {
-        return keepsAppInBackground() ? Type.NORMAL : Type.UTILITY;
-    }
-
-    /** 進入／離開操控模式時應套用的視窗 type 與焦點旗標（headless 單測用）。 */
-    static ControlModeChrome controlModeChrome(boolean controlActive) {
-        return new ControlModeChrome(
-                controlActive ? controlModeWindowType() : backgroundWindowType(),
-                controlActive,
-                controlActive && keepsAppInBackground(),
-                controlActive);
-    }
-
-    static final class ControlModeChrome {
-        final Type windowType;
-        final boolean focusableWindowState;
-        final boolean autoRequestFocus;
-        final boolean stageFocusable;
-
-        ControlModeChrome(Type windowType, boolean focusableWindowState, boolean autoRequestFocus,
-                boolean stageFocusable) {
-            this.windowType = windowType;
-            this.focusableWindowState = focusableWindowState;
-            this.autoRequestFocus = autoRequestFocus;
-            this.stageFocusable = stageFocusable;
-        }
+        return DesktopPetCarryFit.fitScale(spriteX, spriteY, spriteSize, pivotX, pivotY, radians,
+                canvasWidth, canvasHeight, margin);
     }
 
     private void applyControlModeWindowChrome(boolean controlActive) {
-        ControlModeChrome chrome = controlModeChrome(controlActive);
+        DesktopPetWindowChrome.ControlModeChrome chrome = DesktopPetWindowChrome.controlModeChrome(controlActive);
         setFocusableWindowState(chrome.focusableWindowState);
         setAutoRequestFocus(chrome.autoRequestFocus);
         stage.setFocusable(chrome.stageFocusable);
@@ -1418,317 +1319,89 @@ public final class DesktopPetWindow extends JFrame {
         }
     }
 
-    /**
-     * 選單是獨立 JWindow。只把 content pane 塗透明不夠，圓角與陰影外的像素仍會露出視窗方底。
-     * 與萌寵本體相同：支援 PERPIXEL_TRANSLUCENT 時把視窗底設成全透明，並關掉 root／layered pane 的不透明填色。
-     */
-    static void prepareMenuWindowTransparency(JWindow window) {
+    private void summonMainWindow() {
+        if (summonMain == null) {
+            return;
+        }
         try {
-            GraphicsDevice device = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
-            if (device.isWindowTranslucencySupported(GraphicsDevice.WindowTranslucency.PERPIXEL_TRANSLUCENT)) {
-                window.setBackground(new Color(0, 0, 0, 0));
-            }
+            summonMain.run();
         } catch (RuntimeException ex) {
-            // 不支援 per-pixel 時不改視窗底色，選單內容仍畫得出來。
+            System.err.println("[桌面寵物] 無法把主視窗叫到前面：" + ex.getMessage());
         }
-        JComponent root = window.getRootPane();
-        root.setOpaque(false);
-        root.setDoubleBuffered(false);
-        root.putClientProperty("Window.shadow", Boolean.FALSE);
-        root.putClientProperty("apple.awt.draggableWindowBackground", Boolean.FALSE);
-        if (window.getLayeredPane() instanceof JComponent) {
-            JComponent layered = (JComponent) window.getLayeredPane();
-            layered.setOpaque(false);
-            layered.setDoubleBuffered(false);
+    }
+
+    /** macOS 點到一般視窗會啟動整個程式。POPUP 才不會把被擋住的主視窗拉上來。 */
+    static boolean keepsAppInBackground() {
+        return DesktopPetWindowChrome.keepsAppInBackground();
+    }
+
+    static Type backgroundWindowType() {
+        return DesktopPetWindowChrome.backgroundWindowType();
+    }
+
+    static Type controlModeWindowType() {
+        return DesktopPetWindowChrome.controlModeWindowType();
+    }
+
+    static ControlModeChrome controlModeChrome(boolean controlActive) {
+        DesktopPetWindowChrome.ControlModeChrome chrome = DesktopPetWindowChrome.controlModeChrome(controlActive);
+        return new ControlModeChrome(chrome.windowType, chrome.focusableWindowState,
+                chrome.autoRequestFocus, chrome.stageFocusable);
+    }
+
+    static final class ControlModeChrome {
+        final Type windowType;
+        final boolean focusableWindowState;
+        final boolean autoRequestFocus;
+        final boolean stageFocusable;
+
+        ControlModeChrome(Type windowType, boolean focusableWindowState, boolean autoRequestFocus,
+                boolean stageFocusable) {
+            this.windowType = windowType;
+            this.focusableWindowState = focusableWindowState;
+            this.autoRequestFocus = autoRequestFocus;
+            this.stageFocusable = stageFocusable;
         }
-        window.getContentPane().setBackground(new Color(0, 0, 0, 0));
-        if (window.getContentPane() instanceof JComponent) {
-            JComponent content = (JComponent) window.getContentPane();
-            content.setOpaque(false);
-            content.setDoubleBuffered(false);
-        }
+    }
+
+    static void prepareMenuWindowTransparency(JWindow window) {
+        DesktopPetWindowChrome.prepareMenuWindowTransparency(window);
     }
 
     private static Rectangle[] screenRects() {
-        GraphicsDevice[] devices = GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices();
-        Rectangle[] screens = new Rectangle[devices.length];
-        for (int i = 0; i < devices.length; i++) {
-            screens[i] = usable(devices[i].getDefaultConfiguration());
-        }
-        return screens;
-    }
-
-    private static Rectangle usable(GraphicsConfiguration gc) {
-        Rectangle bounds = gc.getBounds();
-        Insets insets = Toolkit.getDefaultToolkit().getScreenInsets(gc);
-        return new Rectangle(
-                bounds.x + insets.left,
-                bounds.y + insets.top,
-                Math.max(1, bounds.width - insets.left - insets.right),
-                Math.max(1, bounds.height - insets.top - insets.bottom));
+        return DesktopPetScreenPlacement.screenRects();
     }
 
     static Point defaultSpot(Rectangle usable, int windowWidth, int windowHeight) {
-        int x = usable.x + Math.max(0, usable.width - windowWidth - MARGIN);
-        int y = usable.y + Math.max(0, usable.height - windowHeight - MARGIN);
-        return new Point(Math.max(usable.x, x), Math.max(usable.y, y));
+        return DesktopPetScreenPlacement.defaultSpot(usable, windowWidth, windowHeight);
     }
 
-    /**
-     * 拖曳時讓視窗上緣貼到選單列下緣。視窗已經縮到角色，上緣就是可見頭頂。
-     */
     static Point clampDragToScreens(int x, int y, int windowWidth, int windowHeight, Rectangle[] screens) {
-        return clampDragToScreens(x, y, windowWidth, windowHeight, 0, screens);
+        return DesktopPetScreenPlacement.clampDragToScreens(x, y, windowWidth, windowHeight, screens);
     }
 
-    /**
-     * @param visibleTop 視窗座標裡第一列可見像素。貼合角色後是 0，頭頂才能貼上選單列。
-     */
     static Point clampDragToScreens(
             int x, int y, int windowWidth, int windowHeight, int visibleTop, Rectangle[] screens) {
-        if (screens == null || screens.length == 0) {
-            return new Point(x, y);
-        }
-        int contentTop = 0;
-        if (windowHeight > 0) {
-            contentTop = Math.max(0, Math.min(visibleTop, windowHeight - 1));
-        }
-        int contentHeight = Math.max(1, windowHeight - contentTop);
-        Rectangle content = new Rectangle(x, y + contentTop, Math.max(1, windowWidth), contentHeight);
-        Rectangle host = null;
-        int bestArea = -1;
-        for (Rectangle screen : screens) {
-            if (screen == null) {
-                continue;
-            }
-            Rectangle hit = screen.intersection(content);
-            int area = Math.max(0, hit.width) * Math.max(0, hit.height);
-            if (area > bestArea) {
-                bestArea = area;
-                host = screen;
-            }
-        }
-        if (host == null) {
-            host = screens[0];
-        }
-        int minVisible = 24;
-        int minX = host.x - windowWidth + minVisible;
-        int maxX = host.x + host.width - minVisible;
-        int minY = host.y - contentTop;
-        int maxY = host.y + host.height - Math.min(minVisible, windowHeight);
-        if (maxX < minX) {
-            minX = maxX = host.x;
-        }
-        if (maxY < minY) {
-            minY = maxY = host.y;
-        }
-        return new Point(
-                Math.max(minX, Math.min(x, maxX)),
-                Math.max(minY, Math.min(y, maxY)));
+        return DesktopPetScreenPlacement.clampDragToScreens(x, y, windowWidth, windowHeight, visibleTop, screens);
     }
 
     static Point clampToScreens(int x, int y, int windowWidth, int windowHeight, Rectangle[] screens) {
-        if (screens == null || screens.length == 0) {
-            return new Point(x, y);
-        }
-        Rectangle spot = new Rectangle(x, y, windowWidth, windowHeight);
-        Rectangle target = null;
-        int bestArea = -1;
-        for (Rectangle screen : screens) {
-            if (screen == null) {
-                continue;
-            }
-            Rectangle hit = screen.intersection(spot);
-            int area = Math.max(0, hit.width) * Math.max(0, hit.height);
-            if (area > bestArea) {
-                bestArea = area;
-                target = screen;
-            }
-        }
-        if (target == null) {
-            return new Point(x, y);
-        }
-        int maxX = target.x + Math.max(0, target.width - windowWidth);
-        int maxY = target.y + Math.max(0, target.height - windowHeight);
-        return new Point(
-                Math.max(target.x, Math.min(x, maxX)),
-                Math.max(target.y, Math.min(y, maxY)));
+        return DesktopPetScreenPlacement.clampToScreens(x, y, windowWidth, windowHeight, screens);
     }
 
-    static final int MAIN_AVOID_GAP = 6;
+    static final int MAIN_AVOID_GAP = DesktopPetScreenPlacement.MAIN_AVOID_GAP;
 
-    /**
-     * 呼喚時把寵物移出主視窗外框，並把整扇留在螢幕裡。
-     * 外框變大後的平移可能不再和主視窗相交，但仍會伸出螢幕右緣；不相交時也要拉回來。
-     * 四個方向都放不進螢幕時，改挑重疊最少的落點。
-     */
     static Point nudgeOutsideMainWindow(
-            int x,
-            int y,
-            int windowWidth,
-            int windowHeight,
-            Rectangle main,
-            Rectangle usable,
-            Rectangle[] screens) {
-        Point onScreen = clampToScreens(x, y, windowWidth, windowHeight, screens);
-        if (main == null || main.isEmpty() || windowWidth < 1 || windowHeight < 1) {
-            return onScreen;
-        }
-        Rectangle pet = new Rectangle(onScreen.x, onScreen.y, windowWidth, windowHeight);
-        if (!pet.intersects(main)) {
-            return onScreen;
-        }
-        x = onScreen.x;
-        y = onScreen.y;
-        int gap = MAIN_AVOID_GAP;
-        Point bestHoriz = null;
-        long bestHorizDistance = Long.MAX_VALUE;
-        Point bestVert = null;
-        long bestVertDistance = Long.MAX_VALUE;
-        int[][] proposals = {
-            {main.x + main.width + gap, y},
-            {main.x - gap - windowWidth, y},
-            {x, main.y + main.height + gap},
-            {x, main.y - gap - windowHeight},
-        };
-        for (int[] proposal : proposals) {
-            Point candidate = clampToScreens(proposal[0], proposal[1], windowWidth, windowHeight, screens);
-            Rectangle placed = new Rectangle(candidate.x, candidate.y, windowWidth, windowHeight);
-            if (placed.intersects(main)) {
-                continue;
-            }
-            boolean horizClear = placed.x >= main.x + main.width + gap
-                    || placed.x + placed.width <= main.x - gap;
-            boolean vertClear = placed.y >= main.y + main.height + gap
-                    || placed.y + placed.height <= main.y - gap;
-            if (!horizClear && !vertClear) {
-                continue;
-            }
-            long distance = distanceSquared(x, y, candidate.x, candidate.y);
-            if (horizClear) {
-                if (distance < bestHorizDistance) {
-                    bestHorizDistance = distance;
-                    bestHoriz = candidate;
-                }
-            } else if (distance < bestVertDistance) {
-                bestVertDistance = distance;
-                bestVert = candidate;
-            }
-        }
-        if (bestHoriz != null) {
-            return bestHoriz;
-        }
-        if (bestVert != null) {
-            return bestVert;
-        }
-        return clearestSpot(x, y, windowWidth, windowHeight, main, usable, screens);
-    }
-
-    /**
-     * 微移失敗時的落點。能完全避開就避開；螢幕剩下的縫比寵物小，就貼著空出的那一側，讓重疊面積最小。
-     */
-    private static Point clearestSpot(
-            int x,
-            int y,
-            int windowWidth,
-            int windowHeight,
-            Rectangle main,
-            Rectangle usable,
-            Rectangle[] screens) {
-        java.util.ArrayList<Point> candidates = new java.util.ArrayList<Point>();
-        if (usable != null && usable.width > 0 && usable.height > 0) {
-            candidates.add(defaultSpot(usable, windowWidth, windowHeight));
-            candidates.add(new Point(usable.x, usable.y));
-            candidates.add(new Point(
-                    Math.max(usable.x, usable.x + usable.width - windowWidth), usable.y));
-            candidates.add(new Point(
-                    usable.x, Math.max(usable.y, usable.y + usable.height - windowHeight)));
-            candidates.add(new Point(
-                    Math.max(usable.x, usable.x + usable.width - windowWidth),
-                    Math.max(usable.y, usable.y + usable.height - windowHeight)));
-        }
-        if (screens != null) {
-            for (Rectangle screen : screens) {
-                if (screen == null) {
-                    continue;
-                }
-                candidates.add(new Point(screen.x, screen.y));
-                candidates.add(new Point(
-                        Math.max(screen.x, screen.x + screen.width - windowWidth), screen.y));
-                candidates.add(new Point(
-                        screen.x, Math.max(screen.y, screen.y + screen.height - windowHeight)));
-                candidates.add(new Point(
-                        Math.max(screen.x, screen.x + screen.width - windowWidth),
-                        Math.max(screen.y, screen.y + screen.height - windowHeight)));
-            }
-        }
-        Point bestClear = null;
-        long bestClearDistance = Long.MAX_VALUE;
-        Point bestPartial = null;
-        long bestPartialArea = Long.MAX_VALUE;
-        long bestPartialDistance = Long.MAX_VALUE;
-        for (Point raw : candidates) {
-            Point candidate = clampToScreens(raw.x, raw.y, windowWidth, windowHeight, screens);
-            Rectangle placed = new Rectangle(candidate.x, candidate.y, windowWidth, windowHeight);
-            long distance = distanceSquared(x, y, candidate.x, candidate.y);
-            if (!placed.intersects(main) && clearsMainWithGap(placed, main, MAIN_AVOID_GAP)) {
-                if (distance < bestClearDistance) {
-                    bestClearDistance = distance;
-                    bestClear = candidate;
-                }
-                continue;
-            }
-            Rectangle overlap = placed.intersection(main);
-            long area = (long) Math.max(0, overlap.width) * Math.max(0, overlap.height);
-            if (area < bestPartialArea || (area == bestPartialArea && distance < bestPartialDistance)) {
-                bestPartialArea = area;
-                bestPartialDistance = distance;
-                bestPartial = candidate;
-            }
-        }
-        if (bestClear != null) {
-            return bestClear;
-        }
-        if (bestPartial != null) {
-            return bestPartial;
-        }
-        return new Point(x, y);
-    }
-
-    private static boolean clearsMainWithGap(Rectangle placed, Rectangle main, int gap) {
-        if (main == null || main.isEmpty() || placed == null) {
-            return true;
-        }
-        if (placed.intersects(main)) {
-            return false;
-        }
-        boolean horizClear = placed.x >= main.x + main.width + gap
-                || placed.x + placed.width <= main.x - gap;
-        boolean vertClear = placed.y >= main.y + main.height + gap
-                || placed.y + placed.height <= main.y - gap;
-        return horizClear || vertClear;
-    }
-
-    private static long distanceSquared(int x1, int y1, int x2, int y2) {
-        long dx = (long) x1 - x2;
-        long dy = (long) y1 - y2;
-        return dx * dx + dy * dy;
+            int x, int y, int windowWidth, int windowHeight,
+            Rectangle main, Rectangle usable, Rectangle[] screens) {
+        return DesktopPetScreenPlacement.nudgeOutsideMainWindow(
+                x, y, windowWidth, windowHeight, main, usable, screens);
     }
 
     static HorizontalStep stepHorizontal(int x, int dx, int minX, int maxX) {
-        if (maxX < minX) {
-            maxX = minX;
-        }
-        if (dx == 0) {
-            return new HorizontalStep(Math.max(minX, Math.min(maxX, x)), false);
-        }
-        int next = x + dx;
-        if (next < minX || next > maxX) {
-            int parked = Math.max(minX, Math.min(maxX, next));
-            boolean walkingOut = (next < minX && dx < 0) || (next > maxX && dx > 0);
-            return new HorizontalStep(parked, walkingOut);
-        }
-        return new HorizontalStep(next, false);
+        DesktopPetScreenPlacement.HorizontalStep step =
+                DesktopPetScreenPlacement.stepHorizontal(x, dx, minX, maxX);
+        return new HorizontalStep(step.x, step.bounce);
     }
 
     static final class HorizontalStep {
@@ -1792,6 +1465,19 @@ public final class DesktopPetWindow extends JFrame {
         }
     }
 
+    private Rectangle pixelBody() {
+        int sw = Math.max(1, sprite.frameWidth() * SCALE);
+        int sh = Math.max(1, sprite.frameHeight() * SCALE);
+        int x = Math.max(0, (WIDTH - sw) / 2);
+        int y = Math.max(0, HEIGHT - sh - 16);
+        Rectangle rect = new Rectangle(x, y, Math.min(sw, WIDTH - x), Math.min(sh + 14, HEIGHT - y));
+        Rectangle clip = rect.intersection(new Rectangle(0, 0, WIDTH, HEIGHT));
+        if (clip.width < 1 || clip.height < 1) {
+            return new Rectangle(0, 0, WIDTH, HEIGHT);
+        }
+        return clip;
+    }
+
     private Rectangle targetView() {
         if (milu == null) {
             if (miluFailed) {
@@ -1810,419 +1496,81 @@ public final class DesktopPetWindow extends JFrame {
      * {@code fittedShell}、{@code animation} 保留給既有測試呼叫端，實際一律 {@link #stableShellFor}。
      */
     static Rectangle viewForPose(
-            DesktopPetSpriteLoader.Frames milu,
-            Rectangle fittedShell,
-            DesktopPetAnimation animation) {
-        if (milu == null) {
-            return new Rectangle(0, 0, WIDTH, HEIGHT);
-        }
-        return stableShellFor(milu);
+            DesktopPetSpriteLoader.Frames milu, Rectangle fittedShell, DesktopPetAnimation animation) {
+        return DesktopPetViewportRenderer.viewForPose(milu, fittedShell, animation);
     }
 
-    /**
-     * 與 {@link Stage#contains(int, int)} 相同：將舞台座標換成邏輯畫布後判斷是否點在角色上（headless 測試用）。
-     */
     static boolean hitMiluAtStage(Rectangle view, DesktopPetAnimation animation, int stageX, int stageY) {
-        if (view == null || stageX < 0 || stageY < 0 || stageX >= view.width || stageY >= view.height) {
-            return false;
-        }
-        int canvasX = stageX + view.x;
-        int canvasY = stageY + view.y;
-        return miluSpriteHit(canvasX, canvasY, animation);
+        return DesktopPetViewportRenderer.hitMiluAtStage(view, animation, stageX, stageY);
     }
 
-    private static boolean miluSpriteHit(int x, int y, DesktopPetAnimation animation) {
-        int size = DesktopPetSpriteLoader.DISPLAY;
-        int spriteX = (WIDTH - size) / 2;
-        int spriteY = BUBBLE_SLOT + animation.bob();
-        int pad = 6;
-        int left = spriteX - pad;
-        int right = spriteX + size + pad;
-        int top = Math.max(0, spriteY - 16);
-        int bottom = spriteY + size + 16;
-        return x >= left && x <= right && y >= top && y <= bottom;
-    }
-
-    /** 同一動作模式內固定的視野外框（該模式所有影格的 union）。 */
     static Rectangle shellForViewport(DesktopPetSpriteLoader.Frames milu, DesktopPetAnimation animation) {
-        Rectangle union = null;
-        for (DesktopPetSpriteLoader.Sprite sprite : milu.viewportSprites(animation)) {
-            if (sprite == null || sprite.image == null) {
-                continue;
-            }
-            Rectangle raw = cachedBody(sprite.image, sprite.offsetX, sprite.offsetY);
-            union = union == null ? raw : unionRect(union, raw);
-        }
-        if (union == null) {
-            return clipToCanvas(shellFor(milu));
-        }
-        return clipToCanvas(union);
+        return DesktopPetViewportRenderer.shellForViewport(milu, animation);
     }
 
-    /**
-     * 把喵露與影子畫進與實際視窗同尺寸的緩衝圖（headless 驗收用）。
-     *
-     * @param drawViewportBorder 為 true 時在視窗外框畫粉線
-     */
-    static BufferedImage paintMiluViewport(
-            Rectangle view,
-            DesktopPetSpriteLoader.Frames milu,
-            DesktopPetAnimation animation,
-            boolean drawViewportBorder) {
-        return paintMiluViewport(view, milu, animation, drawViewportBorder, 0, 0, 0, 1);
+    static BufferedImage paintMiluViewport(Rectangle view, DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation, boolean drawViewportBorder) {
+        return DesktopPetViewportRenderer.paintMiluViewport(view, milu, animation, drawViewportBorder);
     }
 
-    static BufferedImage paintMiluViewport(
-            Rectangle view,
-            DesktopPetSpriteLoader.Frames milu,
-            DesktopPetAnimation animation,
-            boolean drawViewportBorder,
-            double pivotX,
-            double pivotY,
-            double radians,
-            double scale) {
-        if (view == null || view.width < 1 || view.height < 1 || milu == null) {
-            return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
-        }
-        BufferedImage image = new BufferedImage(view.width, view.height, BufferedImage.TYPE_INT_ARGB);
-        paintMiluViewport(image, view, milu, animation, pivotX, pivotY, radians, scale);
-        if (drawViewportBorder) {
-            Graphics2D border = image.createGraphics();
-            try {
-                border.setColor(new Color(255, 64, 96, 220));
-                border.drawRect(0, 0, Math.max(0, view.width - 1), Math.max(0, view.height - 1));
-            } finally {
-                border.dispose();
-            }
-        }
-        return image;
+    static BufferedImage paintMiluViewport(Rectangle view, DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation, boolean drawViewportBorder,
+            double pivotX, double pivotY, double radians, double scale) {
+        return DesktopPetViewportRenderer.paintMiluViewport(
+                view, milu, animation, drawViewportBorder, pivotX, pivotY, radians, scale);
     }
 
-    static void paintMiluViewport(
-            BufferedImage target,
-            Rectangle view,
-            DesktopPetSpriteLoader.Frames milu,
-            DesktopPetAnimation animation,
-            double pivotX,
-            double pivotY,
-            double radians,
-            double scale) {
-        paintMiluViewport(target, view, milu, animation, pivotX, pivotY, radians, scale, 1);
+    static void paintMiluViewport(BufferedImage target, Rectangle view, DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation, double pivotX, double pivotY, double radians, double scale) {
+        DesktopPetViewportRenderer.paintMiluViewport(target, view, milu, animation, pivotX, pivotY, radians, scale);
     }
 
-    static void paintMiluViewport(
-            BufferedImage target,
-            Rectangle view,
-            DesktopPetSpriteLoader.Frames milu,
-            DesktopPetAnimation animation,
-            double pivotX,
-            double pivotY,
-            double radians,
-            double scale,
+    static void paintMiluViewport(BufferedImage target, Rectangle view, DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation, double pivotX, double pivotY, double radians, double scale,
             double pixelScale) {
-        if (target == null || view == null || view.width < 1 || view.height < 1 || milu == null) {
-            return;
-        }
-        Graphics2D g = target.createGraphics();
-        try {
-            if (pixelScale > 1.0001) {
-                g.scale(pixelScale, pixelScale);
-                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-                g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-            }
-            g.setComposite(AlphaComposite.Src);
-            g.setColor(new Color(0, 0, 0, 0));
-            g.fillRect(0, 0, view.width, view.height);
-            g.setComposite(AlphaComposite.SrcOver);
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.translate(-view.x, -view.y);
-            paintMiluShadow(g, WIDTH);
-            paintMiluSprite(g, milu, animation, pivotX, pivotY, radians, scale);
-        } finally {
-            g.dispose();
-        }
-    }
-
-    /**
-     * 把角色畫進已平移到邏輯畫布的 Graphics。拖曳時繞抓取點旋轉並縮小，避免貼到視窗邊。
-     */
-    private static void paintMiluSprite(
-            Graphics2D g,
-            DesktopPetSpriteLoader.Frames milu,
-            DesktopPetAnimation animation,
-            double pivotX,
-            double pivotY,
-            double radians,
-            double scale) {
-        Graphics2D layer = g;
-        boolean tilted = Math.abs(radians) > 1e-4 && scale > 0 && scale < 1.0001;
-        if (tilted) {
-            layer = (Graphics2D) g.create();
-            layer.translate(pivotX, pivotY);
-            layer.rotate(radians);
-            layer.scale(scale, scale);
-            layer.translate(-pivotX, -pivotY);
-        }
-        try {
-            int x = (WIDTH - DesktopPetSpriteLoader.DISPLAY) / 2;
-            DesktopPetSpriteLoader.Sprite frame = milu.spriteFor(animation);
-            DesktopPetSpriteLoader.draw(
-                    layer,
-                    frame.image,
-                    x,
-                    BUBBLE_SLOT,
-                    DesktopPetSpriteLoader.DISPLAY,
-                    frame.offsetX,
-                    frame.offsetY);
-        } finally {
-            if (layer != g) {
-                layer.dispose();
-            }
-        }
+        DesktopPetViewportRenderer.paintMiluViewport(
+                target, view, milu, animation, pivotX, pivotY, radians, scale, pixelScale);
     }
 
     static void assertOpaqueWithinViewport(BufferedImage viewport, int threshold) {
-        Rectangle bounds = opaqueBounds(viewport, threshold);
-        if (bounds.width < 1 || bounds.height < 1) {
-            throw new AssertionError("no opaque pixels");
-        }
-        if (bounds.x < 0 || bounds.y < 0
-                || bounds.x + bounds.width > viewport.getWidth()
-                || bounds.y + bounds.height > viewport.getHeight()) {
-            throw new AssertionError(
-                    "opaque " + bounds + " outside " + viewport.getWidth() + "x" + viewport.getHeight());
-        }
+        DesktopPetViewportRenderer.assertOpaqueWithinViewport(viewport, threshold);
     }
 
-    private Rectangle pixelBody() {
-        int sw = Math.max(1, sprite.frameWidth() * SCALE);
-        int sh = Math.max(1, sprite.frameHeight() * SCALE);
-        int x = Math.max(0, (WIDTH - sw) / 2);
-        int y = Math.max(0, HEIGHT - sh - 16);
-        return clipToCanvas(new Rectangle(x, y, Math.min(sw, WIDTH - x), Math.min(sh + 14, HEIGHT - y)));
-    }
-
-    /** 待機影格的外框。上緣是這張圖的第一列可見像素，左右納入接近的動作。 */
     static Rectangle shellFor(DesktopPetSpriteLoader.Frames frames) {
-        if (frames == null) {
-            return new Rectangle(0, 0, WIDTH, HEIGHT);
-        }
-        DesktopPetSpriteLoader.Sprite[] sprites = frames.allSprites();
-        if (sprites.length == 0 || sprites[0] == null || sprites[0].image == null) {
-            return new Rectangle(0, 0, WIDTH, HEIGHT);
-        }
-        Rectangle idle = cachedBody(sprites[0].image, sprites[0].offsetX, sprites[0].offsetY);
-        return clipToCanvas(idle);
+        return DesktopPetViewportRenderer.shellFor(frames);
     }
 
-    /** 影格尚未載入時使用的外框，與 {@link #stableShellFor} 同尺寸，避免先縮成像素後備格。 */
     static Rectangle estimatedMiluShell() {
-        Rectangle cached = ESTIMATED_MILU_SHELL;
-        if (cached != null) {
-            return new Rectangle(cached);
-        }
-        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
-        Rectangle shell = frames != null ? stableShellFor(frames) : new Rectangle(0, 0, WIDTH, HEIGHT);
-        ESTIMATED_MILU_SHELL = new Rectangle(shell);
-        return new Rectangle(shell);
+        return DesktopPetViewportRenderer.estimatedMiluShell();
     }
 
-    /** 全部動作影格 union 的穩定外框；換 mode 時視窗不再 resize。 */
     static Rectangle stableShellFor(DesktopPetSpriteLoader.Frames frames) {
-        if (frames == null) {
-            return new Rectangle(0, 0, WIDTH, HEIGHT);
-        }
-        Rectangle union = null;
-        for (DesktopPetSpriteLoader.Sprite sprite : frames.allSprites()) {
-            if (sprite == null || sprite.image == null) {
-                continue;
-            }
-            Rectangle raw = cachedBody(sprite.image, sprite.offsetX, sprite.offsetY);
-            union = union == null ? raw : unionRect(union, raw);
-        }
-        if (union == null) {
-            return new Rectangle(0, 0, WIDTH, HEIGHT);
-        }
-        Rectangle hit = clipToCanvas(union);
-        int top = Math.max(0, hit.y - BUBBLE_SLOT);
-        int extraTop = hit.y - top;
-        return clipToCanvas(new Rectangle(hit.x, top, hit.width, hit.height + extraTop));
-    }
-
-    private static boolean covered(Rectangle shell, Rectangle raw) {
-        if (shell == null || raw == null) {
-            return false;
-        }
-        return raw.x >= shell.x - SHELL_SLACK
-                && raw.y >= shell.y - CARRY_CLIP
-                && raw.x + raw.width <= shell.x + shell.width + SHELL_SLACK
-                && raw.y + raw.height <= shell.y + shell.height + SHELL_SLACK;
+        return DesktopPetViewportRenderer.stableShellFor(frames);
     }
 
     static boolean poseFitsShell(Rectangle shell, Rectangle raw) {
-        return covered(shell, raw);
-    }
-
-    private static Rectangle unionRect(Rectangle first, Rectangle second) {
-        int left = Math.min(first.x, second.x);
-        int top = Math.min(first.y, second.y);
-        int right = Math.max(first.x + first.width, second.x + second.width);
-        int bottom = Math.max(first.y + first.height, second.y + second.height);
-        return new Rectangle(left, top, Math.max(1, right - left), Math.max(1, bottom - top));
-    }
-
-    private static Rectangle clipToCanvas(Rectangle rect) {
-        Rectangle hit = rect.intersection(new Rectangle(0, 0, WIDTH, HEIGHT));
-        if (hit.width < 1 || hit.height < 1) {
-            return new Rectangle(0, 0, WIDTH, HEIGHT);
-        }
-        return hit;
+        return DesktopPetViewportRenderer.poseFitsShell(shell, raw);
     }
 
     static Rectangle miluBodyOnCanvas(BufferedImage image, int offsetX, int offsetY) {
-        return cachedBody(image, offsetX, offsetY);
+        return DesktopPetViewportRenderer.miluBodyOnCanvas(image, offsetX, offsetY);
     }
 
-    /**
-     * 在已 {@code translate(-view.x,-view.y)}（並可選 {@code scale(pixelScale)}) 的 Graphics 上畫台詞泡泡。
-     * 座標以視窗局部為準；回傳畫布座標的點擊區，無泡泡時回傳 null。
-     */
-    static Rectangle paintSpeechBubble(
-            Graphics2D g,
-            Rectangle view,
-            DesktopPetSpriteLoader.Frames milu,
-            DesktopPetAnimation animation,
-            String text) {
-        if (text == null || text.isEmpty() || view == null) {
-            return null;
-        }
-        g.setFont(UiFonts.chinesePlain(14));
-        FontMetrics metrics = g.getFontMetrics();
-        int innerMax = Math.max(96, view.width - 12);
-        String fitted = CandyTheme.fit(text, metrics, innerMax);
-        if (fitted.isEmpty()) {
-            return null;
-        }
-        int padX = 12;
-        int padY = 8;
-        int textWidth = metrics.stringWidth(fitted);
-        int bubbleW = textWidth + padX * 2;
-        int bubbleH = metrics.getHeight() + padY;
-        int bx = Math.max(0, (view.width - bubbleW) / 2);
-        int headCanvasY = view.y + BUBBLE_SLOT;
-        if (milu != null && animation != null) {
-            DesktopPetSpriteLoader.Sprite sprite = milu.spriteFor(animation);
-            if (sprite != null) {
-                headCanvasY = DesktopPetMiluLayout.placement(sprite).headDisplayTop;
-            }
-        }
-        int by = headCanvasY - view.y - bubbleH - 8;
-        if (by < 0) {
-            by = 0;
-        }
-        int anchorX = view.width / 2;
-        g.setColor(SPEECH_BUBBLE_FILL);
-        g.fillRoundRect(bx, by, bubbleW, bubbleH, 12, 12);
-        g.setColor(SPEECH_BUBBLE_EDGE);
-        g.drawRoundRect(bx, by, bubbleW, bubbleH, 12, 12);
-        int tailX = Math.max(bx + 10, Math.min(anchorX, bx + bubbleW - 10));
-        g.setColor(SPEECH_BUBBLE_FILL);
-        g.fillPolygon(
-                new int[] {tailX - 5, tailX + 5, tailX},
-                new int[] {by + bubbleH - 1, by + bubbleH - 1, by + bubbleH + 6},
-                3);
-        g.setColor(SPEECH_BUBBLE_INK);
-        g.drawString(fitted, bx + padX, by + metrics.getAscent() + padY / 2);
-        return new Rectangle(bx + view.x, by + view.y, bubbleW, bubbleH + 6);
-    }
-
-    private static synchronized Rectangle cachedBody(BufferedImage image, int offsetX, int offsetY) {
-        for (CachedBody entry : BODY_CACHE) {
-            if (entry.image == image && entry.offsetX == offsetX && entry.offsetY == offsetY) {
-                return new Rectangle(entry.bounds);
-            }
-        }
-        Rectangle bounds = rasterBody(image, offsetX, offsetY);
-        BODY_CACHE.add(new CachedBody(image, offsetX, offsetY, bounds));
-        return new Rectangle(bounds);
-    }
-
-    private static Rectangle rasterBody(BufferedImage image, int offsetX, int offsetY) {
-        BufferedImage canvas = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = canvas.createGraphics();
-        try {
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            int x = (WIDTH - DesktopPetSpriteLoader.DISPLAY) / 2;
-            DesktopPetSpriteLoader.draw(
-                    g, image, x, BUBBLE_SLOT, DesktopPetSpriteLoader.DISPLAY, offsetX, offsetY);
-            paintMiluShadow(g, WIDTH);
-        } finally {
-            g.dispose();
-        }
-        return opaqueBounds(canvas, VISIBLE_ALPHA);
+    static Rectangle paintSpeechBubble(Graphics2D g, Rectangle view, DesktopPetSpriteLoader.Frames milu,
+            DesktopPetAnimation animation, String text) {
+        return DesktopPetViewportRenderer.paintSpeechBubble(g, view, milu, animation, text);
     }
 
     static void paintMiluShadow(Graphics2D g, int canvasWidth) {
-        int sw = DesktopPetSpriteLoader.DISPLAY;
-        int x = (canvasWidth - sw) / 2;
-        int y = BUBBLE_SLOT + DesktopPetSpriteLoader.DISPLAY - 14;
-        g.setColor(new Color(0, 0, 0, 60));
-        g.fillOval(x + sw / 5, y, Math.max(12, sw - sw / 3), 10);
+        DesktopPetViewportRenderer.paintMiluShadow(g, canvasWidth);
     }
 
     static Rectangle opaqueBounds(BufferedImage image, int threshold) {
-        int minX = image.getWidth();
-        int minY = image.getHeight();
-        int maxX = -1;
-        int maxY = -1;
-        for (int y = 0; y < image.getHeight(); y++) {
-            for (int x = 0; x < image.getWidth(); x++) {
-                if (((image.getRGB(x, y) >>> 24) & 0xff) > threshold) {
-                    if (x < minX) {
-                        minX = x;
-                    }
-                    if (y < minY) {
-                        minY = y;
-                    }
-                    if (x > maxX) {
-                        maxX = x;
-                    }
-                    if (y > maxY) {
-                        maxY = y;
-                    }
-                }
-            }
-        }
-        if (maxX < 0) {
-            return new Rectangle(0, 0, image.getWidth(), image.getHeight());
-        }
-        return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+        return DesktopPetViewportRenderer.opaqueBounds(image, threshold);
     }
 
-    /** 視窗上緣到第一列可見像素。貼合之後是 0。 */
     static int visibleTopInset(BufferedImage image) {
-        for (int y = 0; y < image.getHeight(); y++) {
-            for (int x = 0; x < image.getWidth(); x++) {
-                if (((image.getRGB(x, y) >>> 24) & 0xff) > VISIBLE_ALPHA) {
-                    return y;
-                }
-            }
-        }
-        return image.getHeight();
-    }
-
-    private static final class CachedBody {
-        final BufferedImage image;
-        final int offsetX;
-        final int offsetY;
-        final Rectangle bounds;
-
-        CachedBody(BufferedImage image, int offsetX, int offsetY, Rectangle bounds) {
-            this.image = image;
-            this.offsetX = offsetX;
-            this.offsetY = offsetY;
-            this.bounds = bounds;
-        }
+        return DesktopPetViewportRenderer.visibleTopInset(image);
     }
 
     private final class Stage extends JPanel {
@@ -2252,7 +1600,7 @@ public final class DesktopPetWindow extends JFrame {
                 return true;
             }
             if (milu != null) {
-                return miluSpriteHit(canvasX, canvasY, animation);
+                return hitMiluAtStage(view, animation, x, y);
             }
             return legacySpriteHit(canvasX, canvasY);
         }

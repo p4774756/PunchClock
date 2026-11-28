@@ -82,21 +82,21 @@ public class App extends JFrame {
 
     private static final String SELF_PEER_SUFFIX = "（本機）";
 
-    private final ServerConfigRefs serverRefs = new ServerConfigRefs();
-    private final PeerInteractionRefs peerRefs = new PeerInteractionRefs();
+    final ServerConfigRefs serverRefs = new ServerConfigRefs();
+    final PeerInteractionRefs peerRefs = new PeerInteractionRefs();
     private final SlotPanelRefs slotRefs = new SlotPanelRefs();
     private final CheckInHistoryRefs historyRefs = new CheckInHistoryRefs();
     private final LogPanelRefs logRefs = new LogPanelRefs();
 
-    private final SchedulerService schedulerService;
+    final SchedulerService schedulerService;
     private final AutomationService automationService;
-    private final HeartbeatService heartbeatService;
-    private final RelayProxyService relayProxyService;
+    final HeartbeatService heartbeatService;
+    final RelayProxyService relayProxyService;
     private final TaskPersistenceService persistenceService;
     private final CheckInHistoryService historyService;
     private final ConfigPersistenceService configPersistenceService;
-    private SlotController slotController;
-    private AnimeShell shell;
+    SlotController slotController;
+    AnimeShell shell;
     private HomePortrait homePortrait;
     private MarqueeBar marqueeBar;
     private boolean suppressConfigSave = false;
@@ -115,40 +115,38 @@ public class App extends JFrame {
     /** 待使用者打開聊天再決定的直傳邀請。 */
     private final Map<String, PendingRelayOffer> pendingRelayOffers = new LinkedHashMap<>();
     /** 最近一次從該同事收到訊息時附帶的大頭照。 */
-    private final Map<String, String> peerAvatars = new HashMap<>();
-    private boolean peerInteractionEnabled = true;
+    final Map<String, String> peerAvatars = new HashMap<>();
+    boolean peerInteractionEnabled = true;
     private boolean peerFileBusy;
     /** 最近一次心跳回報為在線的同事。傳檔只對這些人直傳。 */
-    private final Set<String> onlinePeerIds = new HashSet<>();
+    final Set<String> onlinePeerIds = new HashSet<>();
     /** 上一輪心跳已知在線的好友，用於首頁事件泡泡。 */
-    private final Set<String> previousOnlinePeerIds = new HashSet<>();
+    final Set<String> previousOnlinePeerIds = new HashSet<>();
     /** 標為最愛的好友裝置 ID（存在 config.json）。 */
-    private final Set<String> favoritePeerIds = new HashSet<>();
+    final Set<String> favoritePeerIds = new HashSet<>();
     /** 最近一次心跳看到的其他好友，首頁「最近在線」用。 */
-    private List<PeerInfo> latestPeers = List.of();
+    List<PeerInfo> latestPeers = List.of();
     /** 首頁好友卡的大頭照。同一張編碼不重複解碼。 */
     private String cachedAvatarId = "";
     private String cachedAvatarEncoded = "";
     private BufferedImage cachedAvatar;
     private DesktopPetManager desktopPetManager;
     private boolean loggedOpacityUnsupported;
-    private ClientUpdateCoordinator updateCoordinator;
+    ClientUpdateCoordinator updateCoordinator;
     /** 舊版按「否」會寫入。現在不再拿來擋更新，只跟著設定檔留著。 */
     private String ignoredUpdateDigest = "";
     /** 畫面上目前這筆可升級的版本。 */
-    private UpdateNotice offeredUpdate;
+    UpdateNotice offeredUpdate;
     /** 按過「檢查更新」，等這次心跳回應。 */
-    private boolean pendingManualCheck;
+    boolean pendingManualCheck;
     /** 「現在更新」下載或等待重啟中。 */
-    private boolean updateApplying;
+    boolean updateApplying;
     /** 已經寫進日誌的新版摘要，避免每次心跳都再記一次。 */
-    private String announcedUpdateVersion = "";
+    String announcedUpdateVersion = "";
     /** 上次成功問到伺服器版本的時間。失敗的檢查不覆寫。 */
-    private LocalDateTime lastUpdateCheckAt;
-    /** 已寫進設定檔的「上次檢查」分鐘，避免心跳每 15 秒就重存。 */
-    private String lastUpdateCheckMinute = "";
-    private static final DateTimeFormatter UPDATE_CHECK_TIME =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+    LocalDateTime lastUpdateCheckAt;
+    /** 已寫進設定檔的「上次檢查」分鐘，避免心跳每 30 秒就重存。 */
+    String lastUpdateCheckMinute = "";
     private static final int CLIENT_ID_SAVED_VISIBLE_MS = 2000;
     private static final int CLIENT_ID_SAVED_FADE_MS = 480;
     private Timer clientIdSavedVisibleTimer;
@@ -156,6 +154,10 @@ public class App extends JFrame {
     private Color clientIdSavedLabelColor;
     /** 外觀：Dock／工作列是否使用泳裝角色圖示。 */
     private boolean dockIconSwimsuit;
+
+    final AppPeerTableUi peerTableUi;
+    final AppRelayProxyUi relayProxyUi;
+    final AppClientUpdateUi clientUpdateUi;
 
     public App() {
         this.schedulerService = new SchedulerService();
@@ -165,6 +167,9 @@ public class App extends JFrame {
         this.persistenceService = new TaskPersistenceService();
         this.historyService = new CheckInHistoryService();
         this.configPersistenceService = new ConfigPersistenceService();
+        this.peerTableUi = new AppPeerTableUi(this);
+        this.relayProxyUi = new AppRelayProxyUi(this);
+        this.clientUpdateUi = new AppClientUpdateUi(this);
 
         initHeartbeatService();
         applyAppIcon();
@@ -187,10 +192,11 @@ public class App extends JFrame {
 
     private void initHeartbeatService() {
         heartbeatService.setTasksProvider(schedulerService::getAllTasks);
-        heartbeatService.setPeersListener(peers -> SwingUtilities.invokeLater(() -> updatePeerTable(peers)));
-        updateCoordinator = new ClientUpdateCoordinator(updateActions());
+        heartbeatService.setPeersListener(peers ->
+                SwingUtilities.invokeLater(() -> peerTableUi.updatePeerTable(peers)));
+        updateCoordinator = new ClientUpdateCoordinator(clientUpdateUi.actions());
         heartbeatService.setUpdateListener(notice ->
-                SwingUtilities.invokeLater(() -> onServerUpdateNotice(notice)));
+                SwingUtilities.invokeLater(() -> clientUpdateUi.onServerUpdateNotice(notice)));
         heartbeatService.setCommandListener(command -> {
             if ("CANCEL_SCHEDULE".equalsIgnoreCase(command)) {
                 SwingUtilities.invokeLater(slotController::handleRemoteCancelAll);
@@ -444,7 +450,7 @@ public class App extends JFrame {
         refreshMainStatusBar();
     }
 
-    private void refreshMainStatusBar() {
+    void refreshMainStatusBar() {
         String cloud = "雲端未啟用";
         if (isCloudEnabled() && serverRefs.heartbeatStatusLabel != null) {
             String raw = serverRefs.heartbeatStatusLabel.getText();
@@ -763,10 +769,10 @@ public class App extends JFrame {
             favoritePeerIds.add(peerId);
         }
         saveCloudConfig();
-        updatePeerTable(latestPeers);
+        peerTableUi.updatePeerTable(latestPeers);
     }
 
-    private String getSelectedPeerClientId() {
+    String getSelectedPeerClientId() {
         if (peerRefs.peerTable == null) return null;
         int row = peerRefs.peerTable.getSelectedRow();
         if (row < 0) return null;
@@ -1391,191 +1397,20 @@ public class App extends JFrame {
      * 在線排前面，離線排後面。最愛只在同一組裡排最上面，組內維持原本順序。
      */
     static List<PeerInfo> orderPeers(List<PeerInfo> peers, Set<String> favorites) {
-        List<PeerInfo> onlineFavorite = new ArrayList<>();
-        List<PeerInfo> online = new ArrayList<>();
-        List<PeerInfo> offlineFavorite = new ArrayList<>();
-        List<PeerInfo> offline = new ArrayList<>();
-        if (peers != null) {
-            for (PeerInfo peer : peers) {
-                if (peer == null) {
-                    continue;
-                }
-                boolean on = "ONLINE".equalsIgnoreCase(peer.status);
-                boolean favorite = favorites != null && favorites.contains(peer.clientId);
-                if (on && favorite) {
-                    onlineFavorite.add(peer);
-                } else if (on) {
-                    online.add(peer);
-                } else if (favorite) {
-                    offlineFavorite.add(peer);
-                } else {
-                    offline.add(peer);
-                }
-            }
-        }
-        List<PeerInfo> ordered = new ArrayList<>();
-        ordered.addAll(onlineFavorite);
-        ordered.addAll(online);
-        ordered.addAll(offlineFavorite);
-        ordered.addAll(offline);
-        return ordered;
+        return AppPeerOrdering.orderPeers(peers, favorites);
     }
 
-    private void updatePeerTable(java.util.List<PeerInfo> peers) {
-        if (peerRefs.peerTableModel == null || !isCloudEnabled()) {
-            return;
-        }
-
-        String selectedId = getSelectedPeerClientId();
-        String myClientId = heartbeatService.getClientId();
-        peerRefs.peerTableModel.setRowCount(0);
-        onlinePeerIds.clear();
-        int onlineCount = 0;
-        int friendCount = 0;
-        List<PeerInfo> seenPeers = new ArrayList<>();
-        java.util.Map<String, String> statusById = new java.util.LinkedHashMap<>();
-
-        List<PeerInfo> ordered = orderPeers(peers, favoritePeerIds);
-
-        for (PeerInfo peer : ordered) {
-            if (myClientId.equals(peer.clientId)) {
-                continue;
-            }
-            seenPeers.add(peer);
-            boolean online = "ONLINE".equalsIgnoreCase(peer.status);
-            if (online) {
-                onlineCount++;
-                onlinePeerIds.add(peer.clientId);
-            }
-            friendCount++;
-            String statusText = peer.statusText != null ? peer.statusText : "";
-            statusById.put(peer.clientId, statusText);
-            peerRefs.peerTableModel.addRow(new Object[]{
-                    peer.clientId,
-                    favoritePeerIds.contains(peer.clientId)
-                            ? PanelFactory.PEER_FAVORITE_ON
-                            : PanelFactory.PEER_FAVORITE_OFF
-            });
-        }
-        latestPeers = seenPeers;
-        if (shell != null) {
-            for (PeerInfo peer : seenPeers) {
-                if (peer == null || peer.clientId == null) {
-                    continue;
-                }
-                if ("ONLINE".equalsIgnoreCase(peer.status) && !previousOnlinePeerIds.contains(peer.clientId)) {
-                    shell.flashEvent("好友「" + peer.clientId + "」上線了。", 3500L);
-                    break;
-                }
-            }
-        }
-        previousOnlinePeerIds.clear();
-        previousOnlinePeerIds.addAll(onlinePeerIds);
-        if (peerRefs.peerTable != null) {
-            peerRefs.peerTable.putClientProperty("peer.avatars", peerAvatars);
-            java.util.Map<String, Boolean> onlineById = new java.util.LinkedHashMap<>();
-            for (PeerInfo peer : seenPeers) {
-                onlineById.put(peer.clientId, "ONLINE".equalsIgnoreCase(peer.status));
-            }
-            peerRefs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, onlineById);
-            peerRefs.peerTable.putClientProperty(PanelFactory.PEER_STATUS_TEXTS_KEY, statusById);
-        }
-
-        if (peerRefs.peerStatusLabel != null) {
-            peerRefs.peerStatusLabel.setText(friendCount == 0
-                    ? "目前沒有其他好友在同一伺服器"
-                    : "共 " + friendCount + " 位好友 · " + onlineCount + " 位在線");
-            peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
-        }
-        refreshMainStatusBar();
-        setPeerInteractionEnabled(true);
-        if (peerRefs.openCloudSettingsButton != null) {
-            peerRefs.openCloudSettingsButton.setVisible(false);
-        }
-        if (peerRefs.peerHintLabel != null) {
-            peerRefs.peerHintLabel.setText(
-                    "只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
-        }
-
-        if (selectedId != null && peerRefs.peerTable != null) {
-            for (int i = 0; i < peerRefs.peerTableModel.getRowCount(); i++) {
-                String rowId = parsePeerRowId(String.valueOf(peerRefs.peerTableModel.getValueAt(i, 0)));
-                if (selectedId.equals(rowId)) {
-                    peerRefs.peerTable.setRowSelectionInterval(i, i);
-                    break;
-                }
-            }
-        }
-    }
-
-    private boolean isCloudEnabled() {
+    boolean isCloudEnabled() {
         return serverRefs.enableServerCheckBox != null && serverRefs.enableServerCheckBox.isSelected();
     }
 
-    private void refreshPeerInteractionState() {
-        if (!isCloudEnabled()) {
-            showOfflinePeerView();
-            return;
-        }
-        setPeerInteractionEnabled(true);
-        if (peerRefs.openCloudSettingsButton != null) {
-            peerRefs.openCloudSettingsButton.setVisible(false);
-        }
-        if (peerRefs.peerHintLabel != null) {
-            peerRefs.peerHintLabel.setText(
-                    "只顯示同一伺服器上的好友（不含本機，每 15 秒隨心跳更新）");
-        }
-        showPeerWaitingView();
-    }
-
-    private void showOfflinePeerView() {
-        clearPeerTable();
-        onlinePeerIds.clear();
-        latestPeers = List.of();
-        if (peerRefs.peerHintLabel != null) {
-            peerRefs.peerHintLabel.setText(
-                    "雲端未啟用；至「設定」勾選「啟用雲端單向狀態回報」後，可查看好友並互動");
-        }
-        if (peerRefs.peerStatusLabel != null) {
-            peerRefs.peerStatusLabel.setText("雲端未啟用 · 本機獨立運作");
-            peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
-        }
-        refreshMainStatusBar();
-        setPeerInteractionEnabled(false);
-        if (peerRefs.openCloudSettingsButton != null) {
-            peerRefs.openCloudSettingsButton.setVisible(true);
-        }
-        if (peerRefs.peerTable != null) {
-            peerRefs.peerTable.clearSelection();
-        }
-    }
-
-    private void showPeerWaitingView() {
-        clearPeerTable();
-        if (peerRefs.peerStatusLabel != null) {
-            peerRefs.peerStatusLabel.setText("連線中…（等待伺服器回傳好友列表）");
-            peerRefs.peerStatusLabel.setForeground(NightTheme.MUTED);
-        }
-        refreshMainStatusBar();
-    }
-
-    private void clearPeerTable() {
-        if (peerRefs.peerTableModel == null) {
-            return;
-        }
-        peerRefs.peerTableModel.setRowCount(0);
-        if (peerRefs.peerTable != null) {
-            peerRefs.peerTable.putClientProperty(PanelFactory.PEER_ONLINE_CLIENT_KEY, new java.util.LinkedHashMap<>());
-        }
-    }
-
-    private void setPeerInteractionEnabled(boolean enabled) {
+    void setPeerInteractionEnabled(boolean enabled) {
         peerInteractionEnabled = enabled;
         refreshOpenChatButton();
         refreshChatWindows();
     }
 
-    private String parsePeerRowId(String displayId) {
+    String parsePeerRowId(String displayId) {
         if (displayId == null) {
             return null;
         }
@@ -2068,14 +1903,14 @@ public class App extends JFrame {
             syncCloudConnectionFieldsEnabled();
             if (enabled) {
                 appendLog("[連線] 已勾選啟用雲端狀態回報，啟動單向心跳中...");
-                refreshPeerInteractionState();
+                peerTableUi.refreshPeerInteractionState();
                 startHeartbeatService();
             } else {
                 appendLog("[離線] 已取消勾選，斷開雲端狀態回報（本機獨立運作模式）。");
                 heartbeatService.stopHeartbeat();
                 serverRefs.heartbeatStatusLabel.setText("[離線] 未連線 (已停用)");
                 serverRefs.heartbeatStatusLabel.setForeground(NightTheme.MUTED);
-                refreshPeerInteractionState();
+                peerTableUi.refreshPeerInteractionState();
             }
             saveCloudConfig();
         });
@@ -2134,12 +1969,12 @@ public class App extends JFrame {
             });
         }
         if (serverRefs.checkUpdateButton != null) {
-            serverRefs.checkUpdateButton.addActionListener(e -> checkForUpdateNow());
+            serverRefs.checkUpdateButton.addActionListener(e -> clientUpdateUi.checkForUpdateNow());
         }
         if (serverRefs.applyUpdateButton != null) {
-            serverRefs.applyUpdateButton.addActionListener(e -> applyOfferedUpdate());
+            serverRefs.applyUpdateButton.addActionListener(e -> clientUpdateUi.applyOfferedUpdate());
         }
-        showUpdateUnchecked();
+        clientUpdateUi.showUpdateUnchecked();
         if (serverRefs.serverUrlCombo != null) {
             RecentValuesHelper.attachTextChangeListener(serverRefs.serverUrlCombo, this::saveCloudConfig);
             java.awt.Component serverEditor = serverRefs.serverUrlCombo.getEditor().getEditorComponent();
@@ -2151,7 +1986,7 @@ public class App extends JFrame {
             });
         }
 
-        bindRelayProxyListeners();
+        relayProxyUi.bindRelayProxyListeners();
         bindDesktopPet();
 
         addWindowListener(new WindowAdapter() {
@@ -2262,115 +2097,6 @@ public class App extends JFrame {
         WindowShake.bringToFront(this);
     }
 
-    private void bindRelayProxyListeners() {
-        if (serverRefs.relayEnabledCheckBox == null) {
-            return;
-        }
-        serverRefs.relayEnabledCheckBox.addActionListener(e -> {
-            boolean enabled = serverRefs.relayEnabledCheckBox.isSelected();
-            if (enabled) {
-                startRelayProxy();
-            } else {
-                stopRelayProxy();
-            }
-            saveCloudConfig();
-        });
-        if (serverRefs.relayPortSpinner != null) {
-            serverRefs.relayPortSpinner.addChangeListener(e -> {
-                if (relayProxyService.isRunning()) {
-                    startRelayProxy();
-                }
-                saveCloudConfig();
-            });
-        }
-    }
-
-    private void startRelayProxy() {
-        String serverUrl = RecentValuesHelper.getValue(serverRefs.serverUrlCombo);
-        if (serverUrl == null || serverUrl.isBlank()) {
-            appendLog("[中繼] 請先設定 Server 雲端網址");
-            serverRefs.relayEnabledCheckBox.setSelected(false);
-            updateRelayStatusLabel(false);
-            return;
-        }
-        int port = RelayProxyService.DEFAULT_PORT;
-        if (serverRefs.relayPortSpinner != null) {
-            Object val = serverRefs.relayPortSpinner.getValue();
-            if (val instanceof Number) {
-                port = ((Number) val).intValue();
-            }
-        }
-        String token = "";
-        if (serverRefs.heartbeatTokenField != null) {
-            token = new String(serverRefs.heartbeatTokenField.getPassword());
-        }
-        boolean ok = relayProxyService.start(port, serverUrl, token, this::appendLog);
-        updateRelayStatusLabel(ok);
-        if (ok) {
-            updateRelayHelpWithIp();
-        } else {
-            serverRefs.relayEnabledCheckBox.setSelected(false);
-        }
-    }
-
-    private void stopRelayProxy() {
-        relayProxyService.stop();
-        updateRelayStatusLabel(false);
-    }
-
-    private void updateRelayStatusLabel(boolean running) {
-        if (serverRefs.relayStatusLabel == null) {
-            return;
-        }
-        if (running) {
-            int port = relayProxyService.getPort();
-            serverRefs.relayStatusLabel.setText("執行中 (埠 " + port + ")");
-            serverRefs.relayStatusLabel.setForeground(new Color(34, 197, 94));
-        } else {
-            serverRefs.relayStatusLabel.setText("未啟動");
-            serverRefs.relayStatusLabel.setForeground(NightTheme.MUTED);
-        }
-    }
-
-    private void updateRelayHelpWithIp() {
-        if (serverRefs.relayHelpArea == null) {
-            return;
-        }
-        int port = relayProxyService.getPort();
-        String localIps = getLocalIpAddresses();
-        String target = relayProxyService.getTargetServerUrl();
-        serverRefs.relayHelpArea.setText(""
-                + "中繼 Proxy 已啟動！\n"
-                + "你的區網 IP：" + localIps + "\n"
-                + "同事的「Server 雲端網址」請改成：http://<你的IP>:" + port + "\n"
-                + "轉發目標：" + target);
-        PanelFactory.fitRelayHelp(serverRefs.relayHelpArea);
-        serverRefs.relayHelpArea.revalidate();
-    }
-
-    private static String getLocalIpAddresses() {
-        try {
-            java.util.List<String> ips = new java.util.ArrayList<>();
-            java.util.Enumeration<java.net.NetworkInterface> interfaces = java.net.NetworkInterface.getNetworkInterfaces();
-            while (interfaces != null && interfaces.hasMoreElements()) {
-                java.net.NetworkInterface ni = interfaces.nextElement();
-                if (ni.isLoopback() || !ni.isUp()) {
-                    continue;
-                }
-                java.util.Enumeration<java.net.InetAddress> addresses = ni.getInetAddresses();
-                while (addresses.hasMoreElements()) {
-                    java.net.InetAddress addr = addresses.nextElement();
-                    if (addr instanceof java.net.Inet4Address && !addr.isLoopbackAddress()) {
-                        ips.add(addr.getHostAddress());
-                    }
-                }
-            }
-            return ips.isEmpty() ? "未知" : String.join(", ", ips);
-        } catch (Exception ex) {
-            return "未知";
-        }
-    }
-
     private void loadPersistedConfig() {
         suppressConfigSave = true;
         try {
@@ -2437,15 +2163,15 @@ public class App extends JFrame {
         if (serverRefs.checkForUpdatesCheckBox != null) {
             serverRefs.checkForUpdatesCheckBox.setSelected(config.checkForUpdates);
         }
-        applyRelayConfig(config);
+        relayProxyUi.applyRelayConfig(config);
         applyCharacterThemeSelection(config);
         applyHomeIllustrationSelection(config);
         ignoredUpdateDigest = config.ignoredUpdateDigest == null ? "" : config.ignoredUpdateDigest;
-        lastUpdateCheckAt = parseUpdateCheckAt(config.lastUpdateCheckAt);
-        lastUpdateCheckMinute = lastUpdateCheckAt == null ? "" : lastUpdateCheckAt.format(UPDATE_CHECK_TIME);
-        refreshLastCheckLabel();
+        lastUpdateCheckAt = AppClientUpdateUi.parseUpdateCheckAt(config.lastUpdateCheckAt);
+        lastUpdateCheckMinute = lastUpdateCheckAt == null ? "" : AppClientUpdateUi.formatCheckMinute(lastUpdateCheckAt);
+        clientUpdateUi.refreshLastCheckLabel();
         syncCloudConnectionFieldsEnabled();
-        refreshPeerInteractionState();
+        peerTableUi.refreshPeerInteractionState();
     }
 
     private void applyCharacterThemeSelection(ConfigPersistenceService.CloudConfig config) {
@@ -2511,18 +2237,6 @@ public class App extends JFrame {
         applyHomeIllustration(illustration, false);
     }
 
-    private void applyRelayConfig(ConfigPersistenceService.CloudConfig config) {
-        if (serverRefs.relayPortSpinner != null) {
-            serverRefs.relayPortSpinner.setValue(config.relayPort);
-        }
-        if (serverRefs.relayEnabledCheckBox != null) {
-            serverRefs.relayEnabledCheckBox.setSelected(config.relayEnabled);
-            if (config.relayEnabled) {
-                SwingUtilities.invokeLater(this::startRelayProxy);
-            }
-        }
-    }
-
     /** 雲端連線中鎖定連線參數，避免執行中誤改（裝置 ID 已移到好友與傳檔頁，不在此鎖定） */
     private void syncCloudConnectionFieldsEnabled() {
         if (serverRefs.enableServerCheckBox == null) return;
@@ -2552,7 +2266,7 @@ public class App extends JFrame {
         ensureClientIdOption(clientId);
         heartbeatService.setClientId(clientId);
         if (!isCloudEnabled()) {
-            refreshPeerInteractionState();
+            peerTableUi.refreshPeerInteractionState();
         }
         if (persist) {
             saveCloudConfig();
@@ -2646,7 +2360,7 @@ public class App extends JFrame {
         peerRefs.clientIdCombo.addItem(clientId);
     }
 
-    private void saveCloudConfig() {
+    void saveCloudConfig() {
         if (suppressConfigSave || serverRefs.serverUrlCombo == null || slotController == null) return;
 
         ConfigPersistenceService.CloudConfig config = slotController.readConfigFromUi();
@@ -2661,11 +2375,11 @@ public class App extends JFrame {
                 && serverRefs.enableServerCheckBox.isSelected();
         config.trustAllSsl = serverRefs.trustAllSslCheckBox != null
                 && serverRefs.trustAllSslCheckBox.isSelected();
-        config.checkForUpdates = isCheckForUpdatesEnabled();
+        config.checkForUpdates = clientUpdateUi.isCheckForUpdatesEnabled();
         config.customBackground = false;
         config.backgroundBlurPercent = currentBackgroundBlurPercent();
         config.backgroundOpacityPercent = currentBackgroundOpacityPercent();
-        captureRelayConfigInto(config);
+        relayProxyUi.captureRelayConfigInto(config);
         captureWindowLayoutInto(config);
         config.ignoredUpdateDigest = ignoredUpdateDigest;
         config.lastUpdateCheckAt = lastUpdateCheckAt == null
@@ -2691,369 +2405,13 @@ public class App extends JFrame {
         configPersistenceService.saveConfig(config, null);
     }
 
-    private ClientUpdateCoordinator.Actions updateActions() {
-        return new ClientUpdateCoordinator.Actions() {
-            @Override
-            public String localDigest() {
-                return AppVersion.SOURCE_DIGEST;
-            }
-
-            @Override
-            public String localVersion() {
-                return AppVersion.VERSION;
-            }
-
-            @Override
-            public String localLabel() {
-                return AppVersion.buildLabel();
-            }
-
-            @Override
-            public boolean idle() {
-                return isIdleForUpdate();
-            }
-
-            @Override
-            public void log(String line) {
-                appendLog(line);
-            }
-
-            @Override
-            public void phase(String title) {
-                showUpdatePhase(title);
-            }
-
-            @Override
-            public void warn(String message) {
-                showUpdateWarning(message);
-            }
-
-            @Override
-            public Path download(UpdateNotice notice) throws Exception {
-                return downloadClientUpdateWithProgress(notice);
-            }
-
-            @Override
-            public boolean canInstall() {
-                return ClientUpdateInstaller.installTarget() != null;
-            }
-
-            @Override
-            public void install(Path jar) throws Exception {
-                ClientUpdateInstaller.relaunch(jar, ClientUpdateInstaller.installTarget());
-            }
-
-            @Override
-            public void restart() {
-                restartAfterUpdate();
-            }
-
-            @Override
-            public void finished(boolean restarted) {
-                SwingUtilities.invokeLater(() -> finishUpdateApply(restarted));
-            }
-        };
-    }
-
-    /** 心跳回應。{@code notice} 為 null 代表伺服器沒有較新的版本。 */
-    private void onServerUpdateNotice(UpdateNotice notice) {
-        boolean manual = pendingManualCheck;
-        pendingManualCheck = false;
-        if (updateApplying) {
-            refreshUpdateButtons();
-            return;
-        }
-        if (!manual && !isCheckForUpdatesEnabled()) {
-            refreshUpdateButtons();
-            return;
-        }
-        applyUpdateNotice(notice, manual);
-    }
-
-    private void applyUpdateNotice(UpdateNotice notice, boolean manual) {
-        rememberUpdateCheck(LocalDateTime.now());
-        UpdateNotice offer = updateCoordinator.offer(notice);
-        if (offer == null) {
-            offeredUpdate = null;
-            showUpToDate(manual);
-        } else {
-            offeredUpdate = offer;
-            showOfferedUpdate();
-            announceOffer(offer);
-        }
-        refreshUpdateButtons();
-    }
-
-    private void checkForUpdateNow() {
-        if (updateApplying || pendingManualCheck) {
-            return;
-        }
-        if (!isCloudEnabled() || !heartbeatService.active()) {
-            showUpdateText("無法檢查", "請先啟用雲端連線，並確認 Server 網址。", NightTheme.PINK);
-            refreshUpdateButtons();
-            return;
-        }
-        pendingManualCheck = true;
-        showUpdateText("正在檢查更新…", "正在詢問伺服器", NightTheme.MUTED);
-        refreshUpdateButtons();
-        heartbeatService.sendHeartbeat(this::appendLog, ok ->
-                SwingUtilities.invokeLater(() -> finishManualUpdateCheck(ok)));
-    }
-
-    private void finishManualUpdateCheck(boolean ok) {
-        if (!pendingManualCheck) {
-            refreshUpdateButtons();
-            return;
-        }
-        pendingManualCheck = false;
-        if (updateApplying) {
-            refreshUpdateButtons();
-            return;
-        }
-        if (!ok) {
-            if (offeredUpdate != null) {
-                showOfferedUpdate();
-                if (serverRefs.updateStatusTitle != null) {
-                    serverRefs.updateStatusTitle.setText("檢查失敗");
-                    serverRefs.updateStatusTitle.setForeground(NightTheme.PINK);
-                }
-            } else {
-                showUpdateText("檢查失敗", "連不上伺服器。請確認雲端網址與 Token。", NightTheme.PINK);
-            }
-            refreshUpdateButtons();
-            return;
-        }
-        applyUpdateNotice(null, true);
-    }
-
-    private void applyOfferedUpdate() {
-        if (offeredUpdate == null || updateApplying || pendingManualCheck) {
-            return;
-        }
-        updateApplying = true;
-        refreshUpdateButtons();
-        if (!updateCoordinator.apply(offeredUpdate)) {
-            updateApplying = false;
-            showOfferedUpdate();
-            refreshUpdateButtons();
-        }
-    }
-
-    private void finishUpdateApply(boolean restarted) {
-        updateApplying = false;
-        if (!restarted && offeredUpdate != null) {
-            showOfferedUpdate();
-        }
-        refreshUpdateButtons();
-    }
-
-    private void showUpdateUnchecked() {
-        showUpdateText("尚未檢查更新",
-                "目前 " + AppVersion.displayLabel() + "\n有新版時會顯示在這裡，由你決定要不要升級。",
-                NightTheme.MUTED);
-        refreshUpdateButtons();
-    }
-
-    private void showUpToDate(boolean announce) {
-        showUpdateText("已是最新版本",
-                "目前 " + AppVersion.displayLabel(),
-                new Color(34, 197, 94));
-        if (announce) {
-            appendLog("[更新] 已是最新版本，目前 " + AppVersion.displayLabel());
-        }
-    }
-
-    private void showOfferedUpdate() {
-        UpdateNotice notice = offeredUpdate;
-        if (notice == null) {
-            return;
-        }
-        StringBuilder detail = new StringBuilder();
-        detail.append("新版 ").append(ClientUpdateCoordinator.describe(notice));
-        detail.append("\n大小 ").append(formatUpdateSize(notice.size));
-        detail.append("\n目前 ").append(AppVersion.displayLabel());
-        String notes = ReleaseNotes.dialogSection(previewChanges(notice), previewChangesHidden(notice));
-        if (!notes.isEmpty()) {
-            detail.append("\n\n").append(notes);
-        }
-        if (ClientUpdateInstaller.runningJar() == null) {
-            detail.append("\n\n目前不是以 jar 啟動，更新後會改執行下載的程式。");
-        }
-        showUpdateText("有可用的更新", detail.toString(), NightTheme.PINK);
-    }
-
-    private void rememberUpdateCheck(LocalDateTime at) {
-        lastUpdateCheckAt = at;
-        refreshLastCheckLabel();
-        String minute = at.format(UPDATE_CHECK_TIME);
-        if (minute.equals(lastUpdateCheckMinute)) {
-            return;
-        }
-        lastUpdateCheckMinute = minute;
-        saveCloudConfig();
-    }
-
-    private void refreshLastCheckLabel() {
-        if (serverRefs.updateCheckedAtLabel == null) {
-            return;
-        }
-        if (lastUpdateCheckAt == null) {
-            serverRefs.updateCheckedAtLabel.setText("尚未檢查過");
-            return;
-        }
-        serverRefs.updateCheckedAtLabel.setText(
-                "上次檢查 " + lastUpdateCheckAt.format(UPDATE_CHECK_TIME));
-    }
-
-    private static LocalDateTime parseUpdateCheckAt(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-        try {
-            return LocalDateTime.parse(raw.trim());
-        } catch (java.time.format.DateTimeParseException e) {
-            return null;
-        }
-    }
-
-    /** 設定頁只先列幾筆，避免更新說明把整頁撐太高。 */
-    private static final int UPDATE_NOTES_SHOWN = 4;
-
-    private static List<String> previewChanges(UpdateNotice notice) {
-        if (notice.changes.size() <= UPDATE_NOTES_SHOWN) {
-            return notice.changes;
-        }
-        return notice.changes.subList(0, UPDATE_NOTES_SHOWN);
-    }
-
-    private static int previewChangesHidden(UpdateNotice notice) {
-        return notice.changesMore + Math.max(0, notice.changes.size() - UPDATE_NOTES_SHOWN);
-    }
-
-    private void announceOffer(UpdateNotice notice) {
-        if (notice.version.equals(announcedUpdateVersion)) {
-            return;
-        }
-        announcedUpdateVersion = notice.version;
-        appendLog("[更新] 發現新版 " + ClientUpdateCoordinator.describe(notice)
-                + "，目前 " + AppVersion.displayLabel() + "。要升級請到設定按「現在更新」");
-        if (!notice.changes.isEmpty()) {
-            appendLog("[更新] 這次修改：" + String.join("；", notice.changes));
-        }
-    }
-
-    private void showUpdatePhase(String title) {
-        Runnable show = () -> {
-            if (serverRefs.updateStatusTitle == null || title == null) {
-                return;
-            }
-            serverRefs.updateStatusTitle.setText(title);
-            serverRefs.updateStatusTitle.setForeground(NightTheme.PINK);
-        };
-        if (SwingUtilities.isEventDispatchThread()) {
-            show.run();
-        } else {
-            SwingUtilities.invokeLater(show);
-        }
-    }
-
-    private void showUpdateText(String title, String detail, Color titleColor) {
-        if (serverRefs.updateStatusTitle != null) {
-            serverRefs.updateStatusTitle.setText(title == null ? "" : title);
-            serverRefs.updateStatusTitle.setForeground(titleColor == null ? NightTheme.MUTED : titleColor);
-        }
-        if (serverRefs.updateStatusDetail == null) {
-            return;
-        }
-        String text = detail == null ? "" : detail;
-        JTextArea detailArea = serverRefs.updateStatusDetail;
-        if (text.equals(detailArea.getText())) {
-            return;
-        }
-        detailArea.setText(text);
-        fitUpdateDetail(detailArea);
-        detailArea.revalidate();
-    }
-
-    /** 依目前寬度把換行後的高度撐開，長句子才不會被裁掉。 */
-    private static void fitUpdateDetail(JTextArea area) {
-        PanelFactory.fitRelayHelp(area);
-    }
-
-    private void refreshUpdateButtons() {
-        boolean busy = pendingManualCheck || updateApplying;
-        if (serverRefs.checkUpdateButton != null) {
-            serverRefs.checkUpdateButton.setEnabled(!busy);
-        }
-        if (serverRefs.applyUpdateButton != null) {
-            boolean available = offeredUpdate != null;
-            boolean wasVisible = serverRefs.applyUpdateButton.isVisible();
-            serverRefs.applyUpdateButton.setVisible(available);
-            serverRefs.applyUpdateButton.setEnabled(available && !busy);
-            if (wasVisible != available && serverRefs.applyUpdateButton.getParent() != null) {
-                serverRefs.applyUpdateButton.getParent().revalidate();
-            }
-        }
-    }
-
-    private static String formatUpdateSize(long bytes) {
-        if (bytes < 1024) {
-            return bytes + " B";
-        }
-        if (bytes < 1024 * 1024) {
-            return String.format(java.util.Locale.ROOT, "%.0f KB", bytes / 1024.0);
-        }
-        return String.format(java.util.Locale.ROOT, "%.1f MB", bytes / (1024.0 * 1024.0));
-    }
-
-    /** 在背景執行緒呼叫：開小進度視窗（可取消），下載完關閉。 */
-    private Path downloadClientUpdateWithProgress(UpdateNotice notice) throws Exception {
-        String label = notice.version == null || notice.version.isBlank() ? "新版本" : "v" + notice.version;
-        TransferCancel cancel = new TransferCancel();
-        TransferProgressDialog[] holder = new TransferProgressDialog[1];
-        Runnable open = () -> {
-            holder[0] = TransferProgressDialog.open(this, "程式更新");
-            holder[0].setOnCancel(cancel::cancel);
-            holder[0].setStatus("正在下載桌面端 " + label + "…");
-        };
-        if (SwingUtilities.isEventDispatchThread()) {
-            open.run();
-        } else {
-            SwingUtilities.invokeAndWait(open);
-        }
-        TransferProgressDialog progress = holder[0];
-        try {
-            return heartbeatService.downloadClientUpdate(
-                    notice.path, notice.size, TransferIo.throttle(progress::setProgress), cancel);
-        } finally {
-            progress.close();
-        }
-    }
-
     /** 沒有打卡執行中、10 分鐘內沒有排程、沒有傳檔進度視窗：才適合自動重啟更新。 */
-    private boolean isIdleForUpdate() {
+    boolean isIdleForUpdate() {
         return UpdateIdlePolicy.isIdle(schedulerService.getAllTasks(), LocalDateTime.now())
                 && !TransferProgressDialog.isAnyActive();
     }
 
-    private boolean isCheckForUpdatesEnabled() {
-        return serverRefs.checkForUpdatesCheckBox == null || serverRefs.checkForUpdatesCheckBox.isSelected();
-    }
-
-    private void showUpdateWarning(String message) {
-        Runnable show = () -> UiFonts.showWarning(this, message, "程式更新");
-        if (SwingUtilities.isEventDispatchThread()) {
-            show.run();
-            return;
-        }
-        try {
-            SwingUtilities.invokeAndWait(show);
-        } catch (Exception ex) {
-            appendLog("[更新] " + message);
-        }
-    }
-
-    private void restartAfterUpdate() {
+    void restartAfterUpdate() {
         Runnable exit = () -> {
             try {
                 saveCloudConfig();
@@ -3074,22 +2432,11 @@ public class App extends JFrame {
         }
     }
 
-    private void captureRelayConfigInto(ConfigPersistenceService.CloudConfig config) {
-        config.relayEnabled = serverRefs.relayEnabledCheckBox != null
-                && serverRefs.relayEnabledCheckBox.isSelected();
-        if (serverRefs.relayPortSpinner != null) {
-            Object val = serverRefs.relayPortSpinner.getValue();
-            if (val instanceof Number) {
-                config.relayPort = ((Number) val).intValue();
-            }
-        }
-    }
-
     private void onSlotStateChanged() {
         slotController.refreshSlotCards();
         slotController.persistTasks();
         if (!isCloudEnabled()) {
-            refreshPeerInteractionState();
+            peerTableUi.refreshPeerInteractionState();
         }
     }
 
@@ -3130,7 +2477,7 @@ public class App extends JFrame {
 
     private static final int MAX_SYSTEM_LOG_LINES = 500;
 
-    private void appendLog(String message) {
+    void appendLog(String message) {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         String timestamp = LocalDateTime.now().format(formatter);
         String logMessage = "[" + timestamp + "] " + message;

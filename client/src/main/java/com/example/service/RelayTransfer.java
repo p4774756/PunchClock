@@ -187,7 +187,7 @@ final class RelayTransfer {
             return SendResult.of(SendStatus.FAILED, "無法開始直傳（" + begun.describe() + "）");
         }
 
-        notifyStatus("已通知【" + target + "】，等待對方接收…（約 15 秒內跳出提示，需在 "
+        notifyStatus("已通知【" + target + "】，等待對方接收…（約 30 秒內跳出提示，需在 "
                 + PeerFileRules.RELAY_ACCEPT_TIMEOUT_LABEL + " 內按下接收）");
         Reply st = begun;
         boolean announced = false;

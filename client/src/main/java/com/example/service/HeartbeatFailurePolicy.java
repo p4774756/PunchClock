@@ -11,7 +11,7 @@ import java.util.concurrent.TimeUnit;
  */
 class HeartbeatFailurePolicy {
 
-    static final int[] BACKOFF_INTERVAL_SECONDS = {15, 30, 60, 120, 300};
+    static final int[] BACKOFF_INTERVAL_SECONDS = {30, 60, 120, 300};
     static final long STILL_OFFLINE_LOG_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5);
 
     private final Clock clock;
