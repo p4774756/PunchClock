@@ -47,7 +47,7 @@ WAIST_GAP_SPRITES = frozenset(
 REF_WAIST_SPRITE = "secretary-clap-a.webp"
 
 CLAP_SPRITES = ("secretary-clap-a.webp", "secretary-clap-b.webp")
-CLAP_SIZE_MIN = 35_000
+CLAP_SIZE_MIN = 22_000
 CLAP_SIZE_MAX = 62_000
 # Sanity cap on all enclosed transparent pixels, including natural hair-lock gaps.
 CLAP_HAIR_GAP_MAX = 2_500

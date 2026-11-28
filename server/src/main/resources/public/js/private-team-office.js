@@ -557,8 +557,23 @@ export function renderQueueList(doc, queue, ui) {
   shown.forEach((row) => {
     if (!row || typeof row !== 'object') return;
     const li = el(doc, 'li', 'pt-status-queue-item');
+    const head = el(doc, 'div', 'pt-status-queue-head');
+    const issue = Number(row.issue);
+    if (Number.isFinite(issue) && issue > 0) {
+      const issueLink = linkIssue(doc, row, 'pt-status-link pt-status-stage-issue');
+      if (issueLink) {
+        head.appendChild(issueLink);
+      } else {
+        head.appendChild(el(doc, 'span', 'pt-status-stage-issue', '#' + issue));
+      }
+    }
     const title = row.title && isSafePublicText(row.title) ? String(row.title) : '';
-    if (title) li.appendChild(el(doc, 'span', 'pt-status-queue-title', title));
+    if (title) head.appendChild(el(doc, 'span', 'pt-status-queue-title', title));
+    if (head.childNodes.length) li.appendChild(head);
+    const waitingFor = Number(row.waitingFor);
+    if (Number.isFinite(waitingFor) && waitingFor > 0) {
+      li.appendChild(el(doc, 'span', 'pt-status-queue-after', '接在 #' + waitingFor + ' 後'));
+    }
     const prLink = linkPr(doc, row, canLink);
     if (prLink) li.appendChild(prLink);
     ul.appendChild(li);

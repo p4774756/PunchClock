@@ -1,5 +1,7 @@
 /** 首頁登入浮動視窗（外觀對齊 #roadmapBoard）。 */
 
+import { ensureHomeLoginCss } from './home-panel-css-loader.js';
+
 function lockTimeDisplay(remainingSec) {
   const mins = Math.floor(remainingSec / 60);
   const secs = remainingSec % 60;
@@ -40,6 +42,7 @@ export function wireHomeLoginModal(opts) {
     board.hidden = !open;
     board.setAttribute('aria-hidden', open ? 'false' : 'true');
     if (open) {
+      ensureHomeLoginCss(win, doc).catch(() => {});
       if (officeModal) officeModal.notifyOpened('login', meta && meta.trigger);
     } else if (!meta || !meta.silent) {
       if (officeModal) officeModal.notifyClosed('login');

@@ -3,7 +3,7 @@ import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bundleSource } from './load-public-module.mjs';
+import { bundleSource, loadPublicModule } from './load-public-module.mjs';
 
 const publicRoot = join(dirname(fileURLToPath(import.meta.url)), '../../main/resources/public');
 
@@ -324,9 +324,7 @@ test('首頁登入浮動視窗標記與 fetch JSON', () => {
 });
 
 test('登入彈窗錯誤用 textContent，解析失敗不寫死剩餘 4 次', { concurrency: false }, async () => {
-  const { wireHomeLoginModal } = await import(
-    'data:text/javascript;base64,' + Buffer.from(readFileSync(join(publicRoot, 'js/home-login-modal.js'), 'utf8')).toString('base64')
-  );
+  const { wireHomeLoginModal } = await loadPublicModule('home-login-modal.js');
   const doc = createDocument();
   doc.body.innerHTML = LOGIN_BOARD_HTML;
   const intervals = [];
@@ -410,11 +408,14 @@ test('登入彈窗錯誤用 textContent，解析失敗不寫死剩餘 4 次', { 
 
 test('左上徽章登入與螢幕待開裝置', { concurrency: false }, async () => {
   const raw = readFileSync(join(publicRoot, 'js/private-team-page.js'), 'utf8');
-  const withoutScene = raw.replace(
-    /import\s+\{\s*mountPrivateTeamScene\s*\}\s+from\s+['"]\.\/private-team-scene\.js['"];\s*/,
-    ''
-  );
-  assert.equal(withoutScene.includes('private-team-scene'), false);
+  assert.match(raw, /import\('\.\/private-team-scene\.js'\)/);
+  const withoutScene = raw
+    .replace(
+      /function mountSceneWhenReady\(\) \{[\s\S]*?sceneMounted = false;\s*\}\);\s*\}\n\n/,
+      'function mountSceneWhenReady() { if (sceneMounted) return; sceneMounted = true; scene.destroy(); scene = mountPrivateTeamScene(canvas, { win, doc, onActivate: onSceneActivate }); canvas.__privateTeamScene = scene; paintSceneFromTiger(); refreshCanvasA11y(); syncSceneOverlay(); }\n\n'
+    )
+    .replace(/function scheduleMountScene\(\) \{[\s\S]*?\}\n\n/, '')
+    .replace(/scheduleMountScene\(\);/, 'mountSceneWhenReady();');
   const source = ('function mountPrivateTeamScene(canvas,opts){globalThis.__ptOnActivate=opts&&opts.onActivate;return {setSceneInputEnabled(){},setBubbleText(){},setSecretarySprite(){},noteTigerStatus(){},destroy(){}};}\n' +
     withoutScene).replace(/from\s+(['"])\.\/([^'"]+)\1/g, (all, quote, dep) => {
     const bundled = bundleSource(dep);

@@ -1,7 +1,10 @@
 /** 首頁下載浮窗（外觀對齊 #roadmapBoard）。 */
 
+import { ensureHomeDownloadCss } from './home-panel-css-loader.js';
+
 export function createHomeDownloadController(opts) {
   const doc = (opts && opts.doc) || globalThis.document;
+  const win = (opts && opts.win) || globalThis;
   const officeModal = opts && opts.officeModal;
   const hooks = Object.assign({}, (opts && opts.hooks) || {});
   const root = doc && doc.getElementById ? doc.getElementById('downloadBoard') : null;
@@ -18,6 +21,7 @@ export function createHomeDownloadController(opts) {
       root.setAttribute('aria-hidden', want ? 'false' : 'true');
     }
     if (want) {
+      ensureHomeDownloadCss(win, doc).catch(() => {});
       if (officeModal) {
         officeModal.notifyOpened('download', meta && meta.trigger);
       } else if (doc.body) doc.body.classList.add('roadmap-open');

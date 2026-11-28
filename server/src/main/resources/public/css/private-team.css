@@ -1159,8 +1159,23 @@ button.pt-hud-id-plate {
   line-height: 1.4;
 }
 
+.pt-status-queue-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.45rem;
+  width: 100%;
+}
+
 .pt-status-queue-title {
+  flex: 1 1 8rem;
   min-width: 0;
+}
+
+.pt-status-queue-after {
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: #5a6a82;
 }
 
 .pt-status-expand {

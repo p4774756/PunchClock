@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPublicModule, readPrivateTeamSceneBundle } from './load-public-module.mjs';
@@ -15,16 +15,24 @@ const {
   privateTeamWindowPreviewToastLabel,
   privateTeamWindowAmbientMotionEnabled,
   privateTeamWindowTowerBeaconOpacity,
-  privateTeamSceneLighting
+  privateTeamSceneLighting,
+  stepSkylineFlickerLights,
+  privateTeamSeededRand,
+  PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS,
+  PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y,
+  PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y,
+  PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC,
+  privateTeamWindowAirplaneXNorm
 } = await loadPublicModule('private-team-scene.js');
 
-test('窗景改用台北 101 三時段 WebP，預載並依時段換 map', () => {
+test('窗景改用台北 101 三時段 WebP，懶載當前時段並依切換換 map', () => {
   const src = sceneSrc;
   assert.match(src, /PRIVATE_TEAM_WINDOW_TEXTURE_URLS/);
   assert.match(src, /taipei-window-day\.webp/);
   assert.match(src, /taipei-window-sunset\.webp/);
   assert.match(src, /taipei-window-night\.webp/);
-  assert.match(src, /windowVistaMat\.map = vistaTex\[period\]/);
+  assert.match(src, /ensureWindowVistaTexture/);
+  assert.match(src, /ensureWindowVistaTexture\(texLoader, vistaTex, period\)/);
   assert.doesNotMatch(src, /name = 'skylineFar'/);
   assert.doesNotMatch(src, /windowRainBack/);
   assert.doesNotMatch(src, /windowAirplane/);
@@ -97,4 +105,33 @@ test('窗台物件與窗外洒光貼圖保留', () => {
   assert.match(src, /windowSill/);
   assert.match(src, /windowMoonlight/);
   assert.match(src, /makeWindowMoonlightFloorTexture/);
+});
+
+test('大樓窗戶燈閃爍不再誤呼叫 flicker.rand()', () => {
+  const flicker = {
+    lights: [{ on: true }, { on: false }, { on: true }],
+    rand: privateTeamSeededRand(42),
+    paint() {}
+  };
+  assert.doesNotThrow(() => stepSkylineFlickerLights(flicker));
+  assert.doesNotMatch(readFileSync(
+    join(publicRoot, 'js/private-team-scene-room.js'),
+    'utf8'
+  ), /stepSkylineFlickerLights/);
+  assert.match(sceneSrc, /stepSkylineFlickerLights\(skylineFlicker\)/);
+  assert.match(sceneSrc, /windowVistaFlicker/);
+});
+
+test('航空燈與飛機白燈錨點落於天際線上下帶', () => {
+  const primary = PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS.find((b) => b.primary);
+  assert.ok(primary);
+  assert.ok(primary.y >= PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y - 0.12);
+  assert.ok(primary.y <= 0.58);
+  assert.ok(PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y < PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y - 0.08);
+  assert.ok(PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC >= 0.03);
+  assert.match(sceneSrc, /windowVistaAirBeacon/);
+  assert.match(sceneSrc, /windowVistaClouds/);
+  const x0 = privateTeamWindowAirplaneXNorm(0);
+  const x1 = privateTeamWindowAirplaneXNorm(13);
+  assert.ok(x1 - x0 > 0.2 || x1 < x0);
 });

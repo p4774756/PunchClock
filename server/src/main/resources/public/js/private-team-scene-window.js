@@ -6,6 +6,18 @@ export const PRIVATE_TEAM_WINDOW_TEXTURE_URLS = {
   night: '/assets/private-team/window/taipei-window-night.webp'
 };
 
+/** 窗景貼圖懶載：僅在需要時期向 TextureLoader 發請求（供場景與單測）。 */
+export function ensureWindowVistaTexture(texLoader, cache, period) {
+  if (!texLoader || !cache || !period) return null;
+  if (cache[period]) return cache[period];
+  const vurl = PRIVATE_TEAM_WINDOW_TEXTURE_URLS[period];
+  if (!vurl) return null;
+  const vtx = texLoader.load(vurl);
+  vtx.colorSpace = THREE.SRGBColorSpace;
+  cache[period] = vtx;
+  return vtx;
+}
+
 const WINDOW_PREVIEW_MODES = ['auto', 'day', 'sunset', 'night'];
 
 /** 依 Asia/Taipei 牆鐘判定窗景時段（供單測；date 可注入）。 */
@@ -174,6 +186,23 @@ export function privateTeamWindowSkylineParallaxOffset(yawRad, pitchRad, paralla
   return { x: y * s * 0.38, y: p * s * 0.2 };
 }
 
+/** 夜間窗景貼圖上 101 塔尖航空燈（UV 0–1，y 愈小愈靠天際）。 */
+export const PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS = [
+  { x: 0.542, y: 0.392, r: 1.15, primary: true },
+  { x: 0.518, y: 0.468, r: 0.95 },
+  { x: 0.612, y: 0.498, r: 0.85 },
+  { x: 0.388, y: 0.522, r: 0.8 }
+];
+
+/** 白點飛機燈水平路徑所在天空帶（貼圖 UV，須在天際線之上）。 */
+export const PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y = 0.155;
+
+/** 天際線大致上緣（UV）；航空燈 y 應不低於此，飛機 y 應明顯低於此。 */
+export const PRIVATE_TEAM_WINDOW_SKYLINE_TOP_Y = 0.34;
+
+/** 白天窗景雲層漂移速度（貼圖 repeat U／秒）。 */
+export const PRIVATE_TEAM_WINDOW_CLOUD_DRIFT_U_PER_SEC = 0.041;
+
 /** 101 航空障礙燈緩慢明滅係數（0.35–1）。 */
 export function privateTeamWindowTowerBeaconOpacity(elapsedSec, reducedMotion) {
   if (reducedMotion) return 0.85;
@@ -188,17 +217,24 @@ export function privateTeamWindowAirplaneBeaconOpacity(elapsedSec, reducedMotion
 }
 
 /** 窗景上 101 與近樓航空燈透明疊層。 */
+export function privateTeamWindowAirplaneXNorm(elapsedSec) {
+  const t = Number(elapsedSec);
+  if (!Number.isFinite(t)) return 0.08;
+  const cycleSec = 52;
+  return ((t / cycleSec) % 1 + 1) % 1;
+}
+
 export function makeWindowTowerBeaconOverlayTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 144;
   const ctx = canvas.getContext('2d');
-  const beacons = [
-    { x: canvas.width * 0.53, y: canvas.height * 0.21, r: 3.2 },
-    { x: canvas.width * 0.53, y: canvas.height * 0.33, r: 2.4 },
-    { x: canvas.width * 0.38, y: canvas.height * 0.54, r: 1.9 },
-    { x: canvas.width * 0.63, y: canvas.height * 0.51, r: 1.7 }
-  ];
+  const beacons = PRIVATE_TEAM_WINDOW_TOWER_BEACON_ANCHORS.map((a) => ({
+    x: canvas.width * a.x,
+    y: canvas.height * a.y,
+    r: a.r,
+    primary: !!a.primary
+  }));
   const paint = (elapsedSec) => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     const t = Number(elapsedSec);
@@ -207,20 +243,81 @@ export function makeWindowTowerBeaconOverlayTexture() {
       const wave = Number.isFinite(t)
         ? (Math.sin(t * 0.95 + i * 1.7) + 1) / 2
         : 0.85;
-      const on = i === 0 ? wave > 0.42 : wave > 0.52;
+      const on = b.primary ? wave > 0.42 : wave > 0.55;
       if (!on) continue;
-      const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r * 5);
-      g.addColorStop(0, 'rgba(255,68,52,0.92)');
-      g.addColorStop(0.45, 'rgba(255,92,72,0.42)');
+      const glowR = b.r * 2.2;
+      const g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, glowR);
+      g.addColorStop(0, 'rgba(255,72,54,0.95)');
+      g.addColorStop(0.55, 'rgba(255,88,68,0.35)');
       g.addColorStop(1, 'rgba(0,0,0,0)');
       ctx.fillStyle = g;
-      ctx.fillRect(b.x - b.r * 5, b.y - b.r * 5, b.r * 10, b.r * 10);
+      ctx.fillRect(b.x - glowR, b.y - glowR, glowR * 2, glowR * 2);
+      ctx.fillStyle = 'rgba(255,92,72,0.98)';
+      ctx.fillRect(b.x - b.r * 0.55, b.y - b.r * 0.55, b.r * 1.1, b.r * 1.1);
     }
   };
   paint(0);
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   return { tex, paint, beacons };
+}
+
+/** 天際線上方緩慢橫移的飛機導航白燈（疊在窗景上半部）。 */
+export function makeWindowVistaAirplaneOverlayTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 144;
+  const ctx = canvas.getContext('2d');
+  const paint = (elapsedSec) => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const xNorm = privateTeamWindowAirplaneXNorm(elapsedSec);
+    const x = xNorm * canvas.width;
+    const y = canvas.height * PRIVATE_TEAM_WINDOW_AIRPLANE_SKY_Y;
+    const flash = Number.isFinite(Number(elapsedSec))
+      ? 0.55 + ((Math.sin(Number(elapsedSec) * 2.4) + 1) / 2) * 0.45
+      : 0.88;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, 5);
+    g.addColorStop(0, 'rgba(255,255,255,' + (0.92 * flash) + ')');
+    g.addColorStop(0.45, 'rgba(230,240,255,' + (0.35 * flash) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - 5, y - 5, 10, 10);
+    ctx.fillStyle = 'rgba(255,255,255,' + (0.98 * flash) + ')';
+    ctx.fillRect(x - 1.1, y - 1.1, 2.2, 2.2);
+  };
+  paint(0);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return { tex, paint };
+}
+
+/** 白天／黃昏窗景雲層半透明疊層（repeat 後可水平漂移）。 */
+export function makeDayVistaCloudLayerTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 180;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  const rand = privateTeamSeededRand(61);
+  for (let i = 0; i < 7; i++) {
+    const cx = rand() * canvas.width;
+    const cy = 22 + rand() * 72;
+    const rw = 85 + rand() * 130;
+    const rh = 26 + rand() * 34;
+    const g = ctx.createRadialGradient(cx, cy, 4, cx, cy, rw);
+    g.addColorStop(0, 'rgba(255,255,255,0.42)');
+    g.addColorStop(0.5, 'rgba(248,252,255,0.18)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rw, rh, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
 /** 河岸／橋面車流光點（貼在窗景下半部）。 */
@@ -235,10 +332,7 @@ export function makeWindowVistaTrafficOverlayTexture() {
   for (let t = 0; t < 22; t++) {
     const tx = rand() * canvas.width;
     const ty = laneY + (rand() - 0.5) * 14;
-    const warm = rand() > 0.28;
-    ctx.fillStyle = warm
-      ? 'rgba(255,78,62,' + (0.48 + rand() * 0.42) + ')'
-      : 'rgba(220,235,255,' + (0.32 + rand() * 0.4) + ')';
+    ctx.fillStyle = 'rgba(255,78,62,' + (0.48 + rand() * 0.42) + ')';
     ctx.fillRect(tx, ty, 2 + rand() * 3.5, 1.1 + rand() * 1.2);
   }
   const tex = new THREE.CanvasTexture(canvas);
@@ -456,18 +550,18 @@ export function makeWindowGlassStreakTexture() {
 export function makeSkylineFlickerLightsTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
-  canvas.height = 128;
+  canvas.height = 144;
   const ctx = canvas.getContext('2d');
   const rand = privateTeamSeededRand(89);
   const lights = [];
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 56; i++) {
     lights.push({
       x: rand() * canvas.width,
-      y: canvas.height * (0.35 + rand() * 0.55),
-      w: 2 + rand() * 3,
-      h: 2 + rand() * 4,
-      on: rand() > 0.32,
-      warm: rand() > 0.45
+      y: canvas.height * (0.36 + rand() * 0.58),
+      w: 1.5 + rand() * 2.8,
+      h: 2 + rand() * 3.5,
+      on: rand() > 0.28,
+      warm: rand() > 0.42
     });
   }
   const antenna = { x: canvas.width * 0.68, y: canvas.height * 0.4, on: false };
@@ -653,11 +747,12 @@ export function makeWindowMoonlightWallTexture() {
 }
 
 export function stepSkylineFlickerLights(flicker) {
-  const r = flicker.rand();
-  const n = 2 + Math.floor(r() * 3);
+  const r = flicker.rand;
+  if (typeof r !== 'function') return;
+  const n = 3 + Math.floor(r() * 7);
   for (let i = 0; i < n; i++) {
     const L = flicker.lights[Math.floor(r() * flicker.lights.length)];
-    if (r() > 0.5) L.on = !L.on;
+    if (r() > 0.38) L.on = !L.on;
   }
   flicker.paint();
 }

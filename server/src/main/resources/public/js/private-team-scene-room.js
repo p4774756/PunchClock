@@ -90,10 +90,10 @@ export function cyl(rt, rb, h, seg, color) {
   return new THREE.Mesh(g, m);
 }
 
-export function roundedRectShape(hw, hh, r) {
+export function roundedRectShape(hw, hh, r, ox = 0, oy = 0) {
   const shape = new THREE.Shape();
-  const x = -hw;
-  const y = -hh;
+  const x = -hw + ox;
+  const y = -hh + oy;
   const w = hw * 2;
   const h = hh * 2;
   shape.moveTo(x + r, y);
@@ -131,6 +131,39 @@ export function extrudedRoundedRing(hw, hh, inHw, inHh, depth, radius, mat) {
     bevelEnabled: true,
     bevelThickness: 0.01,
     bevelSize: 0.01,
+    bevelSegments: 2,
+    curveSegments: 6
+  });
+  geo.rotateX(-Math.PI / 2);
+  return new THREE.Mesh(geo, mat);
+}
+
+/** 大理石地板開洞（洞心 world XZ = holeCx, holeCz）。 */
+export function extrudedRoundedPlateWithRectHole(
+  hw,
+  hh,
+  holeCx,
+  holeCz,
+  holeHw,
+  holeHh,
+  depth,
+  radius,
+  mat
+) {
+  const shape = roundedRectShape(hw, hh, radius);
+  const hole = roundedRectShape(
+    holeHw,
+    holeHh,
+    Math.max(0.02, radius * 0.5),
+    holeCx,
+    holeCz
+  );
+  shape.holes.push(hole);
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: depth,
+    bevelEnabled: true,
+    bevelThickness: 0.012,
+    bevelSize: 0.012,
     bevelSegments: 2,
     curveSegments: 6
   });
@@ -255,16 +288,6 @@ export function addRomanceCandle(parent, x, y, z, name) {
   return { flameMat, glow, baseIntensity: 0.42 };
 }
 
-function stepSkylineFlickerLights(flicker) {
-  const r = flicker.rand();
-  const n = 2 + Math.floor(r() * 3);
-  for (let i = 0; i < n; i++) {
-    const L = flicker.lights[Math.floor(r() * flicker.lights.length)];
-    if (r() > 0.5) L.on = !L.on;
-  }
-  flicker.paint();
-}
-
 export function stripUnderwaterTint(mat) {
   if (!mat) return;
   mat.onBeforeCompile = null;
@@ -301,32 +324,35 @@ export function addBathPillow(parent) {
   if (parent.getObjectByName('bathPillow')) return;
   const group = new THREE.Group();
   group.name = 'bathPillow';
-  group.position.set(0.04, 0.48, -0.3);
-  function towelBox(w, h, d, color) {
-    const mesh = new THREE.Mesh(
-      new THREE.BoxGeometry(w, h, d),
-      new THREE.MeshBasicMaterial({ color })
-    );
-    mesh.renderOrder = 1;
-    return mesh;
+  group.position.set(0.02, 0.44, -0.52);
+  function towelMat(color) {
+    return new THREE.MeshLambertMaterial({ color });
   }
-  const cushion = towelBox(0.42, 0.3, 0.1, COL.towel);
+  const cushion = new THREE.Mesh(new THREE.SphereGeometry(0.22, 14, 12), towelMat(COL.towel));
   cushion.name = 'bathPillowCushion';
-  cushion.position.set(0, 0.02, 0.03);
-  cushion.rotation.x = 0.24;
+  cushion.scale.set(1.12, 0.38, 0.86);
+  cushion.position.set(0, 0.06, 0.02);
+  cushion.rotation.x = 0.32;
+  const cushionDrape = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.2), towelMat(COL.towel));
+  cushionDrape.name = 'bathPillowCushionDrape';
+  cushionDrape.position.set(0.02, -0.02, 0.12);
+  cushionDrape.rotation.x = -0.55;
   const roll = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.055, 0.055, 0.26, 14),
-    new THREE.MeshBasicMaterial({ color: COL.towelDk })
+    new THREE.CylinderGeometry(0.048, 0.062, 0.24, 14),
+    towelMat(COL.towelDk)
   );
   roll.name = 'bathPillowRoll';
   roll.rotation.z = Math.PI / 2;
-  roll.position.set(0.06, 0.17, 0.05);
-  roll.renderOrder = 1;
-  const fold = towelBox(0.14, 0.18, 0.05, COL.towelDk);
-  fold.name = 'bathPillowFold';
-  fold.position.set(-0.14, 0.05, 0.04);
-  fold.rotation.z = -0.18;
-  group.add(cushion, roll, fold);
+  roll.position.set(0.08, 0.16, 0.06);
+  const foldA = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.06, 0.11), towelMat(COL.towelDk));
+  foldA.name = 'bathPillowFold';
+  foldA.position.set(-0.16, 0.05, 0.1);
+  foldA.rotation.set(0.42, -0.22, -0.28);
+  const foldB = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.05, 0.14), towelMat(COL.towel));
+  foldB.name = 'bathPillowFoldB';
+  foldB.position.set(0.18, 0.03, 0.08);
+  foldB.rotation.set(0.18, 0.35, 0.22);
+  group.add(cushion, cushionDrape, roll, foldA, foldB);
   parent.add(group);
 }
 

@@ -56,6 +56,7 @@ test('下沉浴缸、托盤與單螢幕支架', () => {
   assert.match(src, /applyUnderwaterTint/);
   assert.match(src, /rug-weave\.webp/);
   assert.match(src, /makeMarbleFloorTexture/);
+  assert.doesNotMatch(src, /hole\.translate/);
   assert.match(src, /walnutSideboard/);
   assert.match(src, /vinylTurntable/);
   assert.doesNotMatch(src, /remove_secretary_chair_for_bathtub/);
