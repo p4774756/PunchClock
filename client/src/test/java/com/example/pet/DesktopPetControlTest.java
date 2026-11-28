@@ -58,16 +58,17 @@ public class DesktopPetControlTest {
     }
 
     @Test
-    public void jumpArcPeaksThenLandsAndBlocksWalk() {
+    public void jumpArcPeaksThenLandsAndKeepsHorizontalWhileAirborne() {
         DesktopPetControl control = new DesktopPetControl();
         control.enter();
         control.applyKeyPressed(KeyEvent.VK_RIGHT);
         control.startJump();
         assertTrue(control.isJumping());
-        assertEquals(0, control.horizontalDelta());
+        assertEquals(DesktopPetAnimation.STEP, control.horizontalDelta());
         int peak = 0;
         for (int tick = 0; tick < DesktopPetControl.JUMP_TICKS; tick++) {
             peak = Math.max(peak, control.jumpLift());
+            assertEquals(DesktopPetAnimation.STEP, control.horizontalDelta());
             control.tickJump();
         }
         assertFalse(control.isJumping());
