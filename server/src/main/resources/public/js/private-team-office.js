@@ -400,6 +400,24 @@ function chainDotClass(chain) {
   return '';
 }
 
+function chainAvatarSlug(chain) {
+  const c = chain == null ? '' : String(chain).trim();
+  if (c === '青龍') return 'qinglong';
+  if (c === '白虎') return 'baihu';
+  if (c === '朱雀') return 'zhuque';
+  if (c === '玄武') return 'xuanwu';
+  return '';
+}
+
+function chainAvatarSrc(slug) {
+  return '/assets/private-team/chain-' + slug + '-96.webp';
+}
+
+function chainAvatarSrcSet(slug) {
+  const base = '/assets/private-team/chain-' + slug;
+  return base + '-96.webp 1x, ' + base + '-192.webp 2x';
+}
+
 function renderStageProgress(doc, item) {
   const track = el(doc, 'div', 'pt-status-progress');
   progressSegmentsForActive(item).forEach((seg) => {
@@ -458,8 +476,26 @@ export function renderActiveBlock(doc, item) {
   const chain = row.chain && isSafePublicText(row.chain) ? String(row.chain).trim() : '';
   if (chain) {
     const chainLine = el(doc, 'span', 'pt-status-chain-line');
-    const dot = el(doc, 'span', 'pt-status-chain-dot ' + chainDotClass(chain));
+    const dotCls = chainDotClass(chain);
+    const dot = el(doc, 'span', 'pt-status-chain-dot ' + dotCls);
     dot.setAttribute('aria-hidden', 'true');
+    const slug = chainAvatarSlug(chain);
+    if (slug) {
+      const img = el(doc, 'img', 'pt-status-chain-avatar ' + dotCls);
+      img.setAttribute('width', '24');
+      img.setAttribute('height', '24');
+      img.setAttribute('alt', chain);
+      img.setAttribute('loading', 'lazy');
+      img.setAttribute('decoding', 'async');
+      img.setAttribute('src', chainAvatarSrc(slug));
+      img.setAttribute('srcset', chainAvatarSrcSet(slug));
+      if (typeof img.addEventListener === 'function') {
+        img.addEventListener('error', () => {
+          chainLine.classList.add('is-avatar-error');
+        });
+      }
+      chainLine.appendChild(img);
+    }
     chainLine.appendChild(dot);
     chainLine.appendChild(el(doc, 'span', 'pt-status-chain-name', chain));
     head.appendChild(chainLine);
