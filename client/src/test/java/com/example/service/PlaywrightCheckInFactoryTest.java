@@ -8,7 +8,6 @@ import java.util.Map;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class PlaywrightCheckInFactoryTest {
@@ -44,9 +43,17 @@ public class PlaywrightCheckInFactoryTest {
     }
 
     @Test
-    public void createOptionsOmitsSkipEnvForBundledBrowsers() {
-        assertNull(PlaywrightCheckInFactory.playwrightCreateOptions("chromium"));
-        assertNull(PlaywrightCheckInFactory.playwrightCreateOptions("firefox"));
-        assertNull(PlaywrightCheckInFactory.playwrightCreateOptions("webkit"));
+    public void createOptionsSetsDownloadHostForBundledBrowsers() {
+        Playwright.CreateOptions chromium = PlaywrightCheckInFactory.playwrightCreateOptions("chromium");
+        assertNotNull(chromium);
+        assertEquals(
+                PlaywrightNodeSupport.PLAYWRIGHT_DOWNLOAD_HOST,
+                chromium.env.get("PLAYWRIGHT_DOWNLOAD_HOST"));
+        assertFalse(chromium.env.containsKey("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD"));
+
+        Playwright.CreateOptions firefox = PlaywrightCheckInFactory.playwrightCreateOptions("firefox");
+        assertEquals(
+                PlaywrightNodeSupport.PLAYWRIGHT_DOWNLOAD_HOST,
+                firefox.env.get("PLAYWRIGHT_DOWNLOAD_HOST"));
     }
 }

@@ -2,9 +2,11 @@ package com.example.service;
 
 import org.junit.Test;
 
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -36,13 +38,18 @@ public class PlaywrightNodeSupportTest {
     }
 
     @Test
-    public void driverZipUrlUsesOfficialCdn() {
+    public void driverDownloadUrlsIncludesOfficialCdnAndMaven() {
+        List<URI> urls = PlaywrightNodeSupport.driverDownloadUrls("1.49.0", "mac-arm64");
         assertEquals(
-                "https://playwright.azureedge.net/builds/driver/playwright-1.49.0-mac-arm64.zip",
-                PlaywrightNodeSupport.driverZipUrl("1.49.0", "mac-arm64", false).toString());
+                "https://cdn.playwright.dev/dbazure/download/playwright/builds/driver/"
+                        + "playwright-1.49.0-mac-arm64.zip",
+                urls.get(0).toString());
         assertEquals(
-                "https://cdn.playwright.dev/builds/driver/playwright-1.49.0-win32_x64.zip",
-                PlaywrightNodeSupport.driverZipUrl("1.49.0", "win32_x64", true).toString());
+                "https://playwright.download.prss.microsoft.com/dbazure/download/playwright/builds/driver/"
+                        + "playwright-1.49.0-mac-arm64.zip",
+                urls.get(1).toString());
+        assertTrue(urls.get(urls.size() - 1).toString().contains(
+                "repo1.maven.org/maven2/com/microsoft/playwright/driver-bundle/1.49.0/driver-bundle-1.49.0.jar"));
     }
 
     @Test
@@ -92,12 +99,45 @@ public class PlaywrightNodeSupportTest {
     }
 
     @Test
-    public void rejectsUnsafeDriverZipUrl() {
+    public void rejectsUnsafeDriverDownloadUrls() {
         try {
-            PlaywrightNodeSupport.driverZipUrl("../secret", "mac", false);
+            PlaywrightNodeSupport.driverDownloadUrls("../secret", "mac");
         } catch (IllegalArgumentException expected) {
             return;
         }
         throw new AssertionError("expected rejection");
+    }
+
+    @Test
+    public void extractsFullDriverPlatformTree() throws Exception {
+        Path zip = Files.createTempFile("driver-bundle-", ".zip");
+        try (ZipOutputStream out = new ZipOutputStream(Files.newOutputStream(zip))) {
+            out.putNextEntry(new ZipEntry("driver/mac/package/cli.js"));
+            out.write("cli".getBytes(StandardCharsets.UTF_8));
+            out.closeEntry();
+            out.putNextEntry(new ZipEntry("driver/mac/node"));
+            byte[] node = new byte[9 * 1024 * 1024];
+            out.write(node);
+            out.closeEntry();
+        }
+        Path outDir = Files.createTempDirectory("driver-platform-");
+        PlaywrightNodeSupport.extractDriverPlatformFromBundle(
+                new PlaywrightNodeSupport.FileRangeSource(zip), "mac", outDir);
+        assertTrue(Files.isRegularFile(outDir.resolve("node")));
+        assertTrue(Files.isRegularFile(outDir.resolve("package").resolve("cli.js")));
+    }
+
+    @Test
+    public void readsChromiumRevisionFromBrowsersJsonArray() throws Exception {
+        Path dir = Files.createTempDirectory("pw-browsers-json").resolve("package");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("browsers.json"),
+                "{\n  \"browsers\": [\n"
+                        + "    {\n      \"name\": \"chromium\",\n      \"revision\": \"1148\",\n"
+                        + "      \"installByDefault\": true\n    },\n"
+                        + "    {\n      \"name\": \"chromium-headless-shell\",\n"
+                        + "      \"revision\": \"9999\"\n    }\n  ]\n}\n",
+                StandardCharsets.UTF_8);
+        assertEquals(1148, PlaywrightNodeSupport.readInstalledChromiumRevision(dir.getParent()));
     }
 }

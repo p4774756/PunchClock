@@ -68,27 +68,48 @@ final class DesktopPetMiluLayout {
 
     /**
      * 把已依 {@link #deviceScale} 畫滿的裝置像素緩衝貼回 stage。
-     * Graphics 已 {@code scale(deviceScale)} 時用邏輯視窗寬高；使用者座標已是裝置像素（單位矩陣）時用緩衝本體大小。
+     * 目的矩形一律是邏輯視窗寬高，由 Graphics 既有的 {@code scale(deviceScale)} 對應到裝置像素。
+     * 不要用緩衝本體大小當目的區：單位矩陣若其實仍是邏輯座標，Retina 上會把萌寵畫成兩倍大。
+     * 若呼叫端的 Graphics 是裝置像素且為單位矩陣，應先自行 {@code scale(deviceScale)}。
      */
     static Rectangle blitDestRect(
             Graphics2D screen, int logicalWidth, int logicalHeight, BufferedImage frame) {
         int lw = Math.max(1, logicalWidth);
         int lh = Math.max(1, logicalHeight);
-        if (frame == null) {
-            return new Rectangle(0, 0, lw, lh);
+        return new Rectangle(0, 0, lw, lh);
+    }
+
+    /**
+     * 單位矩陣且裁切區明顯是裝置像素表面時，補上 {@code scale(deviceScale)}，
+     * 讓 {@link #blitDestRect} 能用邏輯寬高貼滿 Retina 表面。
+     * 裁切區已是邏輯大小或 Graphics 已縮放過時不動作，避免再放大一倍。
+     */
+    static void applyDeviceScaleIfNeeded(
+            Graphics2D screen, int logicalWidth, int logicalHeight, double pixelScale) {
+        if (screen == null || pixelScale <= 1.0001) {
+            return;
         }
         java.awt.geom.AffineTransform tx = screen.getTransform();
-        double sx = tx.getScaleX();
-        double sy = tx.getScaleY();
-        boolean deviceSpace =
-                Math.abs(sx - 1.0) < 0.05
-                        && Math.abs(sy - 1.0) < 0.05
+        boolean identity =
+                Math.abs(tx.getScaleX() - 1.0) < 0.05
+                        && Math.abs(tx.getScaleY() - 1.0) < 0.05
                         && Math.abs(tx.getShearX()) < 0.05
                         && Math.abs(tx.getShearY()) < 0.05;
-        if (deviceSpace) {
-            return new Rectangle(0, 0, frame.getWidth(), frame.getHeight());
+        if (!identity) {
+            return;
         }
-        return new Rectangle(0, 0, lw, lh);
+        Rectangle clip = screen.getClipBounds();
+        int lw = Math.max(1, logicalWidth);
+        int lh = Math.max(1, logicalHeight);
+        int dw = bufferPixelWidth(lw, pixelScale);
+        int dh = bufferPixelHeight(lh, pixelScale);
+        if (clip != null && clip.width <= lw * 1.15 && clip.height <= lh * 1.15) {
+            return;
+        }
+        if (clip != null && (clip.width < dw * 0.9 || clip.height < dh * 0.9)) {
+            return;
+        }
+        screen.scale(pixelScale, pixelScale);
     }
 
     /** 裝置像素緩衝在螢幕上應佔的邏輯面積（測試用）。 */

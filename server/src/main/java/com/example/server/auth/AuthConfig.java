@@ -1,5 +1,7 @@
 package com.example.server.auth;
 
+import org.mindrot.jbcrypt.BCrypt;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -12,16 +14,17 @@ public final class AuthConfig {
     static final String DEFAULT_ADMIN_PASSWORD = "secret";
     static final String DEFAULT_HEARTBEAT_SECRET = "punchclock-dev-secret";
 
-    private final String adminPassword;
+    private final String adminPasswordHash;
     private final String heartbeatSecret;
 
-    private AuthConfig(String adminPassword, String heartbeatSecret) {
-        this.adminPassword = adminPassword;
+    private AuthConfig(String adminPasswordHash, String heartbeatSecret) {
+        this.adminPasswordHash = adminPasswordHash;
         this.heartbeatSecret = heartbeatSecret;
     }
 
-    public String adminPassword() {
-        return adminPassword;
+    /** bcrypt 雜湊字串（非明文）。 */
+    String adminPasswordHash() {
+        return adminPasswordHash;
     }
 
     public String heartbeatSecret() {
@@ -36,8 +39,10 @@ public final class AuthConfig {
         if (isProduction(env)) {
             rejectDefaultSecretsOnProduction(env);
         }
+        String adminRaw = envOrDefault(env, "ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD);
+        String adminHash = normalizeAdminPassword(adminRaw, isProduction(env));
         return new AuthConfig(
-                envOrDefault(env, "ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD),
+                adminHash,
                 envOrDefault(env, "HEARTBEAT_SECRET", DEFAULT_HEARTBEAT_SECRET));
     }
 
@@ -46,10 +51,29 @@ public final class AuthConfig {
         return render != null && !render.isEmpty();
     }
 
+    static boolean looksLikeBcrypt(String value) {
+        return value != null && value.length() >= 59
+                && (value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$"));
+    }
+
+    static String normalizeAdminPassword(String raw, boolean production) {
+        if (looksLikeBcrypt(raw)) {
+            return raw;
+        }
+        if (production) {
+            throw new IllegalStateException("正式環境 ADMIN_PASSWORD 須為 bcrypt 雜湊");
+        }
+        return BCrypt.hashpw(raw, BCrypt.gensalt(10));
+    }
+
     private static void rejectDefaultSecretsOnProduction(Map<String, String> env) {
         List<String> invalid = new ArrayList<>();
-        if (isMissingOrDefault(env, "ADMIN_PASSWORD", DEFAULT_ADMIN_PASSWORD)) {
+        String admin = env.get("ADMIN_PASSWORD");
+        if (admin == null || admin.isEmpty() || DEFAULT_ADMIN_PASSWORD.equals(admin)) {
             invalid.add("ADMIN_PASSWORD");
+        } else if (!looksLikeBcrypt(admin)) {
+            System.err.println("Render 啟動已中止：環境變數 ADMIN_PASSWORD 須為 bcrypt 雜湊（請先在本機產生雜湊後寫入 Render）");
+            throw new IllegalStateException("正式環境禁止使用明文 ADMIN_PASSWORD");
         }
         if (isMissingOrDefault(env, "HEARTBEAT_SECRET", DEFAULT_HEARTBEAT_SECRET)) {
             invalid.add("HEARTBEAT_SECRET");

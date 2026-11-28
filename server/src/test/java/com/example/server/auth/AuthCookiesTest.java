@@ -35,7 +35,7 @@ public class AuthCookiesTest {
         try {
             app.post("/login", ctx -> {
                 if (auth.checkAdminPassword(ctx.formParam("password"))) {
-                    AuthCookies.setAuthCookie(ctx, auth.authCookieValue(), cookieEnv);
+                    AuthCookies.setAuthCookie(ctx, auth.createSessionToken(), cookieEnv);
                     ctx.status(204);
                 } else {
                     ctx.status(401);

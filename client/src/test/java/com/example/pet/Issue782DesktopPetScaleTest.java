@@ -164,18 +164,26 @@ public class Issue782DesktopPetScaleTest {
         int bh = DesktopPetMiluLayout.bufferPixelHeight(view.height, pixelScale);
         BufferedImage frame = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
         DesktopPetWindow.paintMiluViewport(frame, view, frames, animation, 0, 0, 0, 1, pixelScale);
-        BufferedImage target = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
+        if (scaledGraphics) {
+            BufferedImage target = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g = target.createGraphics();
+            try {
+                g.setTransform(AffineTransform.getScaleInstance(pixelScale, pixelScale));
+                DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, false);
+            } finally {
+                g.dispose();
+            }
+            return toLogical(DesktopPetWindow.opaqueBounds(target, 16), pixelScale);
+        }
+        // 單位矩陣只允許畫在邏輯尺寸畫布上，避免把 Retina 緩衝當成邏輯寬高。
+        BufferedImage target = new BufferedImage(view.width, view.height, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = target.createGraphics();
         try {
-            if (scaledGraphics) {
-                g.setTransform(AffineTransform.getScaleInstance(pixelScale, pixelScale));
-            }
             DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, false);
         } finally {
             g.dispose();
         }
-        Rectangle opaque = DesktopPetWindow.opaqueBounds(target, 16);
-        return toLogical(opaque, pixelScale);
+        return DesktopPetWindow.opaqueBounds(target, 16);
     }
 
     private static Rectangle toLogical(Rectangle device, double pixelScale) {

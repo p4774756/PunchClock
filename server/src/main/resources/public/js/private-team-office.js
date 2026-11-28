@@ -1,6 +1,10 @@
 // 首頁秘書：GET /api/office/public 的 tiger 欄位解析與小卡內容組裝。
 
 import { formatTaipeiClock, viewerCanLink } from './dev-machines-format.js';
+import {
+  parseSecretaryOutfitId,
+  secretarySpritePackForOutfit
+} from './private-team-secretary-outfit.js';
 
 const FORBIDDEN = /(?:ai\/issue-|\/Users\/|worktree|battery|charging|\.log\b)/i;
 
@@ -207,23 +211,55 @@ export function taskProgressFromTiger(tiger) {
   };
 }
 
-const SPRITE_TYPING = '/assets/private-team/secretary-typing-a.webp';
-const SPRITE_IDLE_TEA = '/assets/private-team/secretary-idle-tea.webp';
-const SPRITE_SLEEP = '/assets/private-team/secretary-sleep.webp';
-const SPRITE_SOFA = '/assets/private-team/secretary-sofa.webp';
-
-/** 秘書狀態對應立繪（工作中浴缸打字；待命／休息坐休憩區沙發，素材缺失時場景改用站姿立繪仍留沙發位）。 */
-export function secretarySpriteUrlForStatus(status) {
+/** 秘書「工作中」：舊文案、「工作中 ×N」與「…結界展開中」。 */
+export function isWorkingStatus(status) {
   const s = status == null ? '' : String(status).trim();
-  if (s.startsWith('工作中')) return SPRITE_TYPING;
-  if (s === '待命中' || s === '待機' || s === '休息中') return SPRITE_SOFA;
-  return SPRITE_IDLE_TEA;
+  if (s.startsWith('工作中')) return true;
+  return s.endsWith('結界展開中');
 }
 
-/** 3D 泡泡用短標（工作中／待命中／休息中；保留「工作中 ×N」）。 */
+/** 秘書狀態對應立繪（工作中浴缸打字；待命／休息坐休憩區沙發，素材缺失時場景改用站姿立繪仍留沙發位）。 */
+export function secretarySpriteUrlForStatus(status, outfitId = 'default') {
+  const pack = secretarySpritePackForOutfit(parseSecretaryOutfitId(outfitId));
+  const s = status == null ? '' : String(status).trim();
+  if (isWorkingStatus(s)) return pack.typing;
+  if (s === '待命中' || s === '待機' || s === '休息中') return pack.sofa;
+  return pack.idle;
+}
+
+const GUARDIAN_BARRIER_NAMES = ['青龍', '白虎', '朱雀', '玄武'];
+
+/** API 工作中狀態字串 → 秘書 3D 泡泡口吻（面板狀態列仍用 API 原字串）。 */
+export function workingBubbleTextFromApiStatus(status) {
+  const s = status == null ? '' : String(status).trim();
+  for (const name of GUARDIAN_BARRIER_NAMES) {
+    if (s === name + '結界展開中') return name + '正在努力中喔';
+  }
+  if (
+    s === '二聖獸結界展開中' ||
+    s === '三聖獸結界展開中' ||
+    s === '四聖獸結界展開中' ||
+    s === '聖獸結界展開中'
+  ) {
+    return '聖獸們都在努力中喔';
+  }
+  if (s.startsWith('工作中')) {
+    const mult = /^工作中\s*×\s*(\d+)$/.exec(s);
+    if (mult) {
+      return Number(mult[1]) >= 2 ? '聖獸們都在努力中喔' : '聖獸正在努力中喔';
+    }
+    return '聖獸正在努力中喔';
+  }
+  if (s.endsWith('結界展開中')) {
+    return '聖獸們都在努力中喔';
+  }
+  return '聖獸正在努力中喔';
+}
+
+/** 3D 泡泡用短標（工作中秘書口吻；待命／休息維持原字）。 */
 export function bubbleTextForStatus(status) {
   const s = status == null ? '' : String(status).trim();
-  if (s.startsWith('工作中')) return s;
+  if (isWorkingStatus(s)) return workingBubbleTextFromApiStatus(s);
   if (s === '待命中') return '待命中';
   if (s === '休息中') return '休息中';
   return '待命中';
@@ -400,6 +436,24 @@ function chainDotClass(chain) {
   return '';
 }
 
+function chainAvatarSlug(chain) {
+  const c = chain == null ? '' : String(chain).trim();
+  if (c === '青龍') return 'qinglong';
+  if (c === '白虎') return 'baihu';
+  if (c === '朱雀') return 'zhuque';
+  if (c === '玄武') return 'xuanwu';
+  return '';
+}
+
+function chainAvatarSrc(slug) {
+  return '/assets/private-team/chain-' + slug + '-96.webp';
+}
+
+function chainAvatarSrcSet(slug) {
+  const base = '/assets/private-team/chain-' + slug;
+  return base + '-96.webp 1x, ' + base + '-192.webp 2x';
+}
+
 function renderStageProgress(doc, item) {
   const track = el(doc, 'div', 'pt-status-progress');
   progressSegmentsForActive(item).forEach((seg) => {
@@ -458,8 +512,26 @@ export function renderActiveBlock(doc, item) {
   const chain = row.chain && isSafePublicText(row.chain) ? String(row.chain).trim() : '';
   if (chain) {
     const chainLine = el(doc, 'span', 'pt-status-chain-line');
-    const dot = el(doc, 'span', 'pt-status-chain-dot ' + chainDotClass(chain));
+    const dotCls = chainDotClass(chain);
+    const dot = el(doc, 'span', 'pt-status-chain-dot ' + dotCls);
     dot.setAttribute('aria-hidden', 'true');
+    const slug = chainAvatarSlug(chain);
+    if (slug) {
+      const img = el(doc, 'img', 'pt-status-chain-avatar ' + dotCls);
+      img.setAttribute('width', '24');
+      img.setAttribute('height', '24');
+      img.setAttribute('alt', chain);
+      img.setAttribute('loading', 'lazy');
+      img.setAttribute('decoding', 'async');
+      img.setAttribute('src', chainAvatarSrc(slug));
+      img.setAttribute('srcset', chainAvatarSrcSet(slug));
+      if (typeof img.addEventListener === 'function') {
+        img.addEventListener('error', () => {
+          chainLine.classList.add('is-avatar-error');
+        });
+      }
+      chainLine.appendChild(img);
+    }
     chainLine.appendChild(dot);
     chainLine.appendChild(el(doc, 'span', 'pt-status-chain-name', chain));
     head.appendChild(chainLine);
@@ -647,6 +719,6 @@ export function fillStatusCard(doc, bodyEl, view, opts) {
 function statusIdleLine(status) {
   const s = status == null ? '' : String(status).trim();
   if (s === '休息中') return '今天先休息，晚點再來看我。';
-  if (s.startsWith('工作中')) return '正在忙，點開上方泡泡可隨時看進度。';
+  if (isWorkingStatus(s)) return '正在忙，點開上方泡泡可隨時看進度。';
   return '待命中，有任務會立刻開工。';
 }

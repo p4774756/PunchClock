@@ -36,11 +36,13 @@ public class GraffitiRoutesTest {
     private HttpClient http;
     private String base;
     private String adminCookie;
+    private AdminTestServer.IsolatedAuth isolatedAuth;
 
     @Before
     public void setUp() throws Exception {
         GraffitiStore store = new GraffitiStore(folder.getRoot().toPath());
-        AdminTestServer.IsolatedAuth auth = AdminTestServer.isolatedAuth();
+        isolatedAuth = AdminTestServer.isolatedAuth();
+        AdminTestServer.IsolatedAuth auth = isolatedAuth;
         app = Javalin.create(config -> {
             config.showJavalinBanner = false;
             config.jetty.multipartConfig.maxFileSize(1, SizeUnit.MB);
@@ -48,7 +50,11 @@ public class GraffitiRoutesTest {
             config.jetty.multipartConfig.maxInMemoryFileSize(1, SizeUnit.MB);
         }).start(0);
         AdminTestServer.registerLogin(app, auth.authService());
-        new GraffitiRoutes(auth.authService(), store).register(app);
+        HttpSecurity security = new HttpSecurity(auth.authService(), java.util.Map.of());
+        security.register(app);
+        GraffitiRoutes graffitiRoutes = new GraffitiRoutes(auth.authService(), store);
+        graffitiRoutes.bindHttpSecurity(security);
+        graffitiRoutes.register(app);
         base = "http://127.0.0.1:" + app.port();
         http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
         adminCookie = AdminTestServer.loginCookie(base, auth.adminPassword(), http);
@@ -94,7 +100,9 @@ public class GraffitiRoutesTest {
         assertEquals(401, denied.statusCode());
         assertTrue(denied.body().contains("未登入或權限不足"));
 
-        HttpResponse<String> removed = send("DELETE", "/api/graffiti/" + id, null, null, "Cookie", adminCookie);
+        String csrf = isolatedAuth.authService().csrfTokenForSession(adminCookie.substring("auth=".length()));
+        HttpResponse<String> removed = send("DELETE", "/api/graffiti/" + id, null, null,
+                "Cookie", adminCookie, com.example.server.auth.CsrfTokens.HEADER, csrf);
         assertEquals(200, removed.statusCode());
         assertTrue(removed.body().contains("已從簽到本移除"));
 
@@ -157,8 +165,12 @@ public class GraffitiRoutesTest {
     private HttpResponse<String> send(String method, String path, String contentType, byte[] body, String... header) throws Exception {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(base + path))
                 .timeout(Duration.ofSeconds(5));
-        if (header != null && header.length == 2 && header[0] != null) {
-            builder.header(header[0], header[1]);
+        if (header != null) {
+            for (int i = 0; i + 1 < header.length; i += 2) {
+                if (header[i] != null) {
+                    builder.header(header[i], header[i + 1]);
+                }
+            }
         }
         if ("GET".equals(method)) {
             builder.GET();

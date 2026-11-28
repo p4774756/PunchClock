@@ -3,6 +3,7 @@ package com.example.server;
 import com.example.server.auth.AuthConfig;
 import com.example.server.auth.AuthCookies;
 import com.example.server.auth.AuthService;
+import com.example.server.auth.CsrfTokens;
 import com.example.server.store.DevStatusService;
 import com.example.server.store.RoadmapService;
 import io.javalin.Javalin;
@@ -73,6 +74,14 @@ public final class AdminTestServer {
         return loginCookie(baseUrl, adminPassword, http);
     }
 
+    /** 由 {@code auth=} cookie 片段計算 CSRF（供測試帶 {@link CsrfTokens#HEADER}）。 */
+    public String csrfHeaderFromCookie(String authCookie) {
+        String token = authCookie.startsWith("auth=")
+                ? authCookie.substring("auth=".length())
+                : authCookie;
+        return authService.csrfTokenForSession(token);
+    }
+
     public static String loginCookie(String baseUrl, String adminPassword, HttpClient http) throws Exception {
         String body = "password=" + URLEncoder.encode(adminPassword, StandardCharsets.UTF_8);
         HttpResponse<String> response = http.send(
@@ -100,7 +109,7 @@ public final class AdminTestServer {
     private static void loginPost(Context ctx, AuthService authService) {
         String password = ctx.formParam("password");
         if (authService.checkAdminPassword(password)) {
-            AuthCookies.setAuthCookie(ctx, authService.authCookieValue(), Map.of());
+            AuthCookies.setAuthCookie(ctx, authService.createSessionToken(), Map.of());
             ctx.redirect("/");
             return;
         }

@@ -13,6 +13,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.function.Consumer;
@@ -32,7 +35,10 @@ public final class PlaywrightNodeSupport {
 
     static final String NODEJS_PATH_PROPERTY = "playwright.nodejs.path";
     static final String CLI_DIR_PROPERTY = "playwright.cli.dir";
+    static final String IGNORE_EMBEDDED_PROPERTY = "playwright.driver.ignoreEmbedded";
     static final String INSTALL_MARKER = "driver.zip.sha256";
+    static final String PLAYWRIGHT_DOWNLOAD_HOST =
+            "https://cdn.playwright.dev/dbazure/download/playwright";
 
     private static final Pattern VERSION_FIELD = Pattern.compile("\"version\"\\s*:\\s*\"([^\"]+)\"");
     private static final long MIN_NODE_BYTES = 8L * 1024 * 1024;
@@ -75,7 +81,7 @@ public final class PlaywrightNodeSupport {
         } catch (IOException e) {
             throw new IllegalStateException(
                     "無法準備瀏覽器驅動：" + e.getMessage()
-                            + "。請確認可連線至 playwright.azureedge.net 或 cdn.playwright.dev。",
+                            + "。請確認可連線至 Playwright 官方 CDN 或 Maven Central（driver-bundle）。",
                     e);
         }
     }
@@ -89,6 +95,9 @@ public final class PlaywrightNodeSupport {
     }
 
     static boolean embeddedNodePresent() {
+        if (Boolean.getBoolean(IGNORE_EMBEDDED_PROPERTY)) {
+            return false;
+        }
         String platform = platformId();
         String resource = "/driver/" + platform + "/" + nodeFileName(platform);
         return PlaywrightNodeSupport.class.getResource(resource) != null;
@@ -122,15 +131,99 @@ public final class PlaywrightNodeSupport {
         return driverInstallDir(home, version, platform).resolve(nodeFileName(platform));
     }
 
-    static URI driverZipUrl(String version, String platform, boolean cdnFallback) {
+    static void validateDriverCoordinates(String version, String platform) {
         if (version == null || !version.matches("[0-9A-Za-z][0-9A-Za-z._-]{0,40}")
                 || platform == null || !platform.matches("[a-z0-9_-]+")) {
             throw new IllegalArgumentException("瀏覽器驅動版本或平台無法使用");
         }
-        String host = cdnFallback
-                ? "https://cdn.playwright.dev/builds/driver"
-                : "https://playwright.azureedge.net/builds/driver";
-        return URI.create(host + "/playwright-" + version + "-" + platform + ".zip");
+    }
+
+    static List<URI> driverDownloadUrls(String version, String platform) {
+        validateDriverCoordinates(version, platform);
+        String file = "playwright-" + version + "-" + platform + ".zip";
+        String[] hosts = {
+            PLAYWRIGHT_DOWNLOAD_HOST + "/builds/driver",
+            "https://playwright.download.prss.microsoft.com/dbazure/download/playwright/builds/driver",
+            "https://playwright.azureedge.net/builds/driver",
+        };
+        List<URI> out = new ArrayList<>();
+        for (String host : hosts) {
+            out.add(URI.create(host + "/" + file));
+        }
+        out.add(mavenDriverBundle(version));
+        return Collections.unmodifiableList(out);
+    }
+
+    static URI driverZipUrl(String version, String platform, boolean cdnFallback) {
+        validateDriverCoordinates(version, platform);
+        String file = "playwright-" + version + "-" + platform + ".zip";
+        if (cdnFallback) {
+            return URI.create(PLAYWRIGHT_DOWNLOAD_HOST + "/builds/driver/" + file);
+        }
+        return URI.create("https://playwright.azureedge.net/builds/driver/" + file);
+    }
+
+    static List<URI> chromiumBrowserArchiveUrls(int revision, String platform) {
+        if (platform == null || !platform.matches("[a-z0-9_-]+") || revision <= 0) {
+            throw new IllegalArgumentException("瀏覽器驅動平台或 revision 無法使用");
+        }
+        String archivePlatform = chromiumArchivePlatform(platform);
+        String file = "chromium-" + archivePlatform + ".zip";
+        String[] hosts = {
+            PLAYWRIGHT_DOWNLOAD_HOST + "/builds/chromium/" + revision,
+            "https://playwright.download.prss.microsoft.com/dbazure/download/playwright/builds/chromium/"
+                    + revision,
+        };
+        List<URI> out = new ArrayList<>();
+        for (String host : hosts) {
+            out.add(URI.create(host + "/" + file));
+        }
+        return Collections.unmodifiableList(out);
+    }
+
+    static String chromiumArchivePlatform(String platform) {
+        if ("mac-arm64".equals(platform)) {
+            return "mac-arm64";
+        }
+        if ("mac".equals(platform)) {
+            return "mac";
+        }
+        if ("win32_x64".equals(platform)) {
+            return "win64";
+        }
+        if ("linux-arm64".equals(platform)) {
+            return "linux-arm64";
+        }
+        return "linux";
+    }
+
+    static int readBundledChromiumRevision(String platform) throws IOException {
+        String resource = "/driver/" + platform + "/package/browsers.json";
+        try (InputStream in = PlaywrightNodeSupport.class.getResourceAsStream(resource)) {
+            if (in == null) {
+                throw new IOException("找不到瀏覽器版本清單");
+            }
+            return parseChromiumRevision(new String(in.readAllBytes(), StandardCharsets.UTF_8));
+        }
+    }
+
+    static int readInstalledChromiumRevision(Path driverPlatformDir) throws IOException {
+        Path browsers = driverPlatformDir.resolve("package").resolve("browsers.json");
+        if (!Files.isRegularFile(browsers)) {
+            throw new IOException("找不到瀏覽器版本清單");
+        }
+        return parseChromiumRevision(Files.readString(browsers, StandardCharsets.UTF_8));
+    }
+
+    private static int parseChromiumRevision(String json) throws IOException {
+        // browsers.json 是 { "browsers": [ { "name": "chromium", "revision": "1148", ... }, ... ] }
+        Matcher matcher = Pattern.compile(
+                        "\"name\"\\s*:\\s*\"chromium\"\\s*,[\\s\\S]{0,200}?\"revision\"\\s*:\\s*\"(\\d+)\"")
+                .matcher(json);
+        if (!matcher.find()) {
+            throw new IOException("找不到 Chromium revision");
+        }
+        return Integer.parseInt(matcher.group(1));
     }
 
     static String resolvedPlaywrightVersion() throws IOException {
@@ -236,24 +329,32 @@ public final class PlaywrightNodeSupport {
     private static void downloadAndInstallDriver(
             Path home, String version, String platform, Path installDir, Consumer<String> logger)
             throws IOException {
-        IOException primaryFailure = null;
-        for (boolean fallback : new boolean[] {false, true}) {
+        IOException lastFailure = null;
+        for (URI uri : driverDownloadUrls(version, platform)) {
+            if (uri.getPath().endsWith(".jar")) {
+                continue;
+            }
             try {
-                downloadAndInstallFrom(installDir, version, platform, fallback, logger);
+                downloadAndInstallFromZip(installDir, platform, uri, logger);
                 return;
             } catch (IOException e) {
-                if (primaryFailure == null) {
-                    primaryFailure = e;
-                }
+                lastFailure = e;
             }
         }
-        throw primaryFailure != null ? primaryFailure : new IOException("無法下載瀏覽器驅動");
+        try {
+            downloadAndInstallFromMavenBundle(installDir, version, platform, logger);
+            return;
+        } catch (IOException e) {
+            if (lastFailure == null) {
+                throw e;
+            }
+            throw new IOException(lastFailure.getMessage() + "；Maven 備援：" + e.getMessage(), e);
+        }
     }
 
-    private static void downloadAndInstallFrom(
-            Path installDir, String version, String platform, boolean cdnFallback, Consumer<String> logger)
+    private static void downloadAndInstallFromZip(
+            Path installDir, String platform, URI uri, Consumer<String> logger)
             throws IOException {
-        URI uri = driverZipUrl(version, platform, cdnFallback);
         Path parent = installDir.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
@@ -294,15 +395,7 @@ public final class PlaywrightNodeSupport {
                     }
                     Files.createDirectories(installDir);
                     extractZip(tmpZip, installDir);
-                    Path node = installDir.resolve(nodeFileName(platform));
-                    if (!Files.isRegularFile(node) || Files.size(node) < MIN_NODE_BYTES) {
-                        throw new IOException("解壓後找不到瀏覽器驅動執行檔");
-                    }
-                    node.toFile().setExecutable(true);
-                    if (!Files.isRegularFile(installDir.resolve("package").resolve("cli.js"))) {
-                        throw new IOException("解壓後瀏覽器驅動不完整");
-                    }
-                    Files.writeString(installDir.resolve(INSTALL_MARKER), hash + "\n", StandardCharsets.UTF_8);
+                    finalizeDriverInstall(installDir, platform, hash);
                 } catch (NoSuchAlgorithmException e) {
                     throw new IllegalStateException(e);
                 }
@@ -349,6 +442,171 @@ public final class PlaywrightNodeSupport {
                 }
                 in.closeEntry();
             }
+        }
+    }
+
+    private static void finalizeDriverInstall(Path installDir, String platform, String markerHash)
+            throws IOException {
+        Path node = installDir.resolve(nodeFileName(platform));
+        if (!Files.isRegularFile(node) || Files.size(node) < MIN_NODE_BYTES) {
+            throw new IOException("解壓後找不到瀏覽器驅動執行檔");
+        }
+        node.toFile().setExecutable(true);
+        if (!Files.isRegularFile(installDir.resolve("package").resolve("cli.js"))) {
+            throw new IOException("解壓後瀏覽器驅動不完整");
+        }
+        Files.writeString(installDir.resolve(INSTALL_MARKER), markerHash + "\n", StandardCharsets.UTF_8);
+    }
+
+    private static void downloadAndInstallFromMavenBundle(
+            Path installDir, String version, String platform, Consumer<String> logger) throws IOException {
+        URI uri = mavenDriverBundle(version);
+        Path parent = installDir.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        if (logger != null) {
+            logger.accept("[初始化] 正在自 Maven Central 取得瀏覽器驅動…");
+        }
+        IOException rangeFailure = null;
+        try {
+            installPlatformFromMavenBundle(new HttpRangeSource(uri), installDir, platform);
+            return;
+        } catch (IOException e) {
+            rangeFailure = e;
+        }
+        Path tmpJar = Files.createTempFile(parent != null ? parent : installDir, "pw-bundle-", ".jar");
+        try {
+            downloadToFile(uri, tmpJar, logger);
+            installPlatformFromMavenBundle(new FileRangeSource(tmpJar), installDir, platform);
+        } catch (IOException e) {
+            if (rangeFailure != null) {
+                throw new IOException(rangeFailure.getMessage() + "；" + e.getMessage(), e);
+            }
+            throw e;
+        } finally {
+            Files.deleteIfExists(tmpJar);
+        }
+    }
+
+    private static void installPlatformFromMavenBundle(
+            RangeSource source, Path installDir, String platform) throws IOException {
+        if (Files.isDirectory(installDir)) {
+            cleanInstallDir(installDir);
+        }
+        Files.createDirectories(installDir);
+        extractDriverPlatformFromBundle(source, platform, installDir);
+        try (InputStream in = Files.newInputStream(installDir.resolve(nodeFileName(platform)))) {
+            finalizeDriverInstall(installDir, platform, sha256Hex(in));
+        }
+    }
+
+    static void extractDriverPlatformFromBundle(RangeSource source, String platform, Path installDir)
+            throws IOException {
+        String prefix = "driver/" + platform + "/";
+        List<String> entries = listCentralFileEntries(source, prefix);
+        if (entries.isEmpty()) {
+            throw new IOException("驅動檔裡沒有平台 " + platform);
+        }
+        String nodeName = nodeFileName(platform);
+        for (String entryName : entries) {
+            String relative = entryName.substring(prefix.length());
+            if (relative.isEmpty() || relative.endsWith("/")) {
+                continue;
+            }
+            Path dest = installDir.resolve(relative).normalize();
+            if (!dest.startsWith(installDir)) {
+                throw new IOException("驅動壓縮檔路徑異常");
+            }
+            extractZipEntry(source, entryName, dest);
+            if (relative.equals(nodeName)) {
+                dest.toFile().setExecutable(true);
+            }
+        }
+    }
+
+    static List<String> listCentralFileEntries(RangeSource source, String prefix) throws IOException {
+        long length = source.length();
+        if (length < 22) {
+            throw new IOException("驅動壓縮檔不完整");
+        }
+        int tailLen = (int) Math.min(length, 65557L);
+        byte[] tail = source.read(length - tailLen, length - 1);
+        int eocd = findEocd(tail);
+        long cdSize = u32(tail, eocd + 12);
+        long cdOffset = u32(tail, eocd + 16);
+        if (cdSize <= 0 || cdSize > 20L * 1024 * 1024 || cdOffset < 0 || cdOffset >= length) {
+            throw new IOException("驅動壓縮檔目錄無法讀取");
+        }
+        byte[] central = source.read(cdOffset, cdOffset + cdSize - 1);
+        List<String> names = new ArrayList<>();
+        int pos = 0;
+        while (pos + 46 <= central.length) {
+            if (u32(central, pos) != 0x02014b50L) {
+                break;
+            }
+            long compressed = u32(central, pos + 20);
+            int nameLen = u16(central, pos + 28);
+            int extraLen = u16(central, pos + 30);
+            int commentLen = u16(central, pos + 32);
+            int nameStart = pos + 46;
+            if (nameStart + nameLen > central.length) {
+                break;
+            }
+            String name = new String(central, nameStart, nameLen, StandardCharsets.UTF_8);
+            if (name.startsWith(prefix) && compressed > 0 && !name.endsWith("/")) {
+                names.add(name);
+            }
+            pos = nameStart + nameLen + extraLen + commentLen;
+        }
+        return names;
+    }
+
+    private static void downloadToFile(URI uri, Path dest, Consumer<String> logger) throws IOException {
+        HttpURLConnection connection = openDownload(uri);
+        try {
+            int code = connection.getResponseCode();
+            if (code != HttpURLConnection.HTTP_OK) {
+                throw new IOException("下載失敗（HTTP " + code + "）：" + uri);
+            }
+            long total = connection.getContentLengthLong();
+            try (InputStream in = connection.getInputStream();
+                 OutputStream out = Files.newOutputStream(dest)) {
+                byte[] buffer = new byte[DOWNLOAD_BUFFER];
+                long done = 0;
+                int lastPct = -1;
+                int read;
+                while ((read = in.read(buffer)) >= 0) {
+                    if (read > 0) {
+                        out.write(buffer, 0, read);
+                        done += read;
+                        if (logger != null && total > 0) {
+                            int pct = (int) Math.min(100, (done * 100) / total);
+                            if (pct >= lastPct + 10 || pct == 100) {
+                                lastPct = pct;
+                                logger.accept("[初始化] 瀏覽器驅動下載中… " + pct + "%");
+                            }
+                        }
+                    }
+                }
+            }
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    static int httpHeadStatusFollowingRedirects(URI uri) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+        connection.setInstanceFollowRedirects(true);
+        connection.setConnectTimeout(20_000);
+        connection.setReadTimeout(60_000);
+        connection.setUseCaches(false);
+        connection.setRequestMethod("HEAD");
+        connection.setRequestProperty("User-Agent", "SKLbaby");
+        try {
+            return connection.getResponseCode();
+        } finally {
+            connection.disconnect();
         }
     }
 

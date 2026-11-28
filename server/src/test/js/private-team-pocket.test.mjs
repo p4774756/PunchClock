@@ -43,6 +43,14 @@ test('首頁接上掌機彈窗與 3D 點擊', () => {
   assert.match(js, /pocketOpen/);
 });
 
+test('開啟掌機時載入 roadmap 遮罩 CSS，常駐表也有 overlay 定位', () => {
+  const pocketJs = readFileSync(join(publicRoot, 'js/private-team-pocket.js'), 'utf8');
+  const css = readFileSync(join(publicRoot, 'css/private-team.css'), 'utf8');
+  assert.match(pocketJs, /ensureHomeRoadmapCss/);
+  assert.match(css, /\.roadmap-board\s*\{[^}]*position:\s*fixed/s);
+  assert.match(css, /\.roadmap-board\[hidden\]/);
+});
+
 test('鍵盤對應十字鍵與 A/B', () => {
   assert.equal(pocketButtonFromKeyboard({ code: 'ArrowUp' }), 'up');
   assert.equal(pocketButtonFromKeyboard({ code: 'KeyZ' }), 'a');

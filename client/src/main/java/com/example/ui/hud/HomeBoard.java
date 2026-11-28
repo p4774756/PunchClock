@@ -11,7 +11,10 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.geom.Area;
 import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -391,28 +394,38 @@ final class HomeBoard {
         return text.substring(0, end);
     }
 
-    private static void paintBubbleShape(Graphics2D g, Rectangle box, Point mouth) {
-        int radius = 18;
-        g.setColor(new Color(0, 0, 0, 28));
-        g.fillRoundRect(box.x + 1, box.y + 2, box.width, box.height, radius, radius);
-        g.setColor(PANEL);
-        g.fillRoundRect(box.x, box.y, box.width, box.height, radius, radius);
-        g.setColor(PANEL_EDGE);
-        g.setStroke(new BasicStroke(1f));
-        g.drawRoundRect(box.x, box.y, box.width - 1, box.height - 1, radius, radius);
-        if (mouth == null) {
-            return;
+    static void paintBubbleShape(Graphics2D g, Rectangle box, Point mouth) {
+        Object aa = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        try {
+            int radius = 18;
+            g.setColor(new Color(0, 0, 0, 28));
+            g.fillRoundRect(box.x + 1, box.y + 2, box.width, box.height, radius, radius);
+            Area outline =
+                    new Area(new RoundRectangle2D.Float(box.x, box.y, box.width, box.height, radius, radius));
+            if (mouth != null) {
+                int baseY = box.y + box.height;
+                int baseX = Math.max(box.x + 16, Math.min(box.x + box.width - 16, mouth.x));
+                int tipX = Math.max(box.x + 6, Math.min(baseX - 10, mouth.x));
+                int reach = mouth.y - baseY;
+                int tipY = baseY + Math.min(24, Math.max(16, reach > 4 ? Math.min(reach, 24) : 18));
+                Path2D tail = new Path2D.Float();
+                tail.moveTo(baseX - 12, baseY - 1);
+                tail.lineTo(baseX + 5, baseY - 1);
+                tail.lineTo(tipX, tipY);
+                tail.closePath();
+                outline.add(new Area(tail));
+            }
+            g.setColor(PANEL);
+            g.fill(outline);
+            g.setColor(PANEL_EDGE);
+            g.setStroke(new BasicStroke(1f));
+            g.draw(outline);
+        } finally {
+            if (aa != null) {
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
+            }
         }
-        int baseY = box.y + box.height;
-        int baseX = Math.max(box.x + 16, Math.min(box.x + box.width - 16, mouth.x));
-        Path2D tail = new Path2D.Float();
-        tail.moveTo(baseX - 7, baseY - 1);
-        tail.quadTo(baseX, baseY + 6, baseX + 7, baseY - 1);
-        tail.closePath();
-        g.setColor(PANEL);
-        g.fill(tail);
-        g.setColor(PANEL_EDGE);
-        g.draw(tail);
     }
 
     private static List<String> wrap(Graphics2D g, String text, int width) {

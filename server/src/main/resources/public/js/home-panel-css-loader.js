@@ -6,8 +6,16 @@ function versionQuery(win) {
   const ver = win && typeof win.PUNCHCLOCK_SERVER_VERSION === 'string'
     ? win.PUNCHCLOCK_SERVER_VERSION.trim()
     : '';
-  if (!ver || ver.includes('{{')) return '';
-  return '?v=' + encodeURIComponent(ver);
+  const built = win && typeof win.PUNCHCLOCK_SERVER_BUILD_TIME === 'string'
+    ? win.PUNCHCLOCK_SERVER_BUILD_TIME.trim()
+    : '';
+  const parts = [];
+  if (ver && !ver.includes('{{')) parts.push(ver);
+  if (built && !built.includes('{{') && built.indexOf('開發') < 0) {
+    parts.push(built.replace(/[^0-9A-Za-z]+/g, ''));
+  }
+  if (!parts.length) return '';
+  return '?v=' + encodeURIComponent(parts.join('.'));
 }
 
 function assetAlready(doc, path) {

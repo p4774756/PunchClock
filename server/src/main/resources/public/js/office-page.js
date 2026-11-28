@@ -6,6 +6,7 @@ import { createHomeJournalController } from './home-journal-panel.js';
 import { createOfficeModalManager } from './office-modal.js';
 import { applyDownloadOpenParam, applyJournalOpenParam, applyTasksOpenParam } from './dev-machines-format.js';
 import { mountPrivateTeamPage } from './private-team-page.js';
+import { wireLogoutLinks } from './admin-session.js';
 
 let privateTeam = null;
 
@@ -101,3 +102,5 @@ applyTasksOpenParam(window, () => {
 });
 applyDownloadOpenParam(window, () => openDownloadFromHud());
 applyJournalOpenParam(window, () => openJournalFromHud());
+
+wireLogoutLinks(window, document);

@@ -39,11 +39,12 @@ public final class PlaywrightCheckInFactory implements CheckInBrowserFactory {
     }
 
     static Playwright.CreateOptions playwrightCreateOptions(String browserChoice) {
-        if (!skipsBundledBrowserDownload(browserChoice)) {
-            return null;
+        if (skipsBundledBrowserDownload(browserChoice)) {
+            return new Playwright.CreateOptions()
+                    .setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1"));
         }
         return new Playwright.CreateOptions()
-                .setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1"));
+                .setEnv(Map.of("PLAYWRIGHT_DOWNLOAD_HOST", PlaywrightNodeSupport.PLAYWRIGHT_DOWNLOAD_HOST));
     }
 
     private static String normalizeChoice(String browserChoice) {
@@ -89,8 +90,7 @@ public final class PlaywrightCheckInFactory implements CheckInBrowserFactory {
         if (playwright == null) {
             PlaywrightNodeSupport.ensureNodeForPackagedApp(logger);
             log(logger, "[初始化] 首次初始化 Playwright 引擎...");
-            Playwright.CreateOptions options = playwrightCreateOptions(choice);
-            playwright = options == null ? Playwright.create() : Playwright.create(options);
+            playwright = Playwright.create(playwrightCreateOptions(choice));
             playwrightSkipDownload = skip;
             lastPlaywrightSkipDownload = skip;
         }

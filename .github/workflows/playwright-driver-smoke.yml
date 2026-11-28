@@ -1,0 +1,43 @@
+name: Playwright driver smoke
+
+on:
+  push:
+    paths:
+      - 'client/pom.xml'
+      - 'client/src/main/java/com/example/service/PlaywrightNodeSupport*.java'
+      - 'client/src/main/java/com/example/service/PlaywrightCheckInFactory*.java'
+      - '.github/workflows/playwright-driver-smoke.yml'
+  pull_request:
+    paths:
+      - 'client/pom.xml'
+      - 'client/src/main/java/com/example/service/PlaywrightNodeSupport*.java'
+      - 'client/src/main/java/com/example/service/PlaywrightCheckInFactory*.java'
+      - '.github/workflows/playwright-driver-smoke.yml'
+  schedule:
+    - cron: '0 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  driver-download:
+    name: macOS driver fetch
+    runs-on: macos-latest
+    timeout-minutes: 45
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+          cache: maven
+
+      - name: Maven smoke (packaged-style driver download)
+        run: >
+          mvn -B -pl client -am -Pplaywright-driver-smoke -Djava.awt.headless=true
+          -Dplaywright.driver.ignoreEmbedded=true
+          -Duser.home="${{ runner.temp }}/pw-smoke-home"
+          -Dtest=PlaywrightDriverDownloadSmokeIT
+          -Dsurefire.failIfNoSpecifiedTests=false
+          test

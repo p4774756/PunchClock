@@ -1,18 +1,26 @@
 import * as THREE from './vendor/three.module.min.js';
+import { isWorkingStatus } from './private-team-office.js';
+import {
+  secretarySpritePackForOutfit,
+  secretaryStandbyIdleUrlsForOutfit,
+  secretaryCelebrateStepsForOutfit,
+  secretaryDanceDurationMsForSteps
+} from './private-team-secretary-outfit.js';
 
-export const SECRETARY_SPRITE_URL_TYPING = '/assets/private-team/secretary-typing-a.webp';
-export const SECRETARY_SPRITE_URL_TYPING_B = '/assets/private-team/secretary-typing-b.webp';
-export const SECRETARY_SPRITE_URL_WAVE = '/assets/private-team/secretary-wave.webp';
-export const SECRETARY_SPRITE_URL_YEAH = '/assets/private-team/secretary-yeah.webp';
-export const SECRETARY_SPRITE_URL_IDLE = '/assets/private-team/secretary-idle-tea.webp';
-export const SECRETARY_SPRITE_URL_READ = '/assets/private-team/secretary-read.webp';
-export const SECRETARY_SPRITE_URL_PHONE = '/assets/private-team/secretary-phone.webp';
-export const SECRETARY_SPRITE_URL_SLEEP = '/assets/private-team/secretary-sleep.webp';
-export const SECRETARY_SPRITE_URL_SOFA = '/assets/private-team/secretary-sofa.webp';
+const DEFAULT_PACK = secretarySpritePackForOutfit('default');
+
+export const SECRETARY_SPRITE_URL_TYPING = DEFAULT_PACK.typing;
+export const SECRETARY_SPRITE_URL_TYPING_B = DEFAULT_PACK.typingB;
+export const SECRETARY_SPRITE_URL_WAVE = DEFAULT_PACK.wave;
+export const SECRETARY_SPRITE_URL_YEAH = DEFAULT_PACK.yeah;
+export const SECRETARY_SPRITE_URL_IDLE = DEFAULT_PACK.idle;
+export const SECRETARY_SPRITE_URL_READ = DEFAULT_PACK.read;
+export const SECRETARY_SPRITE_URL_PHONE = DEFAULT_PACK.phone;
+export const SECRETARY_SPRITE_URL_SLEEP = DEFAULT_PACK.sleep;
+export const SECRETARY_SPRITE_URL_SOFA = DEFAULT_PACK.sofa;
 
 export function isWorkingTigerStatus(status) {
-  const s = status == null ? '' : String(status).trim();
-  return s.startsWith('工作中');
+  return isWorkingStatus(status);
 }
 
 export function isLoungeTigerStatus(status) {
@@ -21,54 +29,47 @@ export function isLoungeTigerStatus(status) {
 }
 
 /** 沙發立繪無法載入時，改用具站姿／坐姿立繪（仍留在休憩區，不回浴缸）。 */
-export function secretaryTubFallbackUrlForStatus(status) {
+export function secretaryTubFallbackUrlForStatus(status, pack = DEFAULT_PACK) {
   const s = status == null ? '' : String(status).trim();
-  if (s.startsWith('工作中')) return SECRETARY_SPRITE_URL_TYPING;
-  if (s === '休息中') return SECRETARY_SPRITE_URL_SLEEP;
-  if (s === '待命中' || s === '待機') return SECRETARY_SPRITE_URL_IDLE;
-  return SECRETARY_SPRITE_URL_IDLE;
+  if (isWorkingStatus(s)) return pack.typing;
+  if (s === '休息中') return pack.sleep;
+  if (s === '待命中' || s === '待機') return pack.idle;
+  return pack.idle;
 }
 
 export function isSecretarySofaSpriteUrl(url) {
   const u = url == null ? '' : String(url).trim();
-  return u === SECRETARY_SPRITE_URL_SOFA;
+  const defaultSofa = secretarySpritePackForOutfit('default').sofa;
+  const stageSofa = secretarySpritePackForOutfit('stage').sofa;
+  return u === defaultSofa || u === stageSofa;
 }
 
-export const SECRETARY_STANDBY_IDLE_URLS = [
-  SECRETARY_SPRITE_URL_IDLE,
-  SECRETARY_SPRITE_URL_READ,
-  SECRETARY_SPRITE_URL_PHONE
-];
+export const SECRETARY_STANDBY_IDLE_URLS = secretaryStandbyIdleUrlsForOutfit('default');
 export const SECRETARY_IDLE_ROTATE_MS = 2 * 60 * 1000;
 
-export const SECRETARY_CLAP_SPRITE_A = '/assets/private-team/secretary-clap-a.webp';
-export const SECRETARY_CLAP_SPRITE_B = '/assets/private-team/secretary-clap-b.webp';
+export const SECRETARY_CLAP_SPRITE_A = DEFAULT_PACK.clapA;
+export const SECRETARY_CLAP_SPRITE_B = DEFAULT_PACK.clapB;
 
 /** 慶祝：拍手兩下 → 比讚 → 小跳（只播一次）。 */
-export const SECRETARY_CELEBRATE_STEPS = [
-  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_A, ms: 250 },
-  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_B, ms: 250 },
-  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_A, ms: 250 },
-  { kind: 'frame', url: SECRETARY_CLAP_SPRITE_B, ms: 250 },
-  { kind: 'frame', url: SECRETARY_SPRITE_URL_YEAH, ms: 700 },
-  { kind: 'jump', ms: 450 }
-];
-export const SECRETARY_DANCE_DURATION_MS = SECRETARY_CELEBRATE_STEPS.reduce((sum, s) => sum + s.ms, 0);
+export const SECRETARY_CELEBRATE_STEPS = secretaryCelebrateStepsForOutfit('default');
+export const SECRETARY_DANCE_DURATION_MS = secretaryDanceDurationMsForSteps(SECRETARY_CELEBRATE_STEPS);
 export const SECRETARY_IDLE_DANCE_AFTER_MS = 4 * 60 * 1000;
 export const SECRETARY_IDLE_DANCE_COOLDOWN_MS = 5 * 60 * 1000;
 
-export function secretaryCelebrateStateAt(elapsedMs) {
+export function secretaryCelebrateStateAt(elapsedMs, steps = SECRETARY_CELEBRATE_STEPS) {
+  const danceMs = secretaryDanceDurationMsForSteps(steps);
   const t0 = Number(elapsedMs);
   if (!Number.isFinite(t0) || t0 < 0) {
-    return { kind: 'frame', url: SECRETARY_CELEBRATE_STEPS[0].url, jumpT: null };
+    const first = steps[0];
+    return { kind: 'frame', url: first && first.url ? first.url : '', jumpT: null };
   }
-  if (t0 >= SECRETARY_DANCE_DURATION_MS) {
+  if (t0 >= danceMs) {
     return { kind: 'done', url: '', jumpT: null };
   }
   let t = t0;
-  let lastUrl = SECRETARY_CELEBRATE_STEPS[0].url;
-  for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
-    const step = SECRETARY_CELEBRATE_STEPS[i];
+  let lastUrl = steps[0] && steps[0].url ? steps[0].url : '';
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
     if (t < step.ms) {
       if (step.kind === 'frame') {
         return { kind: 'frame', url: step.url, jumpT: null };
@@ -81,14 +82,14 @@ export function secretaryCelebrateStateAt(elapsedMs) {
   return { kind: 'done', url: '', jumpT: null };
 }
 
-export function secretaryCelebrateFrameUrlAt(elapsedMs) {
-  const st = secretaryCelebrateStateAt(elapsedMs);
+export function secretaryCelebrateFrameUrlAt(elapsedMs, steps = SECRETARY_CELEBRATE_STEPS) {
+  const st = secretaryCelebrateStateAt(elapsedMs, steps);
   if (st.kind === 'done') return '';
   return st.url;
 }
 
-export function secretaryCelebrateJumpOffsetAt(elapsedMs) {
-  const st = secretaryCelebrateStateAt(elapsedMs);
+export function secretaryCelebrateJumpOffsetAt(elapsedMs, steps = SECRETARY_CELEBRATE_STEPS) {
+  const st = secretaryCelebrateStateAt(elapsedMs, steps);
   if (st.kind !== 'jump' || st.jumpT == null) return 0;
   return Math.sin(st.jumpT * Math.PI) * 0.11;
 }
@@ -121,36 +122,47 @@ export function shouldTriggerIdleStandbyDance({
   return true;
 }
 
-export function secretaryTypingDisplayUrl(statusBaseUrl, useTypingB, reducedMotion) {
+export function secretaryTypingDisplayUrl(statusBaseUrl, useTypingB, reducedMotion, pack = DEFAULT_PACK) {
   const base = statusBaseUrl == null ? '' : String(statusBaseUrl);
-  if (base === SECRETARY_SPRITE_URL_TYPING && useTypingB && !reducedMotion) {
-    return SECRETARY_SPRITE_URL_TYPING_B;
+  if (base === pack.typing && useTypingB && !reducedMotion) {
+    return pack.typingB;
   }
   return base;
 }
 
-export function isSecretaryStandbyIdleUrl(url) {
+export function isSecretaryStandbyIdleUrl(url, pack = DEFAULT_PACK) {
   const u = url == null ? '' : String(url).trim();
-  return SECRETARY_STANDBY_IDLE_URLS.includes(u);
+  return u === pack.idle || u === pack.read || u === pack.phone;
 }
 
 /** 心跳輪詢仍傳待命預設喝茶圖時，勿蓋掉輪替中的看書／講電話。 */
-export function shouldIgnoreStandbyIdleSpriteUpdate(currentUrl, incomingUrl) {
+export function shouldIgnoreStandbyIdleSpriteUpdate(currentUrl, incomingUrl, pack = DEFAULT_PACK) {
   const cur = currentUrl == null ? '' : String(currentUrl).trim();
   const inc = incomingUrl == null ? '' : String(incomingUrl).trim();
-  if (inc !== SECRETARY_SPRITE_URL_IDLE || cur === SECRETARY_SPRITE_URL_IDLE) return false;
-  return isSecretaryStandbyIdleUrl(cur);
+  if (inc !== pack.idle || cur === pack.idle) return false;
+  return isSecretaryStandbyIdleUrl(cur, pack);
 }
 
 /** 待命立繪輪替：從三張中選，不連續同一張（randomInt 供單測固定種子）。 */
-export function pickNextStandbyIdleUrl(currentUrl, randomInt) {
+export function pickNextStandbyIdleUrl(currentUrl, randomInt, pack = DEFAULT_PACK) {
   const cur = currentUrl == null ? '' : String(currentUrl).trim();
-  const pool = SECRETARY_STANDBY_IDLE_URLS.filter((u) => u !== cur);
-  if (pool.length === 0) return SECRETARY_STANDBY_IDLE_URLS[0];
+  const standby = [pack.idle, pack.read, pack.phone];
+  const pool = standby.filter((u) => u !== cur);
+  if (pool.length === 0) return standby[0];
   const ri = Number(randomInt);
   const idx = Number.isFinite(ri) ? Math.abs(Math.floor(ri)) % pool.length : 0;
   return pool[idx];
 }
+
+export {
+  secretarySpritePackForOutfit,
+  secretaryStandbyIdleUrlsForOutfit,
+  secretaryCelebrateStepsForOutfit,
+  secretaryDanceDurationMsForSteps,
+  secretaryEquivalentSpriteUrl,
+  secretaryOutfitPreloadUrls,
+  parseSecretaryOutfitId
+} from './private-team-secretary-outfit.js';
 function applyUnderwaterTint(mat, waterYUniform) {
   mat.alphaTest = 0.02;
   mat.onBeforeCompile = (shader) => {

@@ -290,7 +290,7 @@ export function addRomanceCandle(parent, x, y, z, name) {
 
 export function stripUnderwaterTint(mat) {
   if (!mat) return;
-  mat.onBeforeCompile = null;
+  delete mat.onBeforeCompile;
   mat.customProgramCacheKey = () => 'meshbasic-vanilla';
   mat.needsUpdate = true;
 }
@@ -318,6 +318,7 @@ export function applyUnderwaterTint(mat, waterYUniform) {
     );
   };
   mat.customProgramCacheKey = () => 'secretary-underwater-tint-v2';
+  mat.needsUpdate = true;
 }
 
 export function addBathPillow(parent) {
