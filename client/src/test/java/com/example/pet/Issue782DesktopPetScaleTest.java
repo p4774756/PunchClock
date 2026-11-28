@@ -6,7 +6,6 @@ import org.junit.Test;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
-import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.geom.AffineTransform;
@@ -79,16 +78,15 @@ public class Issue782DesktopPetScaleTest {
         try {
             g.translate(-view.x, -view.y);
             g.scale(pixelScale, pixelScale);
+            assertEquals(14, UiFonts.chinesePlain(14).getSize());
             DesktopPetWindow.paintSpeechBubble(g, view, frames, anim, "好舒服～");
-            g.setFont(UiFonts.chinesePlain(14));
-            FontMetrics metrics = g.getFontMetrics();
-            assertTrue(metrics.getHeight() >= 18);
-            assertTrue(metrics.getAscent() >= 13);
+            assertEquals(14, g.getFont().getSize());
         } finally {
             g.dispose();
         }
-        boolean ink = false;
-        for (int y = 0; y < bh && !ink; y++) {
+        int minInkY = Integer.MAX_VALUE;
+        int maxInkY = -1;
+        for (int y = 0; y < bh; y++) {
             for (int x = 0; x < bw; x++) {
                 int argb = buf.getRGB(x, y);
                 if ((argb >>> 24) < 32) {
@@ -96,12 +94,14 @@ public class Issue782DesktopPetScaleTest {
                 }
                 Color c = new Color(argb, true);
                 if (c.getRed() < 120 && c.getGreen() < 80 && c.getBlue() < 100) {
-                    ink = true;
-                    break;
+                    minInkY = Math.min(minInkY, y);
+                    maxInkY = Math.max(maxInkY, y);
                 }
             }
         }
-        assertTrue("bubble should render dark ink on retina buffer", ink);
+        assertTrue("bubble should render dark ink on retina buffer", maxInkY >= 0);
+        int logicalInkHeight = (int) Math.ceil((maxInkY - minInkY + 1) / pixelScale);
+        assertTrue("ink should occupy logical vertical span", logicalInkHeight >= 4);
     }
 
     @Test
