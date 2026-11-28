@@ -2,7 +2,6 @@ package com.example.ui;
 
 import com.example.AppVersion;
 import com.example.model.WorkSlot;
-import com.example.ui.hud.HomeIllustration;
 import com.example.service.CheckInHistoryService;
 import com.example.service.PeerAvatar;
 import com.example.service.WindowBackground;
@@ -172,16 +171,13 @@ public class PanelFactory {
                 settingsSection("雲端連線", boldFont, cloud),
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.addTab("外觀", settingsPage(
-                settingsSection("視窗透明度", boldFont, windowTransparencyRow(refs, mainFont, boldFont)),
-                settingsSection("Dock 圖示", boldFont, dockIconSwimsuitRow(refs, mainFont, boldFont)),
-                settingsSection("首頁插畫", boldFont, homeIllustrationRow(refs, mainFont, boldFont)),
-                settingsSection("打卡介面", boldFont, checkInUiRow(refs, mainFont, boldFont)),
-                settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont))));
+                settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont)),
+                settingsSection("Dock 圖示", boldFont, dockIconSwimsuitRow(refs, mainFont, boldFont))));
         tabs.addTab("關於", settingsPage(
                 settingsSection("版本", boldFont, versionInfo),
                 settingsSection("程式更新", boldFont, updates)));
         tabs.setToolTipTextAt(SETTINGS_CONNECTION_TAB, "雲端連線與中繼 Proxy");
-        tabs.setToolTipTextAt(SETTINGS_APPEARANCE_TAB, "視窗透明度、Dock 圖示與桌面寵物");
+        tabs.setToolTipTextAt(SETTINGS_APPEARANCE_TAB, "桌面寵物與 Dock 圖示");
         tabs.setToolTipTextAt(SETTINGS_ABOUT_TAB, "版本資訊與程式更新");
         tabs.setSelectedIndex(SETTINGS_CONNECTION_TAB);
         return tabs;
@@ -279,88 +275,6 @@ public class PanelFactory {
         return column;
     }
 
-    private static JPanel homeIllustrationRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
-        HomeIllustration[] illustrations = HomeIllustration.values();
-        String[] labels = new String[illustrations.length];
-        for (int i = 0; i < illustrations.length; i++) {
-            labels[i] = illustrations[i].label();
-        }
-        refs.homeIllustrationCombo = new JComboBox<>(labels);
-        refs.homeIllustrationCombo.setFont(mainFont);
-        refs.homeIllustrationCombo.setSelectedItem(HomeIllustration.ROOM_B.label());
-        CandyComboBox.install(refs.homeIllustrationCombo);
-        refs.homeIllustrationCombo.setToolTipText(
-                "首頁背景插畫：夜晚房間、頂樓泳池、櫻花公園、台灣夜市、加班夜景（預設夜晚房間）");
-        FontMetrics comboMetrics = refs.homeIllustrationCombo.getFontMetrics(mainFont);
-        int comboMinW = 0;
-        for (HomeIllustration illustration : illustrations) {
-            comboMinW = Math.max(comboMinW, comboMetrics.stringWidth(illustration.label()));
-        }
-        comboMinW += 48;
-        stretchComboWidth(refs.homeIllustrationCombo, comboMinW);
-
-        JLabel title = new JLabel("選擇插畫");
-        title.setFont(mainFont);
-        title.setLabelFor(refs.homeIllustrationCombo);
-        title.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel hint = new CompactShellPanels.WrappingLabel(
-                "角色已畫在場景裡；預設為夜晚房間，亦可選頂樓泳池、櫻花公園、台灣夜市或加班夜景。");
-        hint.setFont(mainFont);
-        hint.setForeground(NightTheme.MUTED);
-
-        JPanel column = new JPanel();
-        column.setOpaque(false);
-        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-        column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        refs.homeIllustrationCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
-        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(title);
-        column.add(Box.createVerticalStrut(4));
-        column.add(refs.homeIllustrationCombo);
-        column.add(Box.createVerticalStrut(4));
-        column.add(hint);
-        return column;
-    }
-
-    private static JPanel windowTransparencyRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
-        refs.windowTransparencySlider = WindowChrome.createTransparencySlider(mainFont);
-        refs.windowTransparencySlider.setMajorTickSpacing(20);
-        refs.windowTransparencyValueLabel = WindowChrome.createTransparencyValueLabel(mainFont, 0);
-
-        JLabel hint = new CompactShellPanels.WrappingLabel(
-                "向右越透明，方便同時看到後面的畫面。最透明仍保留部分不透明度，以免點不到。");
-        hint.setFont(mainFont);
-        hint.setForeground(NightTheme.MUTED);
-
-        JLabel opacityLabel = new JLabel("透明度：");
-        opacityLabel.setFont(mainFont);
-        opacityLabel.setLabelFor(refs.windowTransparencySlider);
-
-        JPanel header = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        header.setOpaque(false);
-        header.setAlignmentX(Component.LEFT_ALIGNMENT);
-        header.add(opacityLabel);
-        header.add(refs.windowTransparencyValueLabel);
-
-        int sliderH = refs.windowTransparencySlider.getPreferredSize().height;
-        refs.windowTransparencySlider.setAlignmentX(Component.LEFT_ALIGNMENT);
-        refs.windowTransparencySlider.setMaximumSize(new Dimension(Integer.MAX_VALUE, sliderH));
-        refs.windowTransparencySlider.setMinimumSize(new Dimension(100, sliderH));
-
-        JPanel column = new JPanel();
-        column.setOpaque(false);
-        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-        column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(header);
-        column.add(Box.createVerticalStrut(4));
-        column.add(refs.windowTransparencySlider);
-        column.add(Box.createVerticalStrut(4));
-        column.add(hint);
-        return column;
-    }
-
     private static JPanel dockIconSwimsuitRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
         refs.dockIconSwimsuitSwitch = new CandySwitch();
         refs.dockIconSwimsuitSwitch.setSelected(false);
@@ -391,50 +305,6 @@ public class PanelFactory {
         JPanel line = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         line.setOpaque(false);
         line.add(refs.dockIconSwimsuitSwitch);
-        line.add(title);
-
-        JPanel column = new JPanel();
-        column.setOpaque(false);
-        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
-        column.setAlignmentX(Component.LEFT_ALIGNMENT);
-        line.setAlignmentX(Component.LEFT_ALIGNMENT);
-        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
-        column.add(line);
-        column.add(Box.createVerticalStrut(4));
-        column.add(hint);
-        return column;
-    }
-
-    private static JPanel checkInUiRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
-        refs.checkInUiVisibleSwitch = new CandySwitch();
-        refs.checkInUiVisibleSwitch.setSelected(true);
-        refs.checkInUiVisibleSwitch.setFont(boldFont);
-        refs.checkInUiVisibleSwitch.getAccessibleContext().setAccessibleName("顯示打卡介面");
-        String tip = "關閉後隱藏排程分頁與首頁打卡資訊；已設定的自動打卡仍會在背景執行。";
-        refs.checkInUiVisibleSwitch.setToolTipText(tip);
-
-        JLabel title = new JLabel("顯示打卡");
-        title.setFont(boldFont);
-        title.setLabelFor(refs.checkInUiVisibleSwitch);
-        title.setToolTipText(tip);
-        title.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        title.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (refs.checkInUiVisibleSwitch.isEnabled()) {
-                    refs.checkInUiVisibleSwitch.doClick();
-                }
-            }
-        });
-
-        JLabel hint = new CompactShellPanels.WrappingLabel(
-                "辦公室想低調時可關閉。切換後仍可在這裡重新開啟。");
-        hint.setFont(mainFont);
-        hint.setForeground(NightTheme.MUTED);
-
-        JPanel line = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        line.setOpaque(false);
-        line.add(refs.checkInUiVisibleSwitch);
         line.add(title);
 
         JPanel column = new JPanel();
@@ -2313,14 +2183,6 @@ public class PanelFactory {
         row.setPreferredSize(new Dimension(280, h));
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
         return row;
-    }
-
-    private static void stretchComboWidth(JComboBox<?> combo, int minWidth) {
-        int h = Math.max(combo.getPreferredSize().height, 30);
-        int w = Math.max(combo.getPreferredSize().width, minWidth);
-        combo.setMinimumSize(new Dimension(minWidth, h));
-        combo.setPreferredSize(new Dimension(w, h));
-        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, h));
     }
 
     /** 鎖定下拉選單尺寸，避免窄欄位擠壓時分選單。中文數字需要比「00」的測量值更寬。 */

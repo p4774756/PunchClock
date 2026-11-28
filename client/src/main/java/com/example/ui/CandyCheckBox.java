@@ -76,7 +76,7 @@ public class CandyCheckBox extends JCheckBox {
                 g.fillRoundRect(boxX, boxY, BOX, BOX, CandyTheme.RADIUS_CHECK, CandyTheme.RADIUS_CHECK);
                 g.setColor(new java.awt.Color(255, 255, 255, enabled ? 70 : 30));
                 g.fillRoundRect(boxX + 2, boxY + 1, BOX - 4, BOX / 3, CandyTheme.RADIUS_CHECK, CandyTheme.RADIUS_CHECK);
-                CandyDraw.check(g, boxX, boxY, BOX, enabled ? CandyTheme.INK : CandyTheme.MUTED);
+                CandyDraw.check(g, boxX, boxY, BOX, enabled ? CandyTheme.PINK_INK : CandyTheme.MUTED);
             } else {
                 java.awt.Color fill = enabled ? CandyTheme.FIELD : CandyTheme.fade(CandyTheme.FIELD);
                 if (pressed) {
