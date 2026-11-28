@@ -285,6 +285,8 @@ public class PublicOfficeAuthTest {
         assertTrue(response.body().contains("is-authenticated"));
         assertTrue(response.body().contains("PUNCHCLOCK_AUTHENTICATED = true"));
         assertTrue(response.body().contains("href=\"/logout\""));
+        String expectedCsrf = server.csrfHeaderFromCookie(cookie);
+        assertTrue(response.body().contains("PUNCHCLOCK_CSRF = \"" + expectedCsrf + "\""));
     }
 
     @Test
@@ -423,6 +425,44 @@ public class PublicOfficeAuthTest {
                 (cp >= 0x1F300 && cp <= 0x1FAFF)
                         || (cp >= 0x2600 && cp <= 0x27BF)
                         || cp == 0xFE0F);
+    }
+
+    @Test
+    public void guestSessionEndpointDoesNotIssueCsrf() throws Exception {
+        HttpResponse<String> response = send("GET", "/api/auth/session", null);
+        assertEquals(200, response.statusCode());
+        assertTrue(response.body().contains("\"authenticated\":false"));
+        assertFalse(response.body().contains("csrfToken"));
+    }
+
+    @Test
+    public void signedInSessionEndpointReturnsCsrf() throws Exception {
+        HttpResponse<String> response = send("GET", "/api/auth/session", adminCookie);
+        assertEquals(200, response.statusCode());
+        String expectedCsrf = server.csrfHeaderFromCookie(adminCookie);
+        assertTrue(response.body().contains("\"authenticated\":true"));
+        assertTrue(response.body().contains("\"username\":\"root\""));
+        assertTrue(response.body().contains("\"csrfToken\":\"" + expectedCsrf + "\""));
+    }
+
+    @Test
+    public void postLogoutJsonClearsSessionWhenCsrfValid() throws Exception {
+        HttpResponse<String> logout = sendPostLogoutJson(adminCookie, server.csrfHeaderFromCookie(adminCookie));
+        assertEquals(200, logout.statusCode());
+        assertTrue(logout.body().contains("\"success\":true"));
+        assertDeniedManagement(send("GET", "/api/status", adminCookie));
+    }
+
+    private HttpResponse<String> sendPostLogoutJson(String cookie, String csrf) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(base + "/logout"))
+                .timeout(Duration.ofSeconds(5))
+                .header("Accept", "application/json")
+                .header(com.example.server.auth.CsrfTokens.HEADER, csrf)
+                .POST(HttpRequest.BodyPublishers.noBody());
+        if (cookie != null) {
+            builder.header("Cookie", cookie);
+        }
+        return http.send(builder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
     private HttpResponse<String> sendPostLogout(String cookie, String csrf) throws Exception {
