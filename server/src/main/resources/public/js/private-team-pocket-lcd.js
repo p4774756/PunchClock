@@ -22,107 +22,147 @@ const PAL = {
   dim: '#8bac0f'
 };
 
-/** 8×8 像素圖：1=主色 2=次色 */
+/** 12×12 像素圖：1=主色（最深綠）2=次色（深綠陰影）；比舊 8×8 更大、剪影更易辨認。 */
 const PX = {
   apple: [
-    '...11...',
-    '..1111..',
-    '.112211.',
-    '.112211.',
-    '.112211.',
-    '..1221..',
-    '...11...',
-    '........'
+    '....11......',
+    '...111......',
+    '....1.22....',
+    '...111111...',
+    '..11111111..',
+    '..11122111..',
+    '..11222211..',
+    '..11222211..',
+    '..11122111..',
+    '...111111...',
+    '....1111....',
+    '............'
   ],
   orange: [
-    '...11...',
-    '..1221..',
-    '.12221.',
-    '.12221.',
-    '.12221.',
-    '..111..',
-    '...1...',
-    '........'
+    '......11....',
+    '.....122....',
+    '...111111...',
+    '..11222211..',
+    '..12222221..',
+    '..12222221..',
+    '..12222221..',
+    '..12222221..',
+    '..11222211..',
+    '...111111...',
+    '....1..1....',
+    '............'
   ],
   lemon: [
-    '...11...',
-    '..1221..',
-    '.12221.',
-    '.12221.',
-    '..1221..',
-    '...11...',
-    '..1.1..',
-    '........'
+    '............',
+    '.....11.....',
+    '...122221...',
+    '..12222221..',
+    '.1222222221.',
+    '122222222221',
+    '122222222221',
+    '.1222222221.',
+    '..12222221..',
+    '...122221...',
+    '.....11.....',
+    '............'
   ],
   bell: [
-    '..1111..',
-    '.122221.',
-    '.122221.',
-    '.122221.',
-    '..1221..',
-    '...11...',
-    '..1111..',
-    '...11...'
+    '.....11.....',
+    '....1221....',
+    '...122221...',
+    '...122221...',
+    '..12222221..',
+    '..12222221..',
+    '..12222221..',
+    '.1222222221.',
+    '..11111111..',
+    '.1111111111.',
+    '.....11.....',
+    '............'
   ],
   watermelon: [
-    '..1111..',
-    '.122221.',
-    '.123321.',
-    '.123321.',
-    '.122221.',
-    '..1111..',
-    '...11...',
-    '........'
+    '............',
+    '.1111111111.',
+    '112222222211',
+    '121212121211',
+    '112121212211',
+    '.1212121211.',
+    '.1111111111.',
+    '..22222222..',
+    '...222222...',
+    '....2222....',
+    '.....22.....',
+    '............'
   ],
   star: [
-    '...1....',
-    '..111...',
-    '.11111.',
-    '..111..',
-    '.1.1.1.',
-    '........',
-    '........',
-    '........'
+    '.....11.....',
+    '.....11.....',
+    '....1111....',
+    '111111111111',
+    '.1111111111.',
+    '..11111111..',
+    '..11111111..',
+    '.1111..1111.',
+    '.111....111.',
+    '11........11',
+    '1..........1',
+    '............'
   ],
   seven: [
-    '.11111.',
-    '.....1.',
-    '....1..',
-    '...1...',
-    '..1....',
-    '.1.....',
-    '1......',
-    '........'
+    '.1111111111.',
+    '11111111111.',
+    '11.......11.',
+    '........11..',
+    '.......11...',
+    '......11....',
+    '.....11.....',
+    '....11......',
+    '...11.......',
+    '..11........',
+    '.11.........',
+    '............'
   ],
   bar: [
-    '.11111.',
-    '.1...1.',
-    '.11111.',
-    '.1...1.',
-    '.11111.',
-    '........',
-    '........',
-    '........'
+    '............',
+    '111111111111',
+    '1..........1',
+    '1.11.1.111.1',
+    '1.1.1.1.1.11',
+    '1.11.1.111.1',
+    '1.1.1.1.1.1.',
+    '1.11.1.1.11.',
+    '1..........1',
+    '111111111111',
+    '............',
+    '............'
   ],
   lucky: [
-    '...1....',
-    '..1.1...',
-    '.1...1..',
-    '...1....',
-    '..1.1...',
-    '.1...1..',
-    '...1....',
-    '........'
+    '...11..11...',
+    '..12211221..',
+    '..12211221..',
+    '...111111...',
+    '..12211221..',
+    '..12211221..',
+    '...11..11...',
+    '.....11.....',
+    '.....11.....',
+    '.....11.....',
+    '....1111....',
+    '............'
   ],
   again: [
-    '...11...',
-    '..1..2..',
-    '.1....2.',
-    '......2.',
-    '.2....1.',
-    '..2..1..',
-    '...22...',
-    '........'
+    '....1111....',
+    '...1....2...',
+    '..1......2..',
+    '.1........2.',
+    '.1..........',
+    '.1........2.',
+    '.2........1.',
+    '..........1.',
+    '.2........1.',
+    '..2......1..',
+    '...2....1...',
+    '....2222....'
   ]
 };
 
@@ -187,16 +227,16 @@ function spriteKey(cell) {
 function drawPixelSprite(ctx, key, cx, cy, on, flashOn) {
   const rows = PX[key];
   if (!rows) return;
-  const sz = 8;
-  const x0 = cx - sz / 2;
-  const y0 = cy - sz / 2;
+  const sz = rows.length;
+  const x0 = Math.round(cx - sz / 2);
+  const y0 = Math.round(cy - sz / 2);
   const ink = on && flashOn ? PAL.bg : on ? PAL.bgHi : PAL.ink;
   const inkLo = on && flashOn ? PAL.bgHi : on ? PAL.dim : PAL.inkLo;
   for (let y = 0; y < rows.length; y++) {
     const row = rows[y];
     for (let x = 0; x < row.length; x++) {
       const c = row[x];
-      if (c === '.') continue;
+      if (c === '.' || (c !== '1' && c !== '2')) continue;
       ctx.fillStyle = c === '2' ? inkLo : ink;
       ctx.fillRect(x0 + x, y0 + y, 1, 1);
     }
@@ -225,31 +265,38 @@ function drawMaryTitle(ctx, cx, cy, frame) {
   const fr = frame % 48;
   const shift = fr < 8 ? 0 : fr < 16 ? 1 : 0;
   ctx.fillStyle = PAL.ink;
-  ctx.font = 'bold 9px monospace';
+  ctx.font = 'bold 11px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('小瑪莉', cx - shift, cy - 9);
+  ctx.fillText('小瑪莉', cx - shift, cy - 11);
 }
 
-function drawBetRow(ctx, st, lit, flashOn) {
-  const yIcon = POCKET_LCD_H - 18;
-  const yNum = POCKET_LCD_H - 8;
+function drawBetRow(ctx, st, lit, flashOn, frame) {
+  const yIcon = POCKET_LCD_H - 20;
+  const yNum = POCKET_LCD_H - 7;
   const n = POCKET_MARY_SYMBOL_COUNT;
   const slotW = POCKET_LCD_W / n;
   const bets = st.bets || [];
+  const fr = frame != null ? Math.floor(Number(frame)) : 0;
   for (let id = 0; id < n; id++) {
     const cx = slotW * id + slotW / 2;
     const on = st.phase !== MARY_PHASE.BET && lit >= 0 && POCKET_MARY_RING[lit] &&
       POCKET_MARY_RING[lit].t === 'sym' && POCKET_MARY_RING[lit].id === id;
     const cur = st.phase === MARY_PHASE.BET && st.cursor === id;
     if (cur) {
-      ctx.fillStyle = PAL.inkLo;
-      ctx.fillRect(cx - 9, yIcon - 10, 18, 20);
+      // 最深底＋淺色外框，對比比舊的中綠底明顯；外框輕微閃爍方便在手機上找到游標。
+      const x = Math.round(cx - 10);
+      const y = yIcon - 8;
+      const blink = fr % 16 < 10;
+      ctx.fillStyle = blink ? PAL.bg : PAL.bgHi;
+      ctx.fillRect(x, y, 20, 26);
+      ctx.fillStyle = PAL.ink;
+      ctx.fillRect(x + 2, y + 2, 16, 22);
     }
-    drawPixelSprite(ctx, SYM_KEYS[id], cx, yIcon - 2, on || cur, flashOn);
+    drawPixelSprite(ctx, SYM_KEYS[id], cx, yIcon - 1, on || cur, cur ? true : flashOn);
     const amt = Math.max(0, Math.floor(bets[id] || 0));
-    ctx.fillStyle = PAL.ink;
-    ctx.font = '6px monospace';
+    ctx.fillStyle = cur ? PAL.bg : PAL.ink;
+    ctx.font = '7px monospace';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'top';
     ctx.fillText(String(amt), cx, yNum);
@@ -262,6 +309,8 @@ export function drawPocketMaryLcd(ctx, state, frame) {
   const fr = frame != null ? Math.floor(Number(frame)) : 0;
   const flashOn = st.flash <= 0 || fr % 8 < 4;
   const lit = st.phase === MARY_PHASE.SPIN ? st.litIndex : st.stopIndex;
+
+  ctx.imageSmoothingEnabled = false;
 
   drawScanlines(ctx);
 
@@ -278,36 +327,37 @@ export function drawPocketMaryLcd(ctx, state, frame) {
   }
 
   const { x: cx, y: cy } = pocketMaryRingHoleCenter();
-  const panelHalfH = 20;
+  const panelHalfH = 24;
+  const panelHalfW = 38;
   ctx.fillStyle = PAL.bgHi;
-  ctx.fillRect(cx - 32, cy - panelHalfH, 64, panelHalfH * 2);
+  ctx.fillRect(cx - panelHalfW, cy - panelHalfH, panelHalfW * 2, panelHalfH * 2);
   ctx.strokeStyle = PAL.ink;
   ctx.lineWidth = 1;
-  ctx.strokeRect(cx - 32, cy - panelHalfH, 64, panelHalfH * 2);
+  ctx.strokeRect(cx - panelHalfW, cy - panelHalfH, panelHalfW * 2, panelHalfH * 2);
 
   drawMaryTitle(ctx, cx, cy, fr);
 
   ctx.fillStyle = PAL.ink;
-  ctx.font = '7px monospace';
+  ctx.font = 'bold 10px monospace';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   const statusShort = st.status || '';
-  ctx.fillText(statusShort.slice(0, 10), cx, cy + 2);
+  ctx.fillText(statusShort.slice(0, 8), cx, cy + 3);
 
   if (st.phase === MARY_PHASE.BET) {
     const total = maryTotalBet(st);
-    ctx.font = '6px monospace';
-    ctx.fillText('總' + total, cx, cy + 11);
+    ctx.font = 'bold 8px monospace';
+    ctx.fillText('總注 ' + total, cx, cy + 15);
   } else if (st.phase === MARY_PHASE.DOUBLE) {
     const hint = st.doublePick === 'small' ? '1-6小' : st.doublePick === 'big' ? '8-13大' : '左右押';
-    ctx.font = '6px monospace';
-    ctx.fillText(hint + ' A比', cx, cy + 11);
+    ctx.font = 'bold 8px monospace';
+    ctx.fillText(hint + ' A比', cx, cy + 15);
   } else if (st.phase === MARY_PHASE.WIN) {
-    ctx.font = '6px monospace';
-    ctx.fillText('A收 B比', cx, cy + 11);
+    ctx.font = 'bold 8px monospace';
+    ctx.fillText('A收 B比', cx, cy + 15);
   }
 
-  drawBetRow(ctx, st, lit, flashOn);
+  drawBetRow(ctx, st, lit, flashOn, fr);
 }
 
 export function drawPocketIdleLcd(ctx, opts) {
