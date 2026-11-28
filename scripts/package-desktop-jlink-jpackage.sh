@@ -63,12 +63,10 @@ PACK_JAR="$DESKTOP_BUILD/SKLbaby-pack.jar"
 cp "$JAR" "$PACK_JAR"
 trim_playwright_driver "$PACK_JAR" "$PACKAGE_TYPE"
 
+# #769 之後 Playwright driver 改第一次使用時下載，shade jar 已排除 driver/**。
+# 若舊包仍含 driver，只禁止把 node 執行檔打進去；不再要求 package.json 一定在 jar 裡。
 if jar tf "$PACK_JAR" | grep -E 'driver/.*/node(\.exe)?$' >/dev/null; then
   echo "Playwright node binary is still inside the pack jar" >&2
-  exit 1
-fi
-if ! jar tf "$PACK_JAR" | grep -E 'driver/.*/package/package.json$' >/dev/null; then
-  echo "Playwright driver package is missing from the pack jar" >&2
   exit 1
 fi
 
