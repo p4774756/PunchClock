@@ -170,6 +170,8 @@ import {
   secretarySofaPlacementForOutfit
 } from './private-team-scene-lounge.js';
 
+import { addPrivateTeamGalleryLighting } from './private-team-scene-gallery-lighting.js';
+
 import {
   PRIVATE_TEAM_TUB_RIM_TOP_Y,
   PRIVATE_TEAM_TUB_SHELL_BOTTOM_Y,
@@ -403,9 +405,12 @@ export function mountPrivateTeamScene(canvas, opts) {
   scene.background = new THREE.Color(lighting.background);
   const amb = new THREE.AmbientLight(lighting.ambColor, lighting.amb);
   const hemi = new THREE.HemisphereLight(0xe4eeff, 0x6a7078, lighting.hemi);
-  const dir = new THREE.DirectionalLight(lighting.dirColor, lighting.dir + 0.08);
+  const dirBoost = lighting.dirBoost != null ? lighting.dirBoost : 0.05;
+  const dir = new THREE.DirectionalLight(lighting.dirColor, lighting.dir + dirBoost);
   dir.position.set(1.4, 6.2, -7.5);
   scene.add(amb, hemi, dir);
+
+  let galleryLighting = null;
 
   const texLoader = new THREE.TextureLoader();
   const wallTex = loadRepeatTex(texLoader, 'wall.webp', 2.2, 1.4);
@@ -859,6 +864,16 @@ export function mountPrivateTeamScene(canvas, opts) {
   const vinylDisc = loungeFurnishing.vinylDisc;
   const vinylNotes = loungeFurnishing.vinylNotes;
 
+  galleryLighting = addPrivateTeamGalleryLighting(root, {
+    wallH,
+    wallY,
+    leftX,
+    backZ,
+    tubCx: TUB_CX,
+    tubCz: TUB_CZ,
+    rimTopY: RIM_TOP_Y
+  });
+
   const moonTex = makeWindowMoonlightFloorTexture();
   moonTex.repeat.set(1.1, 1);
   const moonFloorMat = new THREE.MeshBasicMaterial({
@@ -1202,7 +1217,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     amb.intensity = lt.amb;
     hemi.intensity = lt.hemi;
     dir.color.setHex(lt.dirColor);
-    dir.intensity = lt.dir + 0.08;
+    dir.intensity = lt.dir + (lt.dirBoost != null ? lt.dirBoost : 0.05);
     if (scene.background && scene.background.isColor) {
       scene.background.setHex(lt.background);
     }
@@ -1237,6 +1252,9 @@ export function mountPrivateTeamScene(canvas, opts) {
     windowVistaRiver.userData.riverBaseOpacity = riverOp;
     windowVistaRiver.material.opacity = riverOp;
     windowStreetTraffic.material.opacity = period === 'day' ? 0.32 : 0.4;
+    if (galleryLighting && galleryLighting.applyPeriod) {
+      galleryLighting.applyPeriod(lt);
+    }
   }
 
   applyWindowScenePeriod(windowVistaPeriod);
