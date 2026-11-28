@@ -895,22 +895,27 @@ public class PanelFactory {
         refs.statusTextField = new javax.swing.JTextField();
         refs.statusTextField.setFont(mainFont);
         refs.statusTextField.setToolTipText(
-                "好友列表上顯示的一句話，最多 20 個字；可留空。按 Enter 或「套用」後立即生效並儲存");
+                "好友列表上顯示的一句話，最多 20 個字；可留空。按 Enter 或確認後立即生效並儲存，Esc 或取消會還原");
+        CandyTextField.install(refs.statusTextField, true);
         installPeerStatusTextLimit(refs.statusTextField);
+        ConfirmEditSupport.attachCounter(refs.statusTextField,
+                com.example.PeerFileRules.PEER_STATUS_TEXT_MAX_CODE_POINTS);
         int statusFieldHeight = Math.max(refs.statusTextField.getPreferredSize().height, 30);
         refs.statusTextField.putClientProperty("flex", Boolean.TRUE);
         refs.statusTextField.setMinimumSize(new Dimension(0, statusFieldHeight));
         refs.statusTextField.setPreferredSize(new Dimension(148, statusFieldHeight));
         refs.statusTextField.setMaximumSize(new Dimension(Integer.MAX_VALUE, statusFieldHeight));
-        refs.statusApplyButton = candyButton(
-                "套用", CandyButton.Variant.SECONDARY, mainFont, "按 Enter 或「套用」後立即生效並儲存");
+        refs.statusApplyButton = ConfirmEditSupport.confirmButton(mainFont);
         refs.statusApplyButton.setEnabled(false);
+        refs.statusCancelButton = ConfirmEditSupport.cancelButton(mainFont);
+        refs.statusCancelButton.setEnabled(false);
+        ConfirmEditSupport.bindEscape(refs.statusTextField, () -> refs.statusCancelButton.doClick());
         JLabel statusLabel = new JLabel("狀態：");
         statusLabel.setFont(mainFont);
         JPanel statusRow = PanelFactoryFormLayout.shrinkRow(4);
         statusRow.add(statusLabel);
         statusRow.add(refs.statusTextField);
-        statusRow.add(refs.statusApplyButton);
+        statusRow.add(ConfirmEditSupport.buttonCluster(refs.statusApplyButton, refs.statusCancelButton));
         refs.statusRow = statusRow;
 
         String[] workerOptions = {"company-worker", "company-worker2", "company-worker3", "company-worker4"};
@@ -920,7 +925,7 @@ public class PanelFactory {
         refs.clientIdCombo.setPrototypeDisplayValue("company-worker4");
         refs.clientIdCombo.setToolTipText(
                 "好友看到的本機名稱。可下拉選擇或自行輸入；雲端連線中也可直接修改。"
-                        + " 按 Enter 或「套用」後立即生效並儲存");
+                        + " 按 Enter 或確認後立即生效並儲存，Esc 或取消會還原");
         CandyComboBox.install(refs.clientIdCombo);
         Component idEditor = refs.clientIdCombo.getEditor().getEditorComponent();
         if (idEditor != null) {
@@ -932,9 +937,11 @@ public class PanelFactory {
         refs.clientIdCombo.setPreferredSize(new Dimension(148, idHeight));
         refs.clientIdCombo.setMaximumSize(new Dimension(168, idHeight));
 
-        refs.clientIdApplyButton = candyButton(
-                "套用", CandyButton.Variant.SECONDARY, mainFont, "按 Enter 或「套用」後立即生效並儲存");
+        refs.clientIdApplyButton = ConfirmEditSupport.confirmButton(mainFont);
         refs.clientIdApplyButton.setEnabled(false);
+        refs.clientIdCancelButton = ConfirmEditSupport.cancelButton(mainFont);
+        refs.clientIdCancelButton.setEnabled(false);
+        ConfirmEditSupport.bindEscape(refs.clientIdCombo, () -> refs.clientIdCancelButton.doClick());
         refs.clientIdSavedLabel = new JLabel("✓ 已儲存");
         refs.clientIdSavedLabel.setFont(mainFont);
         refs.clientIdSavedLabel.setForeground(new Color(144, 230, 176));
@@ -944,7 +951,7 @@ public class PanelFactory {
         JPanel idRow = PanelFactoryFormLayout.shrinkRow(4);
         idRow.add(idLabel);
         idRow.add(refs.clientIdCombo);
-        idRow.add(refs.clientIdApplyButton);
+        idRow.add(ConfirmEditSupport.buttonCluster(refs.clientIdApplyButton, refs.clientIdCancelButton));
         idRow.add(refs.clientIdSavedLabel);
 
         refs.openChatButton = candyButton(
@@ -1365,6 +1372,7 @@ public class PanelFactory {
         public JLabel peerStatusLabel;
         public JComboBox<String> clientIdCombo;
         public JButton clientIdApplyButton;
+        public JButton clientIdCancelButton;
         public JLabel clientIdSavedLabel;
         public JLabel avatarPreview;
         public JButton chooseAvatarButton;
@@ -1372,6 +1380,7 @@ public class PanelFactory {
         public JPanel avatarRow;
         public javax.swing.JTextField statusTextField;
         public JButton statusApplyButton;
+        public JButton statusCancelButton;
         public JPanel statusRow;
     }
 
@@ -1501,15 +1510,18 @@ public class PanelFactory {
 
         refs.nameField = new CandyTextField(title, 10);
         refs.nameField.setFont(mainFont);
-        refs.nameField.setToolTipText("這個排程的名稱。改完後，本機和後台的任務卡都會顯示這個名字。最多 24 個字。");
+        refs.nameField.setToolTipText("這個排程的名稱。改完後，本機和後台的任務卡都會顯示這個名字。最多 24 個字。確認後儲存，取消會還原。");
         int nameHeight = Math.max(30, refs.nameField.getPreferredSize().height);
         refs.nameField.putClientProperty("flex", Boolean.TRUE);
         refs.nameField.setMinimumSize(new Dimension(0, nameHeight));
         refs.nameField.setPreferredSize(new Dimension(96, nameHeight));
         refs.nameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, nameHeight));
-        refs.nameApplyButton = candyButton("套用", CandyButton.Variant.SECONDARY, mainFont,
-                "儲存排程名稱（也可按 Enter）");
+        ConfirmEditSupport.attachCounter(refs.nameField, com.example.model.WorkSlot.MAX_NAME_CHARS);
+        refs.nameApplyButton = ConfirmEditSupport.confirmButton(mainFont);
         refs.nameApplyButton.setEnabled(false);
+        refs.nameCancelButton = ConfirmEditSupport.cancelButton(mainFont);
+        refs.nameCancelButton.setEnabled(false);
+        ConfirmEditSupport.bindEscape(refs.nameField, () -> refs.nameCancelButton.doClick());
         refs.nameSavedLabel = new JLabel("已儲存");
         refs.nameSavedLabel.setFont(mainFont);
         refs.nameSavedLabel.setForeground(new Color(144, 230, 176));
@@ -1517,7 +1529,7 @@ public class PanelFactory {
         JPanel nameRow = PanelFactoryFormLayout.shrinkRow(4);
         nameRow.add(labeled(mainFont, "名稱"));
         nameRow.add(refs.nameField);
-        nameRow.add(refs.nameApplyButton);
+        nameRow.add(ConfirmEditSupport.buttonCluster(refs.nameApplyButton, refs.nameCancelButton));
         nameRow.add(refs.nameSavedLabel);
         nameRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -1666,6 +1678,7 @@ public class PanelFactory {
         public JLabel resultLabel;
         public JLabel lockedSettingsLabel;
         public JButton nameApplyButton;
+        public JButton nameCancelButton;
         public JLabel nameSavedLabel;
     }
 

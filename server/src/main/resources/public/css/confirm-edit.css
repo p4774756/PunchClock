@@ -1,0 +1,66 @@
+.confirm-edit {
+  display: flex;
+  align-items: stretch;
+  gap: 0.3rem;
+  min-width: 0;
+  width: 100%;
+}
+
+.confirm-edit-field {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.confirm-edit-field input,
+.confirm-edit-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding-right: 2.75rem;
+}
+
+.confirm-edit-count {
+  position: absolute;
+  right: 0.55rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.75rem;
+  line-height: 1;
+  color: #6b7280;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.confirm-edit-ok,
+.confirm-edit-cancel {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  width: 2.15rem;
+  height: 2.15rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 2px solid var(--maple-navy, #163a70);
+  background: #fff;
+  color: var(--maple-ink, #1f2a3a);
+  cursor: pointer;
+}
+
+.confirm-edit-ok:hover,
+.confirm-edit-cancel:hover {
+  background: #eef3fb;
+}
+
+.confirm-edit-ok:disabled,
+.confirm-edit-cancel:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.confirm-edit-ok:focus-visible,
+.confirm-edit-cancel:focus-visible {
+  outline: 3px solid var(--maple-gold-hi, #f8dc6e);
+  outline-offset: 1px;
+}

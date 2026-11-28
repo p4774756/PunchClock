@@ -90,6 +90,7 @@ public class NarrowShellLayoutTest {
             assertFits(scroll, refs.openChatButton);
             assertFits(scroll, refs.clientIdCombo);
             assertFits(scroll, refs.clientIdApplyButton);
+            assertFits(scroll, refs.clientIdCancelButton);
             assertTrue(refs.peerTable.getWidth() > 0);
             assertTrue(refs.peerTable.getWidth() <= VIEW_W);
             assertEquals(2, refs.peerTable.getColumnCount());
@@ -126,6 +127,8 @@ public class NarrowShellLayoutTest {
             assertEquals(CandyTheme.PINK_INK.getRGB(), selected.getForeground().getRGB());
             assertTrue(refs.statusApplyButton != null);
             assertFits(scroll, refs.statusApplyButton);
+            assertTrue(refs.statusCancelButton != null);
+            assertFits(scroll, refs.statusCancelButton);
             assertEquals("★", refs.peerTableModel.getValueAt(1, PanelFactory.PEER_FAVORITE_COLUMN));
             refs.peerTableModel.setValueAt(PanelFactory.PEER_FAVORITE_OFF, 1, PanelFactory.PEER_FAVORITE_COLUMN);
             assertEquals("☆", refs.peerTableModel.getValueAt(1, PanelFactory.PEER_FAVORITE_COLUMN));

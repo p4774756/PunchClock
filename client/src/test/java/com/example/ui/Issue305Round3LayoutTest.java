@@ -61,7 +61,11 @@ public class Issue305Round3LayoutTest {
             assertSameBand(peer.avatarRow, "def-avatar");
             JComponent idRow = (JComponent) peer.clientIdCombo.getParent();
             assertSameBand(idRow, "def-id");
-            assertTrue(peer.clientIdApplyButton.getX() > peer.clientIdCombo.getX());
+            java.awt.Point applyOnRow = SwingUtilities.convertPoint(
+                    peer.clientIdApplyButton.getParent(),
+                    peer.clientIdApplyButton.getLocation(),
+                    idRow);
+            assertTrue(applyOnRow.x > peer.clientIdCombo.getX());
 
             select(def.tabs, 1);
             settingsTabs(settings).setSelectedIndex(0);
