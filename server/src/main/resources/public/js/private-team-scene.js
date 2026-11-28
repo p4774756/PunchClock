@@ -786,7 +786,8 @@ export function mountPrivateTeamScene(canvas, opts) {
     leftWallMat
   );
   windowMoonlightLeftWall.rotation.y = Math.PI / 2;
-  windowMoonlightLeftWall.position.set(leftX + WALL_THICK + 0.012, 1.02, 0);
+  windowMoonlightLeftWall.position.set(leftX + WALL_THICK + 0.006, 1.02, 0);
+  windowMoonlightLeftWall.renderOrder = 1;
   windowMoonlightLeftWall.name = 'windowMoonlightLeftWall';
   root.add(windowMoonlightLeftWall);
 
@@ -801,7 +802,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   const leftPosterFrameW = 0.028;
   const leftPosterGroup = new THREE.Group();
   leftPosterGroup.name = 'leftWallPoster';
-  leftPosterGroup.position.set(leftX + WALL_THICK + 0.01, wallY, 0);
+  leftPosterGroup.position.set(leftX + WALL_THICK + 0.02, wallY, 0);
   leftPosterGroup.rotation.y = Math.PI / 2;
   leftPosterGroup.userData.pickRole = 'leftPoster';
 
@@ -827,10 +828,14 @@ export function mountPrivateTeamScene(canvas, opts) {
     map: posterTextures[leftPosterIndex] || ensurePosterTexture(0),
     color: 0xfff4ec,
     emissive: 0x120c08,
-    emissiveIntensity: 0.07
+    emissiveIntensity: 0.07,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2
   });
   const posterPlane = new THREE.Mesh(new THREE.PlaneGeometry(LEFT_POSTER_W, LEFT_POSTER_H), posterMat);
-  posterPlane.position.set(0, 0, 0.022);
+  posterPlane.position.set(0, 0, 0.036);
+  posterPlane.renderOrder = 3;
   posterPlane.userData.pickRole = 'leftPoster';
   leftPosterGroup.add(posterPlane);
 
@@ -846,7 +851,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     0.032,
     0,
     LEFT_POSTER_H / 2 + leftPosterFrameW / 2,
-    0.018
+    0.01
   );
   addPosterFrameBar(
     LEFT_POSTER_W + 0.04,
@@ -854,7 +859,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     0.032,
     0,
     -(LEFT_POSTER_H / 2 + leftPosterFrameW / 2),
-    0.018
+    0.01
   );
   addPosterFrameBar(
     leftPosterFrameW,
@@ -862,7 +867,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     0.032,
     -(LEFT_POSTER_W / 2 + leftPosterFrameW / 2),
     0,
-    0.018
+    0.01
   );
   addPosterFrameBar(
     leftPosterFrameW,
@@ -870,7 +875,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     0.032,
     LEFT_POSTER_W / 2 + leftPosterFrameW / 2,
     0,
-    0.018
+    0.01
   );
 
   const brassPic = 0xc9a84c;
@@ -906,7 +911,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     picLampSpot.castShadow = false;
     picLampSpot.position.set(xOff, bulbY, bulbZ);
     const picLampSpotTarget = new THREE.Object3D();
-    picLampSpotTarget.position.set(xOff, LEFT_POSTER_H * 0.26, 0.022);
+    picLampSpotTarget.position.set(xOff, LEFT_POSTER_H * 0.26, 0.036);
     leftPosterGroup.add(picLampSpotTarget);
     picLampSpot.target = picLampSpotTarget;
     leftPosterGroup.add(picLampSpot);
@@ -926,6 +931,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       })
     );
     picLampCone.userData.posterPicLampCone = true;
+    picLampCone.renderOrder = 5;
     picLampCone.position.set(xOff, bulbY - coneH * 0.46, bulbZ - 0.012);
     picLampCone.rotation.x = 1.08;
     leftPosterGroup.add(picLampCone);
