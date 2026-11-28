@@ -192,6 +192,7 @@ test('休憩區狀態與黑膠旋轉、地板大理石', async () => {
   assert.doesNotMatch(src, /floor-wood\.webp/);
   assert.match(src, /floorMat = new THREE\.MeshStandardMaterial/);
   assert.match(src, /syncSecretaryPlacement/);
+  assert.match(src, /poseChanged/);
   assert.match(src, /SECRETARY_SPRITE_URL_SOFA|secretary-sofa\.webp/);
   assert.equal(SECRETARY_SPRITE_URL_SOFA, '/assets/private-team/secretary-sofa.webp');
 });
