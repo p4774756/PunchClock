@@ -68,10 +68,27 @@ final class DesktopPetMiluLayout {
 
     /**
      * 把已依 {@link #deviceScale} 畫滿的裝置像素緩衝貼回 stage。
-     * 目標尺寸用邏輯視窗寬高（目前 Graphics 使用者座標）；Retina 下 transform 已縮放時勿再乘一次。
+     * Graphics 已 {@code scale(deviceScale)} 時用邏輯視窗寬高；使用者座標已是裝置像素（單位矩陣）時用緩衝本體大小。
      */
-    static Rectangle blitDestRect(Graphics2D screen, int logicalWidth, int logicalHeight) {
-        return new Rectangle(0, 0, Math.max(1, logicalWidth), Math.max(1, logicalHeight));
+    static Rectangle blitDestRect(
+            Graphics2D screen, int logicalWidth, int logicalHeight, BufferedImage frame) {
+        int lw = Math.max(1, logicalWidth);
+        int lh = Math.max(1, logicalHeight);
+        if (frame == null) {
+            return new Rectangle(0, 0, lw, lh);
+        }
+        java.awt.geom.AffineTransform tx = screen.getTransform();
+        double sx = tx.getScaleX();
+        double sy = tx.getScaleY();
+        boolean deviceSpace =
+                Math.abs(sx - 1.0) < 0.05
+                        && Math.abs(sy - 1.0) < 0.05
+                        && Math.abs(tx.getShearX()) < 0.05
+                        && Math.abs(tx.getShearY()) < 0.05;
+        if (deviceSpace) {
+            return new Rectangle(0, 0, frame.getWidth(), frame.getHeight());
+        }
+        return new Rectangle(0, 0, lw, lh);
     }
 
     /** 裝置像素緩衝在螢幕上應佔的邏輯面積（測試用）。 */
@@ -94,7 +111,7 @@ final class DesktopPetMiluLayout {
         if (frame == null) {
             return;
         }
-        Rectangle dest = blitDestRect(screen, logicalWidth, logicalHeight);
+        Rectangle dest = blitDestRect(screen, logicalWidth, logicalHeight, frame);
         Object interpolation =
                 miluPixelFallback
                         ? RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR

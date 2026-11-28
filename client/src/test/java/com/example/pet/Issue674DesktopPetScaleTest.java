@@ -102,6 +102,32 @@ public class Issue674DesktopPetScaleTest {
         assertRetinaStageBlitShowsFullMilu(anim);
     }
 
+    @Test
+    public void retinaDeviceSpaceGraphicsShowsFullMiluAfterBlit() {
+        DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
+        assertNotNull(frames);
+        Rectangle view = DesktopPetWindow.stableShellFor(frames);
+        double pixelScale = 2;
+        int bw = DesktopPetMiluLayout.bufferPixelWidth(view.width, pixelScale);
+        int bh = DesktopPetMiluLayout.bufferPixelHeight(view.height, pixelScale);
+        BufferedImage frame = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
+        DesktopPetWindow.paintMiluViewport(frame, view, frames, new DesktopPetAnimation(), 0, 0, 0, 1, pixelScale);
+        BufferedImage viewport = new BufferedImage(bw, bh, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = viewport.createGraphics();
+        try {
+            DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, false);
+        } finally {
+            g.dispose();
+        }
+        Rectangle logical = DesktopPetMiluLayout.logicalCoverage(view.width, view.height, bw, bh, pixelScale);
+        DesktopPetWindow.assertOpaqueWithinViewport(viewport, 16);
+        Rectangle opaque = DesktopPetWindow.opaqueBounds(viewport, 16);
+        assertTrue("milu should span most of the viewport width", opaque.width >= logical.width * pixelScale * 2 / 3);
+        assertTrue(
+                "milu feet or body should reach below mid-height",
+                opaque.y + opaque.height >= logical.height * pixelScale / 2);
+    }
+
     private static void assertRetinaStageBlitShowsFullMilu(DesktopPetAnimation anim) {
         DesktopPetSpriteLoader.Frames frames = DesktopPetSpriteLoader.load();
         assertNotNull(frames);
