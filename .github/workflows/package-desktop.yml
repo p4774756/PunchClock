@@ -1,7 +1,7 @@
-# 小寶貝桌面安裝檔：push tag v* 會建 Release 並上傳 SKLbaby.jar。
-# workflow_dispatch 乾跑：Actions →「Package desktop installers」→ Run workflow，只產 workflow artifact、
-# 不建正式 Release。完成後在該次 run 下載 artifact，核對檔名與大小（腳本限 15–60 MiB）。
-# 不要用 workflow_dispatch 取代正式發版。
+# 小寶貝桌面包：push tag v* 會建 Release 並上傳 SKLbaby.jar。
+# workflow_dispatch 乾跑：Actions →「Package desktop installers」→ Run workflow，只產 jar artifact、
+# 不建正式 Release。不要用 workflow_dispatch 取代正式發版。
+# 正式發行只上 SKLbaby.jar，不再建 dmg／exe（Playwright driver 已改第一次使用時下載，不再打進 jar）。
 
 name: Package desktop installers
 
@@ -34,14 +34,14 @@ jobs:
               --latest
           fi
 
-  package-macos-arm:
+  package-jar:
     needs: create-release
     if: always() && !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped')
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 21 (jlink/jpackage)
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -80,109 +80,3 @@ jobs:
           gh release upload "$TAG" \
             client/target/SKLbaby.jar \
             --clobber
-
-      - name: Build .icns
-        run: |
-          chmod +x scripts/package-desktop-macos-icon.sh
-          scripts/package-desktop-macos-icon.sh client/src/main/resources/app-icon.png build/desktop/app-icon.icns
-
-      - name: jlink + jpackage (.dmg, Apple 晶片)
-        run: |
-          chmod +x scripts/package-desktop-jlink-jpackage.sh
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
-          scripts/package-desktop-jlink-jpackage.sh build/desktop/app-icon.icns dmg "$VERSION" SKLbaby-mac-arm.dmg
-
-      - name: Upload workflow artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: SKLbaby-mac-arm-dmg
-          path: build/desktop/SKLbaby-mac-arm.dmg
-          if-no-files-found: error
-
-  package-macos-intel:
-    needs: create-release
-    if: always() && !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped')
-    runs-on: macos-15-intel
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 21 (jlink/jpackage)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-
-      - name: Build shade jar (bytecode 11)
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
-          mvn -B -q versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
-          mvn -B -q -pl client -am package -DskipTests -P '!git-commit-time'
-
-      - name: Build .icns
-        run: |
-          chmod +x scripts/package-desktop-macos-icon.sh
-          scripts/package-desktop-macos-icon.sh client/src/main/resources/app-icon.png build/desktop/app-icon.icns
-
-      - name: jlink + jpackage (.dmg, Intel)
-        run: |
-          chmod +x scripts/package-desktop-jlink-jpackage.sh
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
-          scripts/package-desktop-jlink-jpackage.sh build/desktop/app-icon.icns dmg "$VERSION" SKLbaby-mac-intel.dmg
-
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SKLbaby-mac-intel-dmg
-          path: build/desktop/SKLbaby-mac-intel.dmg
-          if-no-files-found: error
-
-  package-windows:
-    needs: create-release
-    if: always() && !cancelled() && (needs.create-release.result == 'success' || needs.create-release.result == 'skipped')
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up JDK 21 (jlink/jpackage)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: maven
-
-      - name: Set up Node (ico)
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Build shade jar (bytecode 11)
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
-          mvn -B -q versions:set -DnewVersion="$VERSION" -DgenerateBackupPoms=false
-          mvn -B -q -pl client -am package -DskipTests -P '!git-commit-time'
-
-      - name: Build .ico
-        shell: bash
-        run: |
-          npm install --no-save to-ico pngjs
-          node scripts/package-desktop-windows-icon.mjs client/src/main/resources/app-icon.png build/desktop/app-icon.ico
-
-      - name: jlink + jpackage (.exe)
-        shell: bash
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          if [[ "$GITHUB_REF_TYPE" != "tag" ]]; then VERSION="$(mvn -q -pl client -DforceStdout help:evaluate -Dexpression=project.version)"; fi
-          bash scripts/package-desktop-jlink-jpackage.sh build/desktop/app-icon.ico exe "$VERSION"
-
-      - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: SKLbaby-win-exe
-          path: build/desktop/SKLbaby-win.exe
-          if-no-files-found: error
