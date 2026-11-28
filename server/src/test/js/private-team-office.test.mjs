@@ -148,10 +148,18 @@ test('secretarySpriteUrlForStatus 對應三張立繪', () => {
   assert.equal(secretarySpriteUrlForStatus('休息中'), '/assets/private-team/secretary-sofa.webp');
 });
 
-test('bubbleTextForStatus 僅三態與工作中倍數', () => {
-  assert.equal(bubbleTextForStatus('工作中 ×2'), '工作中 ×2');
-  assert.equal(bubbleTextForStatus('三聖獸結界展開中'), '三聖獸結界展開中');
-  assert.equal(bubbleTextForStatus('青龍結界展開中'), '青龍結界展開中');
+test('bubbleTextForStatus 秘書口吻與待命／休息', () => {
+  assert.equal(bubbleTextForStatus('三聖獸結界展開中'), '聖獸們都在努力中喔');
+  assert.equal(bubbleTextForStatus('二聖獸結界展開中'), '聖獸們都在努力中喔');
+  assert.equal(bubbleTextForStatus('四聖獸結界展開中'), '聖獸們都在努力中喔');
+  assert.equal(bubbleTextForStatus('聖獸結界展開中'), '聖獸們都在努力中喔');
+  assert.equal(bubbleTextForStatus('青龍結界展開中'), '青龍正在努力中喔');
+  assert.equal(bubbleTextForStatus('白虎結界展開中'), '白虎正在努力中喔');
+  assert.equal(bubbleTextForStatus('朱雀結界展開中'), '朱雀正在努力中喔');
+  assert.equal(bubbleTextForStatus('玄武結界展開中'), '玄武正在努力中喔');
+  assert.equal(bubbleTextForStatus('工作中'), '聖獸正在努力中喔');
+  assert.equal(bubbleTextForStatus('工作中 ×3'), '聖獸們都在努力中喔');
+  assert.equal(bubbleTextForStatus('工作中 ×2'), '聖獸們都在努力中喔');
   assert.equal(bubbleTextForStatus('待命中'), '待命中');
   assert.equal(bubbleTextForStatus('休息中'), '休息中');
   assert.equal(bubbleTextForStatus(''), '待命中');
