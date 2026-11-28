@@ -18,6 +18,7 @@ import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.event.InputEvent;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
@@ -662,7 +663,7 @@ public class DesktopPetTest {
     }
 
     @Test
-    public void careEnabledClickOpensMenuWithoutPokeGreeting() throws Exception {
+    public void careEnabledLeftClickDoesNotOpenMenuAndDoubleClickSummons() throws Exception {
         Assume.assumeFalse("headless JVM cannot show a pet", GraphicsEnvironment.isHeadless());
         SwingUtilities.invokeAndWait(() -> {
             MemoryPreferences prefs = new MemoryPreferences();
@@ -675,9 +676,28 @@ public class DesktopPetTest {
                 DesktopPetWindow pet = manager.window();
                 clickPet(pet, 1);
                 assertEquals(0, summons[0]);
-                assertNull(pet.animation().bubble());
+                assertFalse("left click should not open the status menu", pet.petMenuVisible());
                 clickPet(pet, 2);
                 assertEquals(1, summons[0]);
+                assertFalse(pet.petMenuVisible());
+            } finally {
+                manager.shutdown();
+            }
+        });
+    }
+
+    @Test
+    public void careEnabledRightClickOpensMenu() throws Exception {
+        Assume.assumeFalse("headless JVM cannot show a pet", GraphicsEnvironment.isHeadless());
+        SwingUtilities.invokeAndWait(() -> {
+            MemoryPreferences prefs = new MemoryPreferences();
+            DesktopPetManager manager = new DesktopPetManager(new DesktopPetSettings(prefs));
+            try {
+                assertTrue(manager.settings().careEnabled());
+                assertTrue(manager.setEnabled(true));
+                DesktopPetWindow pet = manager.window();
+                clickPetPopup(pet, MouseEvent.MOUSE_RELEASED, true);
+                assertTrue("right-click / popup trigger should open the status menu", pet.petMenuVisible());
             } finally {
                 manager.shutdown();
             }
@@ -843,6 +863,20 @@ public class DesktopPetTest {
         pet.stage().dispatchEvent(mouse(
                 pet.stage(), MouseEvent.MOUSE_RELEASED, 16, 16, origin.x + 16, origin.y + 16,
                 0, clickCount, MouseEvent.BUTTON1));
+    }
+
+    private static void clickPetPopup(DesktopPetWindow pet, int triggerId, boolean popupOnRelease) {
+        Point origin = pet.getLocationOnScreen();
+        int x = 16;
+        int y = 16;
+        pet.stage().dispatchEvent(new MouseEvent(
+                pet.stage(), MouseEvent.MOUSE_PRESSED, System.currentTimeMillis(),
+                InputEvent.BUTTON3_DOWN_MASK, x, y, origin.x + x, origin.y + y,
+                1, triggerId == MouseEvent.MOUSE_PRESSED, MouseEvent.BUTTON3));
+        pet.stage().dispatchEvent(new MouseEvent(
+                pet.stage(), MouseEvent.MOUSE_RELEASED, System.currentTimeMillis(),
+                0, x, y, origin.x + x, origin.y + y,
+                1, popupOnRelease, MouseEvent.BUTTON3));
     }
 
     private static MouseEvent mouse(
