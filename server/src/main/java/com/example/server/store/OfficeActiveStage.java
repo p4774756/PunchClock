@@ -13,6 +13,8 @@ public final class OfficeActiveStage {
     public static final String MERGE = "合併中";
     /** PR 與 main 有衝突：CI 不會跑，不該顯示一直累加分鐘的「等 CI」。 */
     public static final String CONFLICT = "有衝突";
+    /** CI 全部通過、PR 只在等人看過／合併：第 3 格完成、第 4 格「等合併」，不再累加 CI 分鐘。 */
+    public static final String WAIT_MERGE = "等合併";
 
     private OfficeActiveStage() {
     }
@@ -40,6 +42,9 @@ public final class OfficeActiveStage {
             if (pull.conflicting) {
                 return CONFLICT;
             }
+            if (pull.ciPassed) {
+                return WAIT_MERGE;
+            }
             if ("PASS".equals(verdict)) {
                 return MERGE;
             }
@@ -66,6 +71,9 @@ public final class OfficeActiveStage {
             if (pull.conflicting) {
                 return CONFLICT;
             }
+            if (pull.ciPassed) {
+                return WAIT_MERGE;
+            }
             if ("PASS".equals(machineVerdict)) {
                 return MERGE;
             }
@@ -76,7 +84,10 @@ public final class OfficeActiveStage {
 
     public static String forGithubItem(Item item, PullRow pull) {
         if (pull != null && pull.open && !pull.draft) {
-            return pull.conflicting ? CONFLICT : WAIT_CI;
+            if (pull.conflicting) {
+                return CONFLICT;
+            }
+            return pull.ciPassed ? WAIT_MERGE : WAIT_CI;
         }
         if (item != null && DevStatusModels.STATUS_REVIEW.equals(item.status)) {
             return WAIT_CI;
@@ -89,6 +100,11 @@ public final class OfficeActiveStage {
         if (pull != null && pull.open && !pull.draft && pull.conflicting
                 && (WAIT_CI.equals(stage) || MERGE.equals(stage))) {
             return CONFLICT;
+        }
+        // 本機標的還停在「等 CI」，但 GitHub 上 CI 其實已全數通過：改顯示「等合併」。
+        if (pull != null && pull.open && !pull.draft && !pull.conflicting && pull.ciPassed
+                && WAIT_CI.equals(stage)) {
+            return WAIT_MERGE;
         }
         return stage;
     }

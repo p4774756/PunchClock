@@ -755,9 +755,9 @@ public final class OfficePublicRoutes {
             return (now - startedAt) / 60_000L;
         }
 
-        /** 有衝突的 PR 不會跑 CI，分鐘數沒有意義，不輸出。 */
+        /** 有衝突的 PR 不會跑 CI、CI 已通過只等合併時，累加的 CI 分鐘數沒有意義，不輸出。 */
         private static void dropMinutesWhenConflict(Map<String, Object> row, String stage) {
-            if (OfficeActiveStage.CONFLICT.equals(stage)) {
+            if (OfficeActiveStage.CONFLICT.equals(stage) || OfficeActiveStage.WAIT_MERGE.equals(stage)) {
                 row.remove("minutes");
             }
         }

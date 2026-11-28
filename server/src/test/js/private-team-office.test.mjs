@@ -699,3 +699,22 @@ test('有衝突階段：CI 格標「有衝突」、不顯示等 CI 分鐘', () =
   const normal = progressSegmentsForActive({ stage: '等 CI', round: 1 });
   assert.equal(normal[2].label, 'CI');
 });
+
+test('等合併階段：CI 格完成、合併格 current 並標「等合併」，不顯示分鐘', () => {
+  const item = { stage: '等合併', round: 2, minutes: 82 };
+  assert.equal(activeStageForItem(item), '等合併');
+  const segs = progressSegmentsForActive(item);
+  assert.deepEqual(segs.map((s) => s.label), ['開發', '審核', 'CI', '合併']);
+  assert.deepEqual(segs.map((s) => s.state), ['done', 'done', 'done', 'current']);
+  assert.equal(segs[3].waiting, true);
+  assert.equal(segs[2].waiting, undefined);
+  assert.equal(activeCiFailed({ stage: '等合併', verdict: 'FAIL' }), false);
+  assert.equal(statusLineForActive(item), '等合併');
+  assert.ok(!statusLineForActive(item).includes('分'));
+  assert.ok(!capsulesForActive(item).some((c) => c.includes('已跑')));
+  // 一般等 CI 不受影響
+  const waitCi = progressSegmentsForActive({ stage: '等 CI', round: 2, minutes: 5 });
+  assert.equal(waitCi[2].state, 'current');
+  assert.equal(waitCi[3].state, 'pending');
+  assert.equal(statusLineForActive({ stage: '等 CI', minutes: 5 }), '等 CI・5 分');
+});
