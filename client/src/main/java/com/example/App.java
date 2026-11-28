@@ -30,6 +30,7 @@ import com.example.ui.UiFonts;
 import com.example.ui.TransferProgressDialog;
 import com.example.ui.NightTheme;
 import com.example.ui.PanelFactory;
+import com.example.ui.PrivateAlbumPanel;
 import com.example.ui.PanelFactory.*;
 import com.example.ui.ClientIdApplyUi;
 import com.example.ui.RecentValuesHelper;
@@ -102,6 +103,8 @@ public class App extends JFrame {
     private boolean suppressConfigSave = false;
     private Timer countdownTimer;
     private JTabbedPane mainTabs;
+    private static final String PRIVATE_ALBUM_TAB_TITLE = "私房相簿";
+    private PrivateAlbumPanel privateAlbumPanel;
     private boolean serverHistoryMenuBound;
     private Image appIconImage;
     private java.util.List<Image> baseAppIconImages = java.util.Collections.emptyList();
@@ -314,6 +317,8 @@ public class App extends JFrame {
         bindHomeIllustrationCombo();
         bindCheckInUiSwitch();
         bindDockIconSwimsuitSwitch();
+        privateAlbumPanel = new PrivateAlbumPanel();
+        bindPrivateAlbumSwitch();
         JPanel settingsTab = new JPanel(new BorderLayout());
         settingsTab.setOpaque(false);
         settingsTab.setBorder(new EmptyBorder(4, 4, 4, 4));
@@ -488,6 +493,18 @@ public class App extends JFrame {
                 return;
             }
             applyDockIconSwimsuit(serverRefs.dockIconSwimsuitSwitch.isSelected(), true);
+        });
+    }
+
+    private void bindPrivateAlbumSwitch() {
+        if (serverRefs.privateAlbumSwitch == null) {
+            return;
+        }
+        serverRefs.privateAlbumSwitch.addActionListener(e -> {
+            if (suppressConfigSave) {
+                return;
+            }
+            applyPrivateAlbumVisibility(serverRefs.privateAlbumSwitch.isSelected(), true);
         });
     }
 
@@ -1029,6 +1046,56 @@ public class App extends JFrame {
         if (persist) {
             saveCloudConfig();
         }
+    }
+
+    private void applyPrivateAlbumSelection(ConfigPersistenceService.CloudConfig config) {
+        boolean show = config != null && config.showPrivateAlbum;
+        if (serverRefs.privateAlbumSwitch != null) {
+            boolean previous = suppressConfigSave;
+            suppressConfigSave = true;
+            try {
+                serverRefs.privateAlbumSwitch.setSelected(show);
+            } finally {
+                suppressConfigSave = previous;
+            }
+        }
+        applyPrivateAlbumVisibility(show, false);
+    }
+
+    private void applyPrivateAlbumVisibility(boolean visible, boolean persist) {
+        if (slotController != null && slotController.getConfig() != null) {
+            slotController.getConfig().showPrivateAlbum = visible;
+        }
+        if (mainTabs != null && privateAlbumPanel != null) {
+            int idx = mainTabs.indexOfTab(PRIVATE_ALBUM_TAB_TITLE);
+            if (visible && idx < 0) {
+                JPanel albumTab = new JPanel(new BorderLayout());
+                albumTab.setOpaque(false);
+                albumTab.setBorder(new EmptyBorder(8, 8, 8, 8));
+                albumTab.add(CompactShellPanels.wrap(privateAlbumPanel, true), BorderLayout.CENTER);
+                mainTabs.addTab(PRIVATE_ALBUM_TAB_TITLE, albumTab);
+                int tabIndex = mainTabs.indexOfTab(PRIVATE_ALBUM_TAB_TITLE);
+                if (tabIndex >= 0) {
+                    mainTabs.setToolTipTextAt(tabIndex, "瀏覽 App 內插畫縮圖與大圖");
+                }
+                privateAlbumPanel.reloadCatalog();
+            } else if (!visible && idx >= 0) {
+                if (mainTabs.getSelectedIndex() == idx && shell != null) {
+                    shell.showHome();
+                }
+                mainTabs.removeTabAt(idx);
+            }
+        }
+        if (shell != null) {
+            shell.setPrivateAlbumVisible(visible);
+        }
+        if (persist) {
+            saveCloudConfig();
+        }
+    }
+
+    int privateAlbumTabIndexForTests() {
+        return mainTabs == null ? -1 : mainTabs.indexOfTab(PRIVATE_ALBUM_TAB_TITLE);
     }
 
     private BufferedImage recentFace(PeerInfo recent) {
@@ -2106,6 +2173,7 @@ public class App extends JFrame {
             applyWindowLayout(config);
             applyCheckInUiSelection(config);
             applyDockIconSwimsuitSelection(config);
+            applyPrivateAlbumSelection(config);
             applyWindowTransparencyFromConfig(config);
             applyAvatarFromConfig(config);
             applyPeerStatusFromConfig(config);
@@ -2401,6 +2469,9 @@ public class App extends JFrame {
             config.dockIconSwimsuit = serverRefs.dockIconSwimsuitSwitch.isSelected();
         } else {
             config.dockIconSwimsuit = dockIconSwimsuit;
+        }
+        if (serverRefs.privateAlbumSwitch != null) {
+            config.showPrivateAlbum = serverRefs.privateAlbumSwitch.isSelected();
         }
         configPersistenceService.saveConfig(config, null);
     }

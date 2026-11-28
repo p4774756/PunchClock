@@ -126,6 +126,9 @@ public class ConfigPersistenceService {
 
         /** 外觀：Dock／工作列圖示改用泳裝角色（B 款）；預設關閉。 */
         public boolean dockIconSwimsuit = false;
+
+        /** 顯示私房相簿分頁與底欄入口；預設關閉。 */
+        public boolean showPrivateAlbum = false;
     }
 
     private static SlotSettings defaultWorkIn() {

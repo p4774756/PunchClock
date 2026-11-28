@@ -59,16 +59,19 @@ public final class AnimeShell extends JPanel {
     private static final Color MUTED = new Color(196, 186, 220);
     private static final Color NAV_INK = new Color(32, 32, 32);
     private static final Color NAV_INK_MUTED = new Color(64, 64, 64);
-    private static final String[] NAV = {"首頁", "排程", "好友傳檔", "日誌", "設定"};
+    private static final String[] NAV = {"首頁", "排程", "好友傳檔", "日誌", "私房相簿", "設定"};
     private static final String[] NAV_TIPS = {
             "首頁：小寶貝與狀態泡泡",
             "排程任務與打卡紀錄",
             "好友、聊天與傳檔",
             "系統日誌",
+            "瀏覽私房插畫",
             "連線、外觀與關於"
     };
-    /** 分頁：首頁、排程0、好友2、日誌3、設定1 */
-    private static final int[] NAV_TO_TAB = {-1, 0, 2, 3, 1};
+    /** 分頁：首頁、排程0、好友2、日誌3、私房相簿4、設定1 */
+    private static final int[] NAV_TO_TAB = {-1, 0, 2, 3, 4, 1};
+    static final int NAV_ALBUM_ID = 4;
+    private static final int TAB_ALBUM = 4;
     public static final int CHARACTER_HIT = 20;
 
     private final JTabbedPane tabs;
@@ -95,6 +98,7 @@ public final class AnimeShell extends JPanel {
     private boolean miniDragging;
     private int friendNavUnread;
     private boolean checkInUiVisible = true;
+    private boolean privateAlbumVisible;
     private final JButton swapIllustrationButton;
     private Runnable swapIllustrationHandler;
 
@@ -302,6 +306,10 @@ public final class AnimeShell extends JPanel {
             showHome();
             return;
         }
+        if (!privateAlbumVisible && index == TAB_ALBUM) {
+            showHome();
+            return;
+        }
         holdingHome = false;
         if (index >= 0 && index < tabs.getTabCount() && tabs.getSelectedIndex() != index) {
             tabs.setSelectedIndex(index);
@@ -371,6 +379,14 @@ public final class AnimeShell extends JPanel {
         return checkInUiVisible;
     }
 
+    boolean privateAlbumVisibleForTests() {
+        return privateAlbumVisible;
+    }
+
+    boolean isNavVisibleForTests(int navId) {
+        return isNavVisible(navId);
+    }
+
     int visibleNavSlotCountForTests() {
         return navSlotCount();
     }
@@ -379,25 +395,67 @@ public final class AnimeShell extends JPanel {
         return navIdForSlot(slot);
     }
 
+    public void setPrivateAlbumVisible(boolean visible) {
+        if (privateAlbumVisible == visible) {
+            return;
+        }
+        privateAlbumVisible = visible;
+        if (!visible && !holdingHome && tabs.getSelectedIndex() == TAB_ALBUM) {
+            showHome();
+        }
+        revalidate();
+        repaint();
+        refreshChrome();
+    }
+
+    private boolean isNavVisible(int id) {
+        if (id < 0 || id >= NAV.length) {
+            return false;
+        }
+        if (id == 1) {
+            return checkInUiVisible;
+        }
+        if (id == NAV_ALBUM_ID) {
+            return privateAlbumVisible;
+        }
+        return true;
+    }
+
     private int navSlotCount() {
-        return checkInUiVisible ? NAV.length : NAV.length - 1;
+        int count = 0;
+        for (int id = 0; id < NAV.length; id++) {
+            if (isNavVisible(id)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private int navIdForSlot(int slot) {
-        if (checkInUiVisible || slot < 1) {
-            return slot;
+        int seen = 0;
+        for (int id = 0; id < NAV.length; id++) {
+            if (!isNavVisible(id)) {
+                continue;
+            }
+            if (seen == slot) {
+                return id;
+            }
+            seen++;
         }
-        return slot + 1;
+        return -1;
     }
 
     private int navSlotForId(int id) {
-        if (checkInUiVisible || id <= 0) {
-            return id;
-        }
-        if (id == 1) {
+        if (!isNavVisible(id)) {
             return -1;
         }
-        return id - 1;
+        int slot = 0;
+        for (int i = 0; i < id; i++) {
+            if (isNavVisible(i)) {
+                slot++;
+            }
+        }
+        return slot;
     }
 
     public void followTab() {
@@ -539,7 +597,7 @@ public final class AnimeShell extends JPanel {
             return "點一下展開";
         }
         int id = hit(event.getX(), event.getY());
-        if (id >= 0 && id < NAV.length) {
+        if (id >= 0 && id < NAV.length && isNavVisible(id)) {
             return navTooltip(id);
         }
         return null;
@@ -560,7 +618,7 @@ public final class AnimeShell extends JPanel {
             }
             return;
         }
-        if (id >= 0 && id < NAV.length) {
+        if (id >= 0 && id < NAV.length && isNavVisible(id)) {
             int tab = NAV_TO_TAB[id];
             if (tab < 0) {
                 showHome();

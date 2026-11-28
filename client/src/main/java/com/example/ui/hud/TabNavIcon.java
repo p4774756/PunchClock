@@ -24,7 +24,7 @@ final class TabNavIcon {
     private static final int W = 0xFFFFFFFF;
 
     private static final String[] NAV_ICON_IDS = {
-            "home", "calendar-clock", "folder-up", "notebook-text", "settings"
+            "home", "calendar-clock", "folder-up", "notebook-text", "images", "settings"
     };
 
     private static final Map<String, TabNavIcon> CACHE = new ConcurrentHashMap<>();
@@ -163,6 +163,8 @@ final class TabNavIcon {
         map.put("folder-up-active", folderUp(true));
         map.put("notebook-text", notebook(false));
         map.put("notebook-text-active", notebook(true));
+        map.put("images", images(false));
+        map.put("images-active", images(true));
         map.put("settings", settings(false));
         map.put("settings-active", settings(true));
         return Map.copyOf(map);
@@ -326,6 +328,46 @@ final class TabNavIcon {
                 "................",
                 "................",
                 "................");
+    }
+
+    /** 相片 */
+    private static String[] images(boolean active) {
+        if (active) {
+            return rows(
+                    "................",
+                    "...kkkkkkkkkk...",
+                    "...kwwwwwwwwk...",
+                    "...kwkkwwkkwk...",
+                    "...kwddwwkdwk...",
+                    "...kwddwwkdwk...",
+                    "...kwkkwwkkwk...",
+                    "...kwwwwwwwwk...",
+                    "...kkk....kkk...",
+                    "................",
+                    "......kkkk......",
+                    "...kkwwwwwwkk...",
+                    "...kwwwwwwwwk...",
+                    "...kwwwwwwwwk...",
+                    "...kkwwwwwwkk...",
+                    "......kkkk......");
+        }
+        return rows(
+                "................",
+                "...kkkkkkkkkk...",
+                "...kllllllllk...",
+                "...klkkllkklk...",
+                "...klddllkdldk...",
+                "...klddllkdldk...",
+                "...klkkllkklk...",
+                "...kllllllllk...",
+                "...kkk....kkk...",
+                "................",
+                "......kkkk......",
+                "...kkllllllkk...",
+                "...kllllllllk...",
+                "...kllllllllk...",
+                "...kkllllllkk...",
+                "......kkkk......");
     }
 
     /** 齒輪 */

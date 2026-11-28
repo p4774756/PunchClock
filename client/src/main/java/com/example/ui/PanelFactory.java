@@ -172,7 +172,8 @@ public class PanelFactory {
                 settingsSection("中繼 Proxy", boldFont, relayProxyRow(refs, mainFont, boldFont))));
         tabs.addTab("外觀", settingsPage(
                 settingsSection("桌面寵物", boldFont, desktopPetRow(refs, mainFont, boldFont)),
-                settingsSection("Dock 圖示", boldFont, dockIconSwimsuitRow(refs, mainFont, boldFont))));
+                settingsSection("Dock 圖示", boldFont, dockIconSwimsuitRow(refs, mainFont, boldFont)),
+                settingsSection("私房相簿", boldFont, privateAlbumRow(refs, mainFont, boldFont))));
         tabs.addTab("關於", settingsPage(
                 settingsSection("版本", boldFont, versionInfo),
                 settingsSection("程式更新", boldFont, updates)));
@@ -272,6 +273,50 @@ public class PanelFactory {
         column.add(Box.createVerticalStrut(4));
         column.add(refs.relayHelpArea);
 
+        return column;
+    }
+
+    private static JPanel privateAlbumRow(ServerConfigRefs refs, Font mainFont, Font boldFont) {
+        refs.privateAlbumSwitch = new CandySwitch();
+        refs.privateAlbumSwitch.setSelected(false);
+        refs.privateAlbumSwitch.setFont(boldFont);
+        refs.privateAlbumSwitch.getAccessibleContext().setAccessibleName("顯示私房相簿");
+        String tip = "開啟後主視窗底欄會出現私房相簿分頁；關閉時入口完全隱藏。";
+        refs.privateAlbumSwitch.setToolTipText(tip);
+
+        JLabel title = new JLabel("顯示私房相簿");
+        title.setFont(boldFont);
+        title.setLabelFor(refs.privateAlbumSwitch);
+        title.setToolTipText(tip);
+        title.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        title.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (refs.privateAlbumSwitch.isEnabled()) {
+                    refs.privateAlbumSwitch.doClick();
+                }
+            }
+        });
+
+        JLabel hint = new CompactShellPanels.WrappingLabel(
+                "相簿圖片只打在 App jar 內，不會上傳或出現在網站。");
+        hint.setFont(mainFont);
+        hint.setForeground(NightTheme.MUTED);
+
+        JPanel line = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        line.setOpaque(false);
+        line.add(refs.privateAlbumSwitch);
+        line.add(title);
+
+        JPanel column = new JPanel();
+        column.setOpaque(false);
+        column.setLayout(new BoxLayout(column, BoxLayout.Y_AXIS));
+        column.setAlignmentX(Component.LEFT_ALIGNMENT);
+        line.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hint.setAlignmentX(Component.LEFT_ALIGNMENT);
+        column.add(line);
+        column.add(Box.createVerticalStrut(4));
+        column.add(hint);
         return column;
     }
 
@@ -629,6 +674,7 @@ public class PanelFactory {
         public JComboBox<String> homeIllustrationCombo;
         public JToggleButton checkInUiVisibleSwitch;
         public JToggleButton dockIconSwimsuitSwitch;
+        public JToggleButton privateAlbumSwitch;
         public JToggleButton desktopPetSwitch;
         public JSlider windowTransparencySlider;
         public JLabel windowTransparencyValueLabel;

@@ -22,30 +22,36 @@ public class AnimeShellNavTest {
 
     @Test
     public void iconTabsKeepTabIndexes() {
-        assertEquals(5, AnimeShell.navCount());
+        assertEquals(6, AnimeShell.navCount());
         assertEquals("首頁", AnimeShell.navLabel(0));
         assertEquals("排程", AnimeShell.navLabel(1));
         assertEquals("好友傳檔", AnimeShell.navLabel(2));
         assertEquals("日誌", AnimeShell.navLabel(3));
-        assertEquals("設定", AnimeShell.navLabel(4));
+        assertEquals("私房相簿", AnimeShell.navLabel(4));
+        assertEquals("設定", AnimeShell.navLabel(5));
         assertEquals(-1, AnimeShell.tabForNav(0));
         assertEquals(0, AnimeShell.tabForNav(1));
         assertEquals(2, AnimeShell.tabForNav(2));
         assertEquals(3, AnimeShell.tabForNav(3));
-        assertEquals(1, AnimeShell.tabForNav(4));
+        assertEquals(4, AnimeShell.tabForNav(4));
+        assertEquals(1, AnimeShell.tabForNav(5));
     }
 
     @Test
     public void tabRowsDoNotOverlap() {
         int w = ShellDimensions.DEFAULT_WIDTH;
         int h = ShellDimensions.DEFAULT_HEIGHT;
-        for (int i = 0; i < AnimeShell.navCount(); i++) {
-            Rectangle a = AnimeShell.navRowBounds(w, h, i);
+        AnimeShell layoutProbe = new AnimeShell(null, new JTabbedPane());
+        layoutProbe.setPrivateAlbumVisible(true);
+        int slots = layoutProbe.visibleNavSlotCountForTests();
+        layoutProbe.setSize(w, h);
+        for (int i = 0; i < slots; i++) {
+            Rectangle a = layoutProbe.tabHitBox(i);
             assertTrue(a.width > 20);
-            assertTrue(a.width * AnimeShell.navCount() <= w + 4);
+            assertTrue(a.width * slots <= w + 4);
             assertTrue(a.y + a.height <= h);
-            for (int j = i + 1; j < AnimeShell.navCount(); j++) {
-                Rectangle b = AnimeShell.navRowBounds(w, h, j);
+            for (int j = i + 1; j < slots; j++) {
+                Rectangle b = layoutProbe.tabHitBox(j);
                 assertTrue(!a.intersects(b));
             }
         }
@@ -64,14 +70,15 @@ public class AnimeShellNavTest {
         AnimeShell shell = new AnimeShell(null, new JTabbedPane());
         shell.setSize(ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT);
         shell.doLayout();
-        for (int i = 0; i < AnimeShell.navCount(); i++) {
-            Rectangle box = AnimeShell.navRowBounds(
-                    ShellDimensions.DEFAULT_WIDTH, ShellDimensions.DEFAULT_HEIGHT, i);
+        int slots = shell.visibleNavSlotCountForTests();
+        for (int slot = 0; slot < slots; slot++) {
+            int navId = shell.navIdForSlotForTests(slot);
+            Rectangle box = shell.tabHitBox(slot);
             MouseEvent event = new MouseEvent(
                     shell, MouseEvent.MOUSE_MOVED, 0, 0,
                     box.x + box.width / 2, box.y + box.height / 2,
                     0, false);
-            assertEquals(AnimeShell.navTooltip(i), shell.getToolTipText(event));
+            assertEquals(AnimeShell.navTooltip(navId), shell.getToolTipText(event));
         }
         shell.setMiniMode(true);
         MouseEvent mini = new MouseEvent(shell, MouseEvent.MOUSE_MOVED, 0, 0, 20, 20, 0, false);
@@ -116,6 +123,7 @@ public class AnimeShellNavTest {
         assertEquals(muted, AnimeShell.navLabelColor("calendar-clock"));
         assertEquals(muted, AnimeShell.navLabelColor("folder-up"));
         assertEquals(muted, AnimeShell.navLabelColor("notebook-text"));
+        assertEquals(muted, AnimeShell.navLabelColor("images"));
         assertEquals(muted, AnimeShell.navLabelColor("settings"));
     }
 
@@ -127,6 +135,17 @@ public class AnimeShellNavTest {
         } catch (NoSuchMethodException expected) {
             // expected
         }
+    }
+
+    @Test
+    public void privateAlbumNavHiddenUntilEnabled() {
+        JTabbedPane tabs = new JTabbedPane();
+        AnimeShell shell = new AnimeShell(null, tabs);
+        assertFalse(shell.privateAlbumVisibleForTests());
+        assertFalse(shell.isNavVisibleForTests(AnimeShell.NAV_ALBUM_ID));
+        shell.setPrivateAlbumVisible(true);
+        assertTrue(shell.isNavVisibleForTests(AnimeShell.NAV_ALBUM_ID));
+        assertEquals(6, shell.visibleNavSlotCountForTests());
     }
 
     @Test
