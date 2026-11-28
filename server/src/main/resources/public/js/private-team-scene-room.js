@@ -90,10 +90,10 @@ export function cyl(rt, rb, h, seg, color) {
   return new THREE.Mesh(g, m);
 }
 
-export function roundedRectShape(hw, hh, r) {
+export function roundedRectShape(hw, hh, r, ox = 0, oy = 0) {
   const shape = new THREE.Shape();
-  const x = -hw;
-  const y = -hh;
+  const x = -hw + ox;
+  const y = -hh + oy;
   const w = hw * 2;
   const h = hh * 2;
   shape.moveTo(x + r, y);
@@ -151,8 +151,13 @@ export function extrudedRoundedPlateWithRectHole(
   mat
 ) {
   const shape = roundedRectShape(hw, hh, radius);
-  const hole = roundedRectShape(holeHw, holeHh, Math.max(0.02, radius * 0.5));
-  hole.translate(holeCx, holeCz);
+  const hole = roundedRectShape(
+    holeHw,
+    holeHh,
+    Math.max(0.02, radius * 0.5),
+    holeCx,
+    holeCz
+  );
   shape.holes.push(hole);
   const geo = new THREE.ExtrudeGeometry(shape, {
     depth: depth,
