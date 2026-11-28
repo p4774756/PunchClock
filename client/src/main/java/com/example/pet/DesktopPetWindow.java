@@ -1645,6 +1645,8 @@ public final class DesktopPetWindow extends JFrame {
             try {
                 BufferedImage frame = renderLiveFrame();
                 boolean pixelFallback = milu == null && miluFailed;
+                DesktopPetMiluLayout.applyDeviceScaleIfNeeded(
+                        g, view.width, view.height, DesktopPetMiluLayout.deviceScale(getGraphicsConfiguration()));
                 if (perPixel) {
                     g.setComposite(AlphaComposite.Src);
                     DesktopPetMiluLayout.drawLiveFrame(g, frame, view.width, view.height, pixelFallback);
