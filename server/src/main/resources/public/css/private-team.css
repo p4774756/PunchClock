@@ -1213,6 +1213,13 @@ button.pt-hud-id-plate {
   color: var(--maple-navy, #163a70);
 }
 
+.pt-status-done-span {
+  flex: 0 0 auto;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: #4a5c78;
+}
+
 .pt-status-done-phrase {
   min-width: 0;
   max-width: 100%;
