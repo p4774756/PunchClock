@@ -406,10 +406,36 @@ export function progressSegmentsForActive(item) {
   });
 }
 
-function progressSegmentLabel(seg) {
-  if (seg.state === 'done') return '\u2713 ' + seg.label;
+function pipelineNodePrimaryLabel(seg, item) {
+  const row = item && typeof item === 'object' ? item : {};
+  const round = Number(row.round);
   if (seg.state === 'skipped') return seg.label === '審核' ? '略過審核' : '略過';
+  if (seg.state === 'fail') return 'CI 失敗';
+  if (seg.label === 'CI') {
+    if (seg.state === 'done') return 'CI 通過';
+    if (seg.state === 'current') return 'CI 進行中';
+  }
+  if (seg.label === '審核' && Number.isFinite(round) && round > 0) {
+    return round === 1 ? '審核 1' : '審核 第 ' + round + ' 輪';
+  }
   return seg.label;
+}
+
+function pipelineNodeShowMinutes(seg) {
+  return seg.state === 'current';
+}
+
+export function progressAriaLabelForActive(item) {
+  return statusLineForActive(item);
+}
+
+function connectorClassAfter(seg) {
+  const base = 'pt-status-progress-connector';
+  if (seg.state === 'done') return base + ' is-complete';
+  if (seg.state === 'skipped') return base + ' is-skipped';
+  if (seg.state === 'current') return base + ' is-flowing';
+  if (seg.state === 'fail') return base + ' is-blocked';
+  return base + ' is-pending';
 }
 
 export function statusLineForActive(item) {
@@ -455,12 +481,33 @@ function chainAvatarSrcSet(slug) {
 }
 
 function renderStageProgress(doc, item) {
+  const row = item && typeof item === 'object' ? item : {};
+  const segments = progressSegmentsForActive(row);
   const track = el(doc, 'div', 'pt-status-progress');
-  progressSegmentsForActive(item).forEach((seg) => {
-    const node = el(doc, 'div', 'pt-status-progress-seg ' + seg.state);
-    node.appendChild(el(doc, 'span', 'pt-status-progress-fill'));
-    node.appendChild(el(doc, 'span', 'pt-status-progress-label', progressSegmentLabel(seg)));
-    track.appendChild(node);
+  track.setAttribute('role', 'group');
+  track.setAttribute('aria-label', progressAriaLabelForActive(row));
+  segments.forEach((seg, index) => {
+    const step = el(doc, 'div', 'pt-status-progress-step');
+    const node = el(doc, 'div', 'pt-status-progress-node ' + seg.state);
+    if (seg.state === 'done') {
+      const mark = el(doc, 'span', 'pt-status-progress-node-mark', '\u2713');
+      mark.setAttribute('aria-hidden', 'true');
+      node.appendChild(mark);
+    }
+    node.appendChild(el(doc, 'span', 'pt-status-progress-node-label', pipelineNodePrimaryLabel(seg, row)));
+    if (pipelineNodeShowMinutes(seg)) {
+      const minutes = Number(row.minutes);
+      if (Number.isFinite(minutes) && minutes > 0) {
+        node.appendChild(el(doc, 'span', 'pt-status-progress-node-time', minutes + ' 分'));
+      }
+    }
+    step.appendChild(node);
+    if (index < segments.length - 1) {
+      const conn = el(doc, 'span', connectorClassAfter(seg));
+      conn.setAttribute('aria-hidden', 'true');
+      step.appendChild(conn);
+    }
+    track.appendChild(step);
   });
   return track;
 }
@@ -551,7 +598,6 @@ export function renderActiveBlock(doc, item) {
   }
   wrap.appendChild(head);
   wrap.appendChild(renderStageProgress(doc, row));
-  wrap.appendChild(el(doc, 'p', 'pt-status-stage-meta', statusLineForActive(row)));
   const links = el(doc, 'div', 'pt-status-links');
   const prLink = linkPr(doc, row, true);
   if (prLink) links.appendChild(prLink);

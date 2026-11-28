@@ -25,6 +25,7 @@ const {
   phraseForActiveDisplay,
   renderActiveBlock,
   progressSegmentsForActive,
+  progressAriaLabelForActive,
   statusLineForActive,
   activeCiFailed,
   titleForActiveDisplay,
@@ -291,7 +292,12 @@ test('renderActiveBlock 階段卡片 DOM', () => {
   assert.ok(flat.includes('"loading":"lazy"'));
   assert.ok(flat.includes('"alt":"青龍"'));
   assert.ok(flat.includes('pt-status-progress'));
-  assert.ok(flat.includes('開發中・12 分'));
+  assert.ok(flat.includes('pt-status-progress-connector'));
+  assert.ok(flat.includes('pt-status-progress-node current'));
+  assert.ok(flat.includes('"aria-label":"開發中・12 分"'));
+  assert.ok(flat.includes('12 分'));
+  assert.ok(!flat.includes('pt-status-stage-meta'));
+  assert.ok(!flat.includes('"BUTTON"'));
   assert.ok(flat.includes('#507'));
 });
 
@@ -342,8 +348,10 @@ test('progressSegmentsForActive 各階段與 CI 失敗', () => {
       return node;
     }
   }, { stage: '等 CI', round: 0, issue: 646 });
-  assert.ok(JSON.stringify(skipRendered).includes('略過審核'));
-  assert.ok(JSON.stringify(skipRendered).includes('\u2713 開發'));
+  const skipFlat = JSON.stringify(skipRendered);
+  assert.ok(skipFlat.includes('略過審核'));
+  assert.ok(skipFlat.includes('pt-status-progress-node skipped'));
+  assert.ok(skipFlat.includes('pt-status-progress-node-mark'));
   const ciItem = { stage: '等 CI', round: 2, verdict: 'FAIL' };
   const ciFail = progressSegmentsForActive(ciItem);
   assert.equal(ciFail[2].state, 'fail');
@@ -355,6 +363,39 @@ test('progressSegmentsForActive 各階段與 CI 失敗', () => {
   );
   const merge = progressSegmentsForActive({ stage: '合併中', round: 2 });
   assert.deepEqual(merge.map((s) => s.state), ['done', 'done', 'done', 'current']);
+});
+
+test('renderStageProgress pipeline DOM：輪次、CI 失敗、aria', () => {
+  const doc = miniDoc();
+  const reviewBlock = renderActiveBlock(doc, {
+    stage: '審查中',
+    round: 2,
+    minutes: 12,
+    issue: 863
+  });
+  const reviewFlat = JSON.stringify(reviewBlock);
+  assert.ok(reviewFlat.includes('審核 第 2 輪'));
+  assert.ok(reviewFlat.includes('pt-status-progress-connector is-complete'));
+  assert.ok(reviewFlat.includes('pt-status-progress-connector is-flowing'));
+  assert.match(reviewFlat, /"aria-label":"審核中・第 2 輪・12 分"/);
+  assert.equal(progressAriaLabelForActive({ stage: '審查中', round: 2, minutes: 12 }), '審核中・第 2 輪・12 分');
+
+  const ciFailBlock = renderActiveBlock(miniDoc(), {
+    stage: '等 CI',
+    round: 2,
+    verdict: 'FAIL',
+    issue: 9
+  });
+  const failFlat = JSON.stringify(ciFailBlock);
+  assert.ok(failFlat.includes('CI 失敗'));
+  assert.ok(failFlat.includes('pt-status-progress-node fail'));
+  assert.ok(failFlat.includes('pt-status-progress-connector is-blocked'));
+  assert.match(failFlat, /"aria-label":"CI 失敗，等待處理"/);
+
+  const mergeBlock = renderActiveBlock(miniDoc(), { stage: '合併中', round: 2, minutes: 5, issue: 1 });
+  const mergeFlat = JSON.stringify(mergeBlock);
+  assert.ok(mergeFlat.includes('CI 通過'));
+  assert.ok(mergeFlat.includes('pt-status-progress-node current'));
 });
 
 test('activeCiFailed 與狀態卡標題完整', () => {
