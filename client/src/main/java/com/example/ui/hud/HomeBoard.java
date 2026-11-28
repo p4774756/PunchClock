@@ -9,12 +9,8 @@ import java.awt.Color;
 import java.awt.Composite;
 import java.awt.FontMetrics;
 import java.awt.Graphics2D;
-import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.awt.geom.Area;
-import java.awt.geom.Path2D;
-import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntFunction;
@@ -38,7 +34,6 @@ final class HomeBoard {
 
     final Rectangle stage = new Rectangle();
     private final Rectangle bubbleBox = new Rectangle();
-    private Point tailTarget = new Point();
 
     private String line;
     private long lineUntil;
@@ -232,7 +227,6 @@ final class HomeBoard {
         }
         int x = placement.box.x;
         int y = placement.box.y;
-        tailTarget = placement.mouth;
         Composite previous = g.getComposite();
         if (alpha < 0.99f) {
             g.setComposite(AlphaComposite.SrcOver.derive(alpha));
@@ -242,7 +236,7 @@ final class HomeBoard {
             g.setColor(new Color(0, 0, 0, 16));
             g.fillRoundRect(x - 2, y - 2, boxW + 4, boxH + 4, 20, 20);
         }
-        paintBubbleShape(g, new Rectangle(x, y, boxW, boxH), tailTarget);
+        paintBubbleShape(g, new Rectangle(x, y, boxW, boxH));
         g.setColor(INK);
         int textY = y + 8 + metrics.getAscent();
         for (String row : rows) {
@@ -415,110 +409,27 @@ final class HomeBoard {
         return text.substring(0, end);
     }
 
-    static void paintBubbleShape(Graphics2D g, Rectangle box, Point mouth) {
+    /** 純圓角泡泡，沒有漫畫尖角或尾巴。 */
+    static void paintBubbleShape(Graphics2D g, Rectangle box) {
+        if (g == null || box == null) {
+            return;
+        }
         Object aa = g.getRenderingHint(RenderingHints.KEY_ANTIALIASING);
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         try {
             int radius = 18;
             g.setColor(new Color(0, 0, 0, 28));
             g.fillRoundRect(box.x + 1, box.y + 2, box.width, box.height, radius, radius);
-            Area outline =
-                    new Area(new RoundRectangle2D.Float(box.x, box.y, box.width, box.height, radius, radius));
-            if (mouth != null) {
-                appendTailTowardMouth(outline, box, mouth);
-            }
             g.setColor(PANEL);
-            g.fill(outline);
+            g.fillRoundRect(box.x, box.y, box.width, box.height, radius, radius);
             g.setColor(PANEL_EDGE);
             g.setStroke(new BasicStroke(1f));
-            g.draw(outline);
+            g.drawRoundRect(box.x, box.y, box.width, box.height, radius, radius);
         } finally {
             if (aa != null) {
                 g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, aa);
             }
         }
-    }
-
-
-    /**
-     * 尾巴從泡泡最靠近臉的那一邊長出，尖角沿指向嘴／臉中心的方向，不要固定垂直朝下。
-     */
-    static void appendTailTowardMouth(Area outline, Rectangle box, Point mouth) {
-        if (outline == null || box == null || mouth == null) {
-            return;
-        }
-        double cx = box.x + box.width / 2.0;
-        double cy = box.y + box.height / 2.0;
-        double dx = mouth.x - cx;
-        double dy = mouth.y - cy;
-        double len = Math.hypot(dx, dy);
-        if (len < 1) {
-            dx = 0;
-            dy = 1;
-            len = 1;
-        }
-        double ux = dx / len;
-        double uy = dy / len;
-        Point base = tailBaseOnBubbleEdge(box, ux, uy);
-        double reach = Math.hypot(mouth.x - base.x, mouth.y - base.y);
-        double tipLen = Math.max(18, Math.min(26, reach * 0.5));
-        if (reach < tipLen + 4) {
-            tipLen = Math.max(14, reach * 0.7);
-        }
-        int tipX = (int) Math.round(base.x + ux * tipLen);
-        int tipY = (int) Math.round(base.y + uy * tipLen);
-        if (mouth.y > box.y + box.height && tipY < box.y + box.height + 16) {
-            tipY = box.y + box.height + 16;
-            if (Math.abs(uy) > 1e-6) {
-                tipX = (int) Math.round(base.x + ux * ((tipY - base.y) / uy));
-            }
-        }
-        double px = -uy;
-        double py = ux;
-        Path2D tail = new Path2D.Float();
-        tail.moveTo(base.x + px * 8, base.y + py * 8);
-        tail.lineTo(base.x - px * 9, base.y - py * 9);
-        tail.lineTo(tipX, tipY);
-        tail.closePath();
-        outline.add(new Area(tail));
-    }
-
-    /** 從泡泡中心沿方向向量碰到圓角矩形邊的點，當尾巴根部。 */
-    static Point tailBaseOnBubbleEdge(Rectangle box, double ux, double uy) {
-        int inset = 2;
-        double left = box.x + inset;
-        double right = box.x + box.width - inset;
-        double top = box.y + inset;
-        double bottom = box.y + box.height - inset;
-        double cx = box.x + box.width / 2.0;
-        double cy = box.y + box.height / 2.0;
-        double bestT = Double.POSITIVE_INFINITY;
-        if (Math.abs(ux) > 1e-6) {
-            double edgeX = ux > 0 ? right : left;
-            double t = (edgeX - cx) / ux;
-            if (t > 0) {
-                double y = cy + t * uy;
-                if (y >= top - 0.5 && y <= bottom + 0.5) {
-                    bestT = Math.min(bestT, t);
-                }
-            }
-        }
-        if (Math.abs(uy) > 1e-6) {
-            double edgeY = uy > 0 ? bottom : top;
-            double t = (edgeY - cy) / uy;
-            if (t > 0) {
-                double x = cx + t * ux;
-                if (x >= left - 0.5 && x <= right + 0.5) {
-                    bestT = Math.min(bestT, t);
-                }
-            }
-        }
-        if (!Double.isFinite(bestT)) {
-            return new Point((int) Math.round(cx), (int) Math.round(bottom));
-        }
-        return new Point(
-                (int) Math.round(cx + ux * bestT),
-                (int) Math.round(cy + uy * bestT));
     }
 
     private static List<String> wrap(Graphics2D g, String text, int width) {

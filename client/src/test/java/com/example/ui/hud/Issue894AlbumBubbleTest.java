@@ -5,9 +5,7 @@ import org.junit.Test;
 import javax.imageio.ImageIO;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.Point;
 import java.awt.Rectangle;
-import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,7 +15,7 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
- * 相簿首頁泡泡：放在頭頂上空，不可蓋臉／胸口／手；尾巴指向臉，不要垂直朝下。
+ * 相簿首頁泡泡：放在頭頂上空，不可蓋臉／胸口／手；畫成純圓角，沒有尖角尾巴。
  * 使用合成圖，不讀取 ~/.sklbaby。
  */
 public class Issue894AlbumBubbleTest {
@@ -75,25 +73,41 @@ public class Issue894AlbumBubbleTest {
     }
 
     @Test
-    public void tailFromTopLeftAimsTowardFaceNotStraightDown() {
-        Rectangle box = new Rectangle(24, 16, 150, 50);
-        Point mouth = new Point(220, 180);
-        Area outline = new Area();
-        HomeBoard.appendTailTowardMouth(outline, box, mouth);
-        Rectangle bounds = outline.getBounds();
-        assertTrue("tail should exist", bounds.width > 2 && bounds.height > 2);
-        int boxBottom = box.y + box.height;
-        int boxRight = box.x + box.width;
-        // 尖角應往右下朝臉，不是停在泡泡正下方。
-        assertTrue("tail should extend below the bubble toward the face",
-                bounds.y + bounds.height > boxBottom + 8);
-        // 臉在右下：尾巴應往右偏，而不是停在泡泡水平中線左側（舊的垂直朝下）。
-        assertTrue("tail should lean toward the face on the right, bounds=" + bounds,
-                bounds.x + bounds.width > box.x + box.width / 2);
-        assertFalse("tail must not stay only under the bubble",
-                bounds.x + bounds.width <= box.x + box.width / 2 + 4
-                        && bounds.x >= box.x
-                        && bounds.x + bounds.width <= boxRight);
+    public void paintedBubbleHasNoPointerTail() {
+        Rectangle box = new Rectangle(24, 16, 160, 64);
+        BufferedImage img = new BufferedImage(320, 200, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        try {
+            g.setColor(new Color(20, 30, 50));
+            g.fillRect(0, 0, img.getWidth(), img.getHeight());
+            HomeBoard.paintBubbleShape(g, box);
+        } finally {
+            g.dispose();
+        }
+        Color panel = new Color(248, 248, 244);
+        int outside = 0;
+        // 影子會往右下偏 1–2px，其餘面板色不該跑出圓角矩形（沒有尖角尾巴）。
+        for (int y = 0; y < img.getHeight(); y++) {
+            for (int x = 0; x < img.getWidth(); x++) {
+                Color c = new Color(img.getRGB(x, y), true);
+                if (c.getAlpha() < 40) {
+                    continue;
+                }
+                boolean looksPanel = Math.abs(c.getRed() - panel.getRed()) <= 20
+                        && Math.abs(c.getGreen() - panel.getGreen()) <= 20
+                        && Math.abs(c.getBlue() - panel.getBlue()) <= 24;
+                if (!looksPanel) {
+                    continue;
+                }
+                boolean insideShadowPad = x >= box.x && x <= box.x + box.width + 2
+                        && y >= box.y && y <= box.y + box.height + 2;
+                if (!insideShadowPad) {
+                    outside++;
+                }
+            }
+        }
+        assertTrue("plain bubble should not paint a pointer outside the rounded box, outside=" + outside,
+                outside == 0);
     }
 
     private static void assertTopBand(Rectangle box) {
@@ -213,7 +227,7 @@ public class Issue894AlbumBubbleTest {
             Rectangle draw = HomeBubbleAnchor.imageDrawRect(
                     STAGE.width, STAGE.height, src.getWidth(), src.getHeight(), 0);
             g.drawImage(src, draw.x, draw.y, draw.width, draw.height, null);
-            HomeBoard.paintBubbleShape(g, placement.box, placement.mouth);
+            HomeBoard.paintBubbleShape(g, placement.box);
         } finally {
             g.dispose();
         }
