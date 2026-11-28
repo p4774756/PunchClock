@@ -9,6 +9,7 @@ import {
   lampGlowTexture
 } from './private-team-scene-room.js';
 import { privateTeamSeededRand } from './private-team-scene-window.js';
+import { vinylPlaybackSpin, vinylArmTarget } from './private-team-scene-music.js';
 import { isLoungeTigerStatus, isWorkingTigerStatus, parseSecretaryOutfitId } from './private-team-scene-secretary.js';
 
 export const SECRETARY_TUB_POSITION = { x: 0.02, y: -0.44, z: 0.56 };
@@ -270,6 +271,9 @@ export function secretaryAtLoungePose(status, sofaSpriteOk) {
   void sofaSpriteOk;
   return isLoungeTigerStatus(status);
 }
+
+/** 唱針臂樞軸（唱機本地座標，x/z）。 */
+export const VINYL_ARM_PIVOT = { x: 0.15, z: -0.09 };
 
 export function vinylShouldSpin(status, reducedMotion) {
   if (reducedMotion) return false;
@@ -758,6 +762,8 @@ export function addLoungeFurnishings(root, texLoader, layout) {
   turntable.name = 'vinylTurntable';
   const ttY = sbTopY + 0.012;
   turntable.position.set(sbX, ttY, sbZ);
+  // 手機上整張矮櫃只有幾十像素寬，唱機放大一點才看得到、點得到。
+  turntable.scale.setScalar(1.3);
   const baseMat = new THREE.MeshStandardMaterial({ color: 0x2a2420, metalness: 0.12, roughness: 0.55 });
   const ttBase = extrudedRoundedPlate(0.21, 0.165, 0.038, 0.028, baseMat);
   ttBase.position.set(0, 0.019, 0);
@@ -792,38 +798,69 @@ export function addLoungeFurnishings(root, texLoader, layout) {
     new THREE.CylinderGeometry(0.02, 0.022, 0.028, 14),
     new THREE.MeshStandardMaterial({ color: 0x5a544c, metalness: 0.4, roughness: 0.42 })
   );
-  armPivot.position.set(0.15, 0.058, -0.09);
+  armPivot.position.set(VINYL_ARM_PIVOT.x, 0.058, VINYL_ARM_PIVOT.z);
   turntable.add(armPivot);
+  // 唱針臂（管＋唱頭＋唱針）掛在樞軸群組上，播放時繞樞軸 Y 軸轉到唱片上。
+  const vinylArm = new THREE.Group();
+  vinylArm.name = 'vinylArm';
+  vinylArm.position.set(VINYL_ARM_PIVOT.x, 0, VINYL_ARM_PIVOT.z);
+  turntable.add(vinylArm);
   const armTube = new THREE.Mesh(
     new THREE.CylinderGeometry(0.008, 0.009, 0.18, 12),
     new THREE.MeshStandardMaterial({ color: 0x6a6058, metalness: 0.35, roughness: 0.48 })
   );
   armTube.rotation.x = 0.32;
   armTube.rotation.z = -0.52;
-  armTube.position.set(0.158, 0.088, -0.03);
-  turntable.add(armTube);
+  armTube.position.set(0.158 - VINYL_ARM_PIVOT.x, 0.088, -0.03 - VINYL_ARM_PIVOT.z);
+  vinylArm.add(armTube);
   const headshell = box(0.032, 0.018, 0.042, 0x4a443c);
   headshell.material = new THREE.MeshStandardMaterial({
     color: 0x4a443c,
     metalness: 0.25,
     roughness: 0.5
   });
-  headshell.position.set(0.2, 0.078, 0.05);
-  turntable.add(headshell);
+  headshell.position.set(0.2 - VINYL_ARM_PIVOT.x, 0.078, 0.05 - VINYL_ARM_PIVOT.z);
+  vinylArm.add(headshell);
   const stylus = box(0.006, 0.016, 0.008, 0x2a2824);
   stylus.material = new THREE.MeshStandardMaterial({
     color: 0x2a2824,
     metalness: 0.15,
     roughness: 0.6
   });
-  stylus.position.set(0.214, 0.068, 0.058);
-  turntable.add(stylus);
+  stylus.position.set(0.214 - VINYL_ARM_PIVOT.x, 0.068, 0.058 - VINYL_ARM_PIVOT.z);
+  vinylArm.add(stylus);
   const knobMat = new THREE.MeshStandardMaterial({ color: 0x8a8078, metalness: 0.2, roughness: 0.52 });
   for (const kx of [-0.14, 0.12]) {
     const knob = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.01, 14), knobMat);
     knob.position.set(kx, 0.044, 0.12);
     turntable.add(knob);
   }
+  // 點唱片機（含周圍一圈）切換背景音樂：加一個看不見的大 hit box，手機好點。
+  turntable.userData.pickRole = 'vinyl';
+  const vinylPick = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.22, 0.42),
+    new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false })
+  );
+  vinylPick.position.set(0, 0.09, 0);
+  vinylPick.userData.pickRole = 'vinyl';
+  vinylPick.name = 'vinylPick';
+  turntable.add(vinylPick);
+  // 閒置時唱盤外圈有一圈會呼吸的暖光，提示「這個可以點」（播放中或減少動態時不閃）。
+  const vinylHint = new THREE.Mesh(
+    new THREE.RingGeometry(0.085, 0.115, 40),
+    new THREE.MeshBasicMaterial({
+      color: 0xffc27a,
+      transparent: true,
+      opacity: 0.25,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide
+    })
+  );
+  vinylHint.rotation.x = -Math.PI / 2;
+  vinylHint.position.set(0, 0.065, 0);
+  vinylHint.name = 'vinylTapHint';
+  turntable.add(vinylHint);
   root.add(turntable);
 
   // 窗邊櫃上的小檯燈已移除（燈太多，#911）。
@@ -846,18 +883,36 @@ export function addLoungeFurnishings(root, texLoader, layout) {
 
   return {
     vinylDisc: platter,
+    vinylArm,
+    vinylHint,
+    vinylTurntable: turntable,
     vinylNotes: notes,
     sideboardMaxX: sbX + 0.32 * sbScale,
     handheldClearX: 0.51
   };
 }
 
-export function tickVinylSpin(platter, notes, status, reducedMotion, elapsed, dt) {
-  const spin = vinylShouldSpin(status, reducedMotion);
+/**
+ * 唱盤／音符／唱針臂：只在音樂播放時動（點唱片機開始）。
+ * 減少動態時唱盤不轉、音符不飄，但唱針臂仍會放上／抬起，讓使用者看得出狀態。
+ */
+export function tickVinylSpin(platter, notes, playing, reducedMotion, elapsed, dt, arm, hint) {
+  const spin = vinylPlaybackSpin(playing, reducedMotion);
   if (platter) {
     platter.rotation.y += spin ? dt * 1.15 : 0;
   }
-  const showNotes = spin && !reducedMotion;
+  if (arm) {
+    const target = vinylArmTarget(playing);
+    const k = reducedMotion ? 1 : Math.min(1, dt * 5);
+    arm.rotation.y += (target - arm.rotation.y) * k;
+  }
+  if (hint) {
+    hint.visible = !playing;
+    if (!playing) {
+      hint.material.opacity = reducedMotion ? 0.4 : 0.22 + ((Math.sin(elapsed * 2.4) + 1) / 2) * 0.4;
+    }
+  }
+  const showNotes = spin;
   if (notes) {
     for (let i = 0; i < notes.length; i++) {
       const n = notes[i];

@@ -174,6 +174,7 @@ import {
 } from './private-team-scene-lounge.js';
 
 import { addPrivateTeamGalleryLighting } from './private-team-scene-gallery-lighting.js';
+import { createOfficeMusic, OFFICE_MUSIC_URL } from './private-team-scene-music.js';
 
 import {
   PRIVATE_TEAM_TUB_RIM_TOP_Y,
@@ -876,6 +877,11 @@ export function mountPrivateTeamScene(canvas, opts) {
   const loungeFurnishing = addLoungeFurnishings(root, texLoader, { backZ, winBottom });
   const vinylDisc = loungeFurnishing.vinylDisc;
   const vinylNotes = loungeFurnishing.vinylNotes;
+  const vinylArm = loungeFurnishing.vinylArm;
+  const vinylHint = loungeFurnishing.vinylHint;
+  const vinylTurntable = loungeFurnishing.vinylTurntable;
+  // 背景音樂：只有點唱片機（使用者手勢）才開始播，瀏覽器才不會擋。
+  const officeMusic = createOfficeMusic({ win, url: OFFICE_MUSIC_URL });
 
   galleryLighting = addPrivateTeamGalleryLighting(root, {
     wallH,
@@ -1809,7 +1815,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   };
   syncSecretaryPlacement();
 
-  const clickables = [windowSillHandheld.group, bubble, leftPosterGroup, journalBoard.group];
+  const clickables = [windowSillHandheld.group, bubble, leftPosterGroup, journalBoard.group, vinylTurntable];
   for (let wi = 0; wi < windowVistaClickables.length; wi++) {
     clickables.push(windowVistaClickables[wi]);
   }
@@ -1941,6 +1947,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     let obj = null;
     if (role === 'handheld') obj = windowSillHandheld && windowSillHandheld.group;
     else if (role === 'secretary') obj = bubble;
+    else if (role === 'vinyl') obj = vinylTurntable;
     if (!obj) return null;
     camera.updateMatrixWorld(true);
     obj.updateWorldMatrix(true, false);
@@ -1989,6 +1996,11 @@ export function mountPrivateTeamScene(canvas, opts) {
         }
       } catch (_e) { /* noop */ }
       applyLeftPosterHighlight(true, performance.now() + 260);
+      return;
+    }
+    if (target === 'vinyl') {
+      // 唱片機只切換音樂，不要打開狀態卡。
+      officeMusic.toggle();
       return;
     }
     if (target === 'secretary') playSecretaryWave();
@@ -2178,6 +2190,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   function onVisibilityChange() {
     if (!doc) return;
     pageHidden = !!(doc.hidden || doc.visibilityState !== 'visible');
+    if (pageHidden) officeMusic.stop();
   }
   if (doc && typeof doc.addEventListener === 'function') {
     doc.addEventListener('visibilitychange', onVisibilityChange);
@@ -2515,7 +2528,16 @@ export function mountPrivateTeamScene(canvas, opts) {
 
     syncWindowVistaParallax();
 
-    tickVinylSpin(vinylDisc, vinylNotes, tigerStatus, reducedMotion, elapsed, frameDt * 0.001);
+    tickVinylSpin(
+      vinylDisc,
+      vinylNotes,
+      officeMusic.isPlaying(),
+      reducedMotion,
+      elapsed,
+      frameDt * 0.001,
+      vinylArm,
+      vinylHint
+    );
 
     bubble.lookAt(camera.position);
     lampHalo.lookAt(camera.position);
@@ -2564,6 +2586,15 @@ export function mountPrivateTeamScene(canvas, opts) {
     },
     noteTigerStatus,
     setMonitorHud,
+    toggleMusic() {
+      return officeMusic.toggle();
+    },
+    isMusicPlaying() {
+      return officeMusic.isPlaying();
+    },
+    stopMusic() {
+      officeMusic.stop();
+    },
     setSceneInputEnabled(next) {
       sceneInputEnabled = !!next;
     },
@@ -2572,6 +2603,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     },
     destroy() {
       running = false;
+      officeMusic.dispose();
       win.cancelAnimationFrame(raf);
       if (doc && typeof doc.removeEventListener === 'function') {
         doc.removeEventListener('visibilitychange', onVisibilityChange);
