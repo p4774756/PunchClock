@@ -61,11 +61,10 @@ test('今日完成差量鍵', () => {
 
 test('場景含揮手與比耶素材鍵', () => {
   const src = sceneSrc;
-  assert.match(src, /SECRETARY_SPRITE_URL_WAVE/);
   assert.match(src, /playSecretaryWave/);
   assert.match(src, /playSecretaryYeah/);
-  assert.match(src, new RegExp(SECRETARY_SPRITE_URL_WAVE.replace(/\//g, '\\/')));
-  assert.match(src, new RegExp(SECRETARY_SPRITE_URL_YEAH.replace(/\//g, '\\/')));
+  assert.match(src, /secretaryPack\.wave/);
+  assert.match(src, /secretaryPack\.yeah/);
 });
 
 test('慶祝拍手比讚小跳序列與時長', () => {
@@ -216,6 +215,6 @@ test('待命閒置起舞條件', () => {
   );
   const src = sceneSrc;
   assert.match(src, /playSecretaryDance/);
-  assert.match(src, /secretary-clap-/);
+  assert.match(src, /secretaryCelebrateSteps/);
   assert.match(src, /preloadSecretaryCelebrateFrames/);
 });

@@ -265,6 +265,42 @@
   z-index: 4;
 }
 
+.pt-hud-outfit {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+  max-width: min(11rem, calc(100vw - 5rem));
+  pointer-events: auto;
+}
+
+.pt-hud-outfit-label {
+  margin: 0;
+  padding: 0 0.15rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(248, 251, 255, 0.88);
+  user-select: none;
+}
+
+.pt-hud-outfit-select {
+  min-width: 5.75rem;
+  min-height: 44px;
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0e2244;
+  border: 3px solid var(--maple-navy, #163a70);
+  outline: 1px solid var(--maple-blue-lt, #a8d0f2);
+  outline-offset: -4px;
+  border-radius: 6px;
+  background: rgba(248, 251, 255, 0.94);
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+}
+
 button.pt-hud-download {
   cursor: pointer;
   padding: 0;

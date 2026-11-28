@@ -11,6 +11,15 @@ import {
   taskProgressFromTiger,
   tigerFromPublic
 } from './private-team-office.js';
+import {
+  readSecretaryOutfitFromStorage,
+  writeSecretaryOutfitToStorage,
+  secretaryAvatarUrlForOutfit,
+  parseSecretaryOutfitId,
+  SECRETARY_OUTFIT_STORAGE_KEY
+} from './private-team-secretary-outfit.js';
+
+export { SECRETARY_OUTFIT_STORAGE_KEY, parseSecretaryOutfitId, readSecretaryOutfitFromStorage, writeSecretaryOutfitToStorage };
 
 /** 首頁舞台高度與 visualViewport 同步，填滿網址列上可見區（供單測與執行期） */
 export function syncPrivateTeamPageViewport(doc, win, rootEl) {
@@ -93,6 +102,7 @@ function createScenePlaceholder() {
     playSecretaryDance: noop,
     noteTigerStatus: noop,
     setSecretarySprite: noop,
+    setSecretaryOutfit: noop,
     destroy: noop
   };
 }
@@ -217,7 +227,7 @@ function taskHudMarkup() {
     '<button type="button" class="pt-hud-task" data-pt-task-btn aria-haspopup="true" aria-expanded="false" aria-label="訪客・點此登入">' +
     '<span class="pt-a-frame">' +
     '<span class="pt-a-frame-inner">' +
-    '<img src="/assets/private-team/secretary-avatar.webp" alt="" aria-hidden="true" width="192" height="192" decoding="async">' +
+    '<img src="/assets/private-team/secretary-avatar.webp" data-pt-secretary-avatar alt="" aria-hidden="true" width="192" height="192" decoding="async">' +
     '</span>' +
     frameCornerSpans() +
     '</span>' +
@@ -279,6 +289,12 @@ export function mountPrivateTeamPage(opts) {
       taskHudMarkup() +
       '</div>' +
       '<div class="pt-hud-br">' +
+      '<div class="pt-hud-outfit" data-pt-secretary-outfit>' +
+      '<label class="pt-hud-outfit-label" for="pt-secretary-outfit-select">服裝</label>' +
+      '<select id="pt-secretary-outfit-select" class="pt-hud-outfit-select" data-pt-secretary-outfit-select aria-label="秘書服裝">' +
+      '<option value="default">預設</option>' +
+      '<option value="stage">舞台服</option>' +
+      '</select></div>' +
       '<button type="button" class="pt-hud-download" data-pt-open-download aria-label="下載 App" title="下載 App">' + DL_SVG +
       '</button></div>' +
       '<p class="pt-hud-deploy-ver" data-pt-deploy-ver hidden aria-hidden="true"></p>';
@@ -327,6 +343,7 @@ export function mountPrivateTeamPage(opts) {
   const taskBarFill = hud.querySelector('[data-pt-task-bar-fill]');
   const taskBarCount = hud.querySelector('[data-pt-task-bar-count]');
 
+  let secretaryOutfitId = readSecretaryOutfitFromStorage(win.localStorage);
   let tigerView = { status: '待命中', active: [], completedToday: [] };
   let seenCompletedKeys = null;
   let pendingCompletedFlash = false;
@@ -544,10 +561,27 @@ export function mountPrivateTeamPage(opts) {
     }
   }
 
+  function syncSecretaryOutfitHud() {
+    const avatarImg = hud && hud.querySelector ? hud.querySelector('[data-pt-secretary-avatar]') : null;
+    if (avatarImg) avatarImg.src = secretaryAvatarUrlForOutfit(secretaryOutfitId);
+    const outfitSelect = hud && hud.querySelector ? hud.querySelector('[data-pt-secretary-outfit-select]') : null;
+    if (outfitSelect) outfitSelect.value = parseSecretaryOutfitId(secretaryOutfitId);
+  }
+
+  function applySecretaryOutfitChoice(nextRaw) {
+    const next = parseSecretaryOutfitId(nextRaw);
+    if (next === secretaryOutfitId) return;
+    secretaryOutfitId = next;
+    writeSecretaryOutfitToStorage(win.localStorage, secretaryOutfitId);
+    syncSecretaryOutfitHud();
+    scene.setSecretaryOutfit(secretaryOutfitId);
+    paintSceneFromTiger();
+  }
+
   function paintSceneFromTiger() {
     const now = typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
     scene.noteTigerStatus(tigerView.status, now);
-    scene.setSecretarySprite(secretarySpriteUrlForStatus(tigerView.status));
+    scene.setSecretarySprite(secretarySpriteUrlForStatus(tigerView.status, secretaryOutfitId));
     scene.setBubbleText(bubbleLabel());
   }
 
@@ -564,6 +598,7 @@ export function mountPrivateTeamPage(opts) {
           onActivate: onSceneActivate
         });
         canvas.__privateTeamScene = scene;
+        scene.setSecretaryOutfit(secretaryOutfitId);
         paintSceneFromTiger();
         refreshCanvasA11y();
         syncSceneOverlay();
@@ -634,6 +669,21 @@ export function mountPrivateTeamPage(opts) {
       }
       closeAuthMenu();
       loginModal.open(taskBtn);
+    });
+  }
+
+  const outfitSelect = hud.querySelector('[data-pt-secretary-outfit-select]');
+  if (outfitSelect) {
+    syncSecretaryOutfitHud();
+    const stopSceneDrag = (ev) => {
+      if (ev.stopPropagation) ev.stopPropagation();
+    };
+    outfitSelect.addEventListener('pointerdown', stopSceneDrag);
+    outfitSelect.addEventListener('mousedown', stopSceneDrag);
+    outfitSelect.addEventListener('click', stopSceneDrag);
+    outfitSelect.addEventListener('change', (ev) => {
+      stopSceneDrag(ev);
+      applySecretaryOutfitChoice(outfitSelect.value);
     });
   }
 

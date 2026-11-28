@@ -34,7 +34,14 @@ import {
   isLoungeTigerStatus,
   SECRETARY_SPRITE_URL_SOFA,
   secretaryTubFallbackUrlForStatus,
-  isSecretarySofaSpriteUrl
+  isSecretarySofaSpriteUrl,
+  secretarySpritePackForOutfit,
+  secretaryCelebrateStepsForOutfit,
+  secretaryStandbyIdleUrlsForOutfit,
+  secretaryDanceDurationMsForSteps,
+  secretaryEquivalentSpriteUrl,
+  secretaryOutfitPreloadUrls,
+  parseSecretaryOutfitId
 } from './private-team-scene-secretary.js';
 
 import {
@@ -150,7 +157,8 @@ import {
   SECRETARY_SHADOW_SOFA,
   SECRETARY_BUBBLE_TUB,
   SECRETARY_BUBBLE_SOFA,
-  secretaryAtLoungePose
+  secretaryAtLoungePose,
+  secretarySofaPlacementForOutfit
 } from './private-team-scene-lounge.js';
 
 export {
@@ -1267,13 +1275,28 @@ export function mountPrivateTeamScene(canvas, opts) {
   let spriteLoadSeq = 0;
   const loader = new THREE.TextureLoader();
 
+  let secretaryOutfitId = 'default';
+  let secretaryPack = secretarySpritePackForOutfit('default');
+  let secretaryCelebrateSteps = secretaryCelebrateStepsForOutfit('default');
+  let secretaryStandbyIdleUrls = secretaryStandbyIdleUrlsForOutfit('default');
+  let secretaryDanceDurationMs = secretaryDanceDurationMsForSteps(secretaryCelebrateSteps);
+
+  function preloadSecretaryOutfitUrls(outfitId) {
+    const urls = secretaryOutfitPreloadUrls(outfitId);
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i];
+      if (url) loader.load(url, () => {}, undefined, () => {});
+    }
+  }
+  preloadSecretaryOutfitUrls('stage');
+
   let secretaryCelebrateFramesPrimed = false;
   let secretaryStandbyIdleFramesPrimed = false;
 
   function preloadSecretaryCelebrateFrames() {
     const seen = new Set();
-    for (let i = 0; i < SECRETARY_CELEBRATE_STEPS.length; i++) {
-      const step = SECRETARY_CELEBRATE_STEPS[i];
+    for (let i = 0; i < secretaryCelebrateSteps.length; i++) {
+      const step = secretaryCelebrateSteps[i];
       if (step.kind !== 'frame') continue;
       const url = step.url;
       if (!url || seen.has(url)) continue;
@@ -1283,8 +1306,8 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   function preloadSecretaryStandbyIdleFrames() {
-    for (let i = 0; i < SECRETARY_STANDBY_IDLE_URLS.length; i++) {
-      const url = SECRETARY_STANDBY_IDLE_URLS[i];
+    for (let i = 0; i < secretaryStandbyIdleUrls.length; i++) {
+      const url = secretaryStandbyIdleUrls[i];
       if (url) loader.load(url, () => {}, undefined, () => {});
     }
   }
@@ -1306,7 +1329,7 @@ export function mountPrivateTeamScene(canvas, opts) {
   }
 
   function resolveRestSpriteUrl() {
-    return secretaryTypingDisplayUrl(statusBaseUrl, typingShowB, reducedMotion);
+    return secretaryTypingDisplayUrl(statusBaseUrl, typingShowB, reducedMotion, secretaryPack);
   }
 
   function applySecretarySpriteUrl(url) {
@@ -1334,7 +1357,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         desiredSpriteUrl = currentSpriteUrl;
         if (isSecretarySofaSpriteUrl(next)) {
           secretarySofaSpriteOk = false;
-          const fallback = secretaryTubFallbackUrlForStatus(tigerStatus);
+          const fallback = secretaryTubFallbackUrlForStatus(tigerStatus, secretaryPack);
           if (fallback && fallback !== next) {
             applySecretarySpriteUrl(fallback);
           }
@@ -1369,7 +1392,7 @@ export function mountPrivateTeamScene(canvas, opts) {
     dancePlayback = { startMs: t };
     syncSecretaryPlacement();
     danceDisplayFrame = -1;
-    const url = secretaryCelebrateFrameUrlAt(0);
+    const url = secretaryCelebrateFrameUrlAt(0, secretaryCelebrateSteps);
     if (url) applySecretarySpriteUrl(url);
   }
 
@@ -1417,20 +1440,20 @@ export function mountPrivateTeamScene(canvas, opts) {
 
   function playSecretaryWave() {
     if (dancePlayback) return;
-    enqueueSecretaryOverlay(SECRETARY_SPRITE_URL_WAVE, SECRETARY_WAVE_MS, performance.now());
+    enqueueSecretaryOverlay(secretaryPack.wave, SECRETARY_WAVE_MS, performance.now());
   }
 
   function playSecretaryYeah() {
     if (dancePlayback) return;
-    if (overlayActive && overlayActive.url === SECRETARY_SPRITE_URL_YEAH) {
+    if (overlayActive && overlayActive.url === secretaryPack.yeah) {
       return;
     }
-    enqueueSecretaryOverlay(SECRETARY_SPRITE_URL_YEAH, SECRETARY_YEAH_MS, performance.now());
+    enqueueSecretaryOverlay(secretaryPack.yeah, SECRETARY_YEAH_MS, performance.now());
   }
 
   function spriteAnimModeForUrl(url) {
-    if (url === SECRETARY_SPRITE_URL_TYPING || url === SECRETARY_SPRITE_URL_TYPING_B) return 'working';
-    if (url === SECRETARY_SPRITE_URL_SLEEP) return 'sleep';
+    if (url === secretaryPack.typing || url === secretaryPack.typingB) return 'working';
+    if (url === secretaryPack.sleep) return 'sleep';
     return 'idle';
   }
 
@@ -1492,11 +1515,47 @@ export function mountPrivateTeamScene(canvas, opts) {
   function setSecretarySprite(url) {
     const next = url == null ? '' : String(url).trim();
     if (!next) return;
-    if (shouldIgnoreStandbyIdleSpriteUpdate(statusBaseUrl, next)) return;
+    if (shouldIgnoreStandbyIdleSpriteUpdate(statusBaseUrl, next, secretaryPack)) return;
     if (next === statusBaseUrl) return;
     statusBaseUrl = next;
     typingShowB = false;
     lastTypingFlipMs = performance.now();
+    refreshPoseAnimMode();
+    refreshSecretaryDisplay();
+    syncSecretaryPlacement();
+  }
+
+  function setSecretaryOutfit(outfitId) {
+    const nextId = parseSecretaryOutfitId(outfitId);
+    const nextPack = secretarySpritePackForOutfit(nextId);
+    if (nextPack.typing === secretaryPack.typing && nextPack.sofa === secretaryPack.sofa) return;
+    secretaryOutfitId = nextId;
+    secretaryPack = nextPack;
+    secretaryCelebrateSteps = secretaryCelebrateStepsForOutfit(nextId);
+    secretaryStandbyIdleUrls = secretaryStandbyIdleUrlsForOutfit(nextId);
+    secretaryDanceDurationMs = secretaryDanceDurationMsForSteps(secretaryCelebrateSteps);
+    secretaryCelebrateFramesPrimed = false;
+    secretaryStandbyIdleFramesPrimed = false;
+    preloadSecretaryOutfitUrls(nextId);
+    statusBaseUrl = secretaryEquivalentSpriteUrl(statusBaseUrl, nextId);
+    if (overlayActive) {
+      overlayActive = {
+        url: secretaryEquivalentSpriteUrl(overlayActive.url, nextId),
+        until: overlayActive.until
+      };
+    }
+    if (overlayPending) {
+      overlayPending = {
+        url: secretaryEquivalentSpriteUrl(overlayPending.url, nextId),
+        ms: overlayPending.ms
+      };
+    }
+    if (dancePlayback) {
+      const elapsed = performance.now() - dancePlayback.startMs;
+      const url = secretaryCelebrateFrameUrlAt(elapsed, secretaryCelebrateSteps);
+      if (url) applySecretarySpriteUrl(url);
+    }
+    typingShowB = false;
     refreshPoseAnimMode();
     refreshSecretaryDisplay();
     syncSecretaryPlacement();
@@ -1527,18 +1586,21 @@ export function mountPrivateTeamScene(canvas, opts) {
     const poseChanged = secretaryInLoungePose !== wantLounge;
     secretaryInLoungePose = wantLounge;
     if (wantLounge) {
+      const sofaPlace = secretarySofaPlacementForOutfit(secretaryOutfitId);
       secretaryRoot.position.set(
-        SECRETARY_SOFA_POSITION.x,
-        SECRETARY_SOFA_POSITION.y,
-        SECRETARY_SOFA_POSITION.z
+        sofaPlace.position.x,
+        sofaPlace.position.y,
+        sofaPlace.position.z
       );
+      secretaryRoot.scale.set(sofaPlace.scale, sofaPlace.scale, sofaPlace.scale);
       secretaryRoot.rotation.y = -0.42;
       shadow.position.set(
         SECRETARY_SHADOW_SOFA.x,
         SECRETARY_SHADOW_SOFA.y,
         SECRETARY_SHADOW_SOFA.z
       );
-      bubble.position.set(SECRETARY_BUBBLE_SOFA.x, bubble.position.y, SECRETARY_BUBBLE_SOFA.z);
+      const bubbleY = sofaPlace.bubble.y == null ? bubble.position.y : sofaPlace.bubble.y;
+      bubble.position.set(sofaPlace.bubble.x, bubbleY, sofaPlace.bubble.z);
       if (poseChanged && secretarySprite && secretarySprite.material) {
         stripUnderwaterTint(secretarySprite.material);
       }
@@ -1548,6 +1610,7 @@ export function mountPrivateTeamScene(canvas, opts) {
         SECRETARY_TUB_POSITION.y,
         SECRETARY_TUB_POSITION.z
       );
+      secretaryRoot.scale.set(1, 1, 1);
       secretaryRoot.rotation.y = 0;
       shadow.position.set(SECRETARY_SHADOW_TUB.x, SECRETARY_SHADOW_TUB.y, SECRETARY_SHADOW_TUB.z);
       bubble.position.set(secretaryBubbleX, bubble.position.y, SECRETARY_BUBBLE_TUB.z);
@@ -1931,10 +1994,10 @@ export function mountPrivateTeamScene(canvas, opts) {
         if (
           reducedMotion &&
           isStandbyTigerStatus(tigerStatus) &&
-          isSecretaryStandbyIdleUrl(statusBaseUrl) &&
-          statusBaseUrl !== SECRETARY_SPRITE_URL_IDLE
+          isSecretaryStandbyIdleUrl(statusBaseUrl, secretaryPack) &&
+          statusBaseUrl !== secretaryPack.idle
         ) {
-          statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+          statusBaseUrl = secretaryPack.idle;
           lastIdleRotateMs = null;
         }
         refreshSecretaryDisplay();
@@ -1947,10 +2010,10 @@ export function mountPrivateTeamScene(canvas, opts) {
         if (
           reducedMotion &&
           isStandbyTigerStatus(tigerStatus) &&
-          isSecretaryStandbyIdleUrl(statusBaseUrl) &&
-          statusBaseUrl !== SECRETARY_SPRITE_URL_IDLE
+          isSecretaryStandbyIdleUrl(statusBaseUrl, secretaryPack) &&
+          statusBaseUrl !== secretaryPack.idle
         ) {
-          statusBaseUrl = SECRETARY_SPRITE_URL_IDLE;
+          statusBaseUrl = secretaryPack.idle;
           lastIdleRotateMs = null;
         }
         refreshSecretaryDisplay();
@@ -1988,10 +2051,10 @@ export function mountPrivateTeamScene(canvas, opts) {
     lastFrameMs = now;
     if (dancePlayback) {
       const elapsed = now - dancePlayback.startMs;
-      if (elapsed >= SECRETARY_DANCE_DURATION_MS) {
+      if (elapsed >= secretaryDanceDurationMs) {
         stopSecretaryDance();
       } else {
-        const st = secretaryCelebrateStateAt(elapsed);
+        const st = secretaryCelebrateStateAt(elapsed, secretaryCelebrateSteps);
         if (st.kind !== 'done') {
           const frameKey = st.kind === 'jump' ? 'jump' : st.url;
           if (frameKey !== danceDisplayFrame) {
@@ -1999,7 +2062,7 @@ export function mountPrivateTeamScene(canvas, opts) {
             if (st.url) applySecretarySpriteUrl(st.url);
           }
           dancePlayback.jumpOffset =
-            st.kind === 'jump' ? secretaryCelebrateJumpOffsetAt(elapsed) : null;
+            st.kind === 'jump' ? secretaryCelebrateJumpOffsetAt(elapsed, secretaryCelebrateSteps) : null;
         }
       }
     } else if (
@@ -2022,7 +2085,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       !overlayActive &&
       !dancePlayback &&
       !reducedMotion &&
-      statusBaseUrl === SECRETARY_SPRITE_URL_TYPING &&
+      statusBaseUrl === secretaryPack.typing &&
       now - lastTypingFlipMs >= SECRETARY_TYPING_FRAME_MS
     ) {
       lastTypingFlipMs = now;
@@ -2034,13 +2097,13 @@ export function mountPrivateTeamScene(canvas, opts) {
       !reducedMotion &&
       !secretaryInLoungePose &&
       isStandbyTigerStatus(tigerStatus) &&
-      isSecretaryStandbyIdleUrl(statusBaseUrl) &&
+      isSecretaryStandbyIdleUrl(statusBaseUrl, secretaryPack) &&
       lastIdleRotateMs != null &&
       now - lastIdleRotateMs >= SECRETARY_IDLE_ROTATE_MS
     ) {
       primeSecretaryStandbyIdleFramesIfNeeded();
       lastIdleRotateMs = now;
-      statusBaseUrl = pickNextStandbyIdleUrl(statusBaseUrl, Math.floor(Math.random() * 1e6));
+      statusBaseUrl = pickNextStandbyIdleUrl(statusBaseUrl, Math.floor(Math.random() * 1e6), secretaryPack);
       refreshPoseAnimMode();
       refreshSecretaryDisplay();
     }
@@ -2069,12 +2132,17 @@ export function mountPrivateTeamScene(canvas, opts) {
       secretarySprite.lookAt(camera.position);
     }
 
+    const bubbleFloatBase = (() => {
+      if (!secretaryInLoungePose) return bubbleFloatMin;
+      const y = secretarySofaPlacementForOutfit(secretaryOutfitId).bubble.y;
+      return y == null ? bubbleFloatMin : y;
+    })();
     if (reducedMotion) {
-      bubble.position.y = bubbleRestY;
+      bubble.position.y = bubbleFloatBase + bubbleFloatSpan / 2;
       bubbleMat.opacity = 0.92;
     } else {
       const bubblePhase = (Math.sin(elapsed * 2.2) + 1) / 2;
-      bubble.position.y = bubbleFloatMin + bubblePhase * bubbleFloatSpan;
+      bubble.position.y = bubbleFloatBase + bubblePhase * bubbleFloatSpan;
       bubbleMat.opacity = 0.82 + bubblePhase * 0.18;
     }
 
@@ -2249,6 +2317,7 @@ export function mountPrivateTeamScene(canvas, opts) {
       else refreshSecretaryDisplay();
     },
     setSecretarySprite,
+    setSecretaryOutfit,
     playSecretaryWave,
     playSecretaryYeah,
     playSecretaryDance,
