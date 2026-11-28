@@ -4,6 +4,7 @@ import org.junit.Test;
 
 import javax.imageio.ImageIO;
 import javax.swing.JTabbedPane;
+import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -47,55 +48,75 @@ public class Issue787SettingsToggleTest {
         Files.createDirectories(OUT_DIR);
         SwingUtilities.invokeAndWait(() -> {
             try {
-                PanelFactory.ServerConfigRefs refs = new PanelFactory.ServerConfigRefs();
-                JTabbedPane tabs = PanelFactory.createServerConfigBody(
-                        refs, UiFonts.chinesePlain(13), UiFonts.chineseBold(13), UiFonts.latinPlain(13));
-                tabs.setSelectedIndex(PanelFactory.SETTINGS_APPEARANCE_TAB);
                 int w = 860;
-                int h = 420;
-                tabs.setSize(w, h);
-                tabs.doLayout();
+                int h = 700;
+                BufferedImage offShot = captureAppearanceSheet(w, h, false, false, false);
+                BufferedImage onShot = captureAppearanceSheet(w, h, true, true, false);
+                BufferedImage disabledShot = captureAppearanceSheet(w, h, true, false, true);
 
-                writeState(refs, tabs, "settings-appearance-toggles-off.png", false);
-                writeState(refs, tabs, "settings-appearance-toggles-on.png", true);
-                writeDisabledSheet(refs, tabs, OUT_DIR.resolve("settings-appearance-toggles-disabled.png"));
+                assertTrue("off/on previews must differ", pixelDiff(offShot, onShot) > 0);
+                assertTrue(pixelDiff(onShot, disabledShot) > 0);
+
+                writeAppearancePng("settings-appearance-toggles-off.png", offShot);
+                assertTrue(countPinkTrackPixels(offShot, 50) < 5);
+
+                writeAppearancePng("settings-appearance-toggles-on.png", onShot);
+                assertTrue(countPinkTrackPixels(onShot, 50) > 40);
+
+                writeAppearancePng("settings-appearance-toggles-disabled.png", disabledShot);
+                assertTrue(countPinkTrackPixels(disabledShot, 50) > 0);
+                assertTrue(countMutedTrackPixels(disabledShot, 50) > 40);
             } catch (Exception ex) {
                 throw new RuntimeException(ex);
             }
         });
     }
 
-    private static void writeState(
-            PanelFactory.ServerConfigRefs refs, JTabbedPane tabs, String name, boolean selected) throws Exception {
-        refs.desktopPetSwitch.setSelected(selected);
-        refs.desktopPetCare.setSelected(selected);
-        refs.dockIconSwimsuitSwitch.setSelected(selected);
-        applyDesktopPetCareEnabled(refs);
-        BufferedImage shot = paintTabs(tabs);
+    private static void writeAppearancePng(String name, BufferedImage shot) throws Exception {
         Path path = OUT_DIR.resolve(name);
         assertTrue(ImageIO.write(shot, "png", path.toFile()));
         assertTrue(Files.size(path) > 400L);
-        assertTrue(hasBrightTrack());
-        if (selected) {
-            assertTrue(looksLikePinkTrack(paintSwitch(new CandySwitch(), true, true)));
-        } else {
-            assertTrue(looksLikeGrayTrack(paintSwitch(new CandySwitch(), false, true)));
-        }
     }
 
-    private static void writeDisabledSheet(
-            PanelFactory.ServerConfigRefs refs, JTabbedPane tabs, Path path) throws Exception {
-        refs.desktopPetSwitch.setSelected(true);
-        refs.desktopPetCare.setSelected(false);
-        refs.dockIconSwimsuitSwitch.setSelected(true);
-        refs.desktopPetSwitch.setEnabled(false);
-        refs.desktopPetCare.setEnabled(false);
-        refs.dockIconSwimsuitSwitch.setEnabled(false);
-        BufferedImage shot = paintTabs(tabs);
-        assertTrue(ImageIO.write(shot, "png", path.toFile()));
-        assertTrue(Files.size(path) > 400L);
-        assertTrue(looksLikePinkTrack(paintSwitch(new CandySwitch(), true, false)));
-        assertTrue(looksLikeGrayTrack(paintSwitch(new CandySwitch(), false, false)));
+    private static BufferedImage captureAppearanceSheet(
+            int w,
+            int h,
+            boolean desktopPet,
+            boolean desktopPetCare,
+            boolean mixedDisabled) {
+        PanelFactory.ServerConfigRefs refs = new PanelFactory.ServerConfigRefs();
+        JTabbedPane tabs = PanelFactory.createServerConfigBody(
+                refs, UiFonts.chinesePlain(13), UiFonts.chineseBold(13), UiFonts.latinPlain(13));
+        tabs.setSelectedIndex(PanelFactory.SETTINGS_APPEARANCE_TAB);
+        tabs.setSize(w, h);
+        boolean dockSwimsuit = mixedDisabled ? true : desktopPet;
+        boolean enabled = !mixedDisabled;
+        setAppearanceSwitchStates(refs, desktopPet, desktopPetCare, dockSwimsuit, enabled);
+        return paintTabs(tabs);
+    }
+
+    private static void setAppearanceSwitchStates(
+            PanelFactory.ServerConfigRefs refs,
+            boolean desktopPet,
+            boolean desktopPetCare,
+            boolean dockSwimsuit,
+            boolean enabled) {
+        syncSelected(refs.desktopPetSwitch, desktopPet);
+        syncSelected(refs.desktopPetCare, desktopPetCare);
+        syncSelected(refs.dockIconSwimsuitSwitch, dockSwimsuit);
+        refs.desktopPetSwitch.setEnabled(enabled);
+        refs.desktopPetCare.setEnabled(enabled);
+        refs.dockIconSwimsuitSwitch.setEnabled(enabled);
+        applyDesktopPetCareEnabled(refs);
+    }
+
+    private static void syncSelected(JToggleButton toggle, boolean selected) {
+        if (toggle.isSelected() != selected) {
+            toggle.setSelected(selected);
+            return;
+        }
+        toggle.setSelected(!selected);
+        toggle.setSelected(selected);
     }
 
     private static void applyDesktopPetCareEnabled(PanelFactory.ServerConfigRefs refs) {
@@ -106,16 +127,49 @@ public class Issue787SettingsToggleTest {
     private static BufferedImage paintTabs(JTabbedPane tabs) {
         int w = tabs.getWidth();
         int h = tabs.getHeight();
-        BufferedImage image = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = image.createGraphics();
-        try {
-            g.setColor(ClassicBevel.FACE);
-            g.fillRect(0, 0, w, h);
-            tabs.paint(g);
-        } finally {
-            g.dispose();
+        return WindowChrome.renderOffscreen(tabs, w, h, ClassicBevel.FACE);
+    }
+
+    private static int pixelDiff(BufferedImage a, BufferedImage b) {
+        int w = Math.min(a.getWidth(), b.getWidth());
+        int h = Math.min(a.getHeight(), b.getHeight());
+        int diff = 0;
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                if (a.getRGB(x, y) != b.getRGB(x, y)) {
+                    diff++;
+                }
+            }
         }
-        return image;
+        return diff;
+    }
+
+    private static int countPinkTrackPixels(BufferedImage image, int yMin) {
+        int n = 0;
+        for (int y = yMin; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                Color c = new Color(image.getRGB(x, y));
+                if (c.getRed() > 140 && c.getBlue() > 70 && c.getRed() > c.getGreen() + 10) {
+                    n++;
+                }
+            }
+        }
+        return n;
+    }
+
+    private static int countMutedTrackPixels(BufferedImage image, int yMin) {
+        int n = 0;
+        for (int y = yMin; y < image.getHeight(); y++) {
+            for (int x = 0; x < image.getWidth(); x++) {
+                Color c = new Color(image.getRGB(x, y));
+                int spread = Math.max(c.getRed(), Math.max(c.getGreen(), c.getBlue()))
+                        - Math.min(c.getRed(), Math.min(c.getGreen(), c.getBlue()));
+                if (spread < 28 && c.getRed() > 118 && c.getRed() < 198 && c.getGreen() > 118) {
+                    n++;
+                }
+            }
+        }
+        return n;
     }
 
     private static BufferedImage paintSwitch(CandySwitch sw, boolean selected, boolean enabled) {
@@ -149,10 +203,6 @@ public class Issue787SettingsToggleTest {
             }
         }
         return bestX;
-    }
-
-    private static boolean hasBrightTrack() {
-        return looksLikePinkTrack(paintSwitch(new CandySwitch(), true, true));
     }
 
     private static boolean looksLikePinkTrack(BufferedImage image) {
