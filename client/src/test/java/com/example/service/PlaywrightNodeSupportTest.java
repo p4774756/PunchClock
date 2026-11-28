@@ -24,13 +24,45 @@ public class PlaywrightNodeSupportTest {
     }
 
     @Test
-    public void downloadedNodeGoesUnderUserSkLbaby() {
-        Path home = Path.of("/tmp/sklbaby-node-home");
-        Path mac = PlaywrightNodeSupport.nodeDestination(home, "1.49.0", "mac");
-        assertEquals(home.resolve(".sklbaby/playwright/1.49.0/mac/node"), mac);
-        Path win = PlaywrightNodeSupport.nodeDestination(home, "1.49.0", "win32_x64");
-        assertEquals("node.exe", win.getFileName().toString());
-        assertEquals(".sklbaby", win.getParent().getParent().getParent().getParent().getFileName().toString());
+    public void driverInstallDirUnderPunchclock() {
+        Path home = Path.of("/tmp/punchclock-driver-home");
+        Path dir = PlaywrightNodeSupport.driverInstallDir(home, "1.49.0", "mac-arm64");
+        assertEquals(home.resolve(".punchclock/playwright-driver/1.49.0/mac-arm64"), dir);
+        Path winNode = PlaywrightNodeSupport.nodeDestination(home, "1.49.0", "win32_x64");
+        assertEquals("node.exe", winNode.getFileName().toString());
+        assertEquals(
+                home.resolve(".punchclock/playwright-driver/1.49.0/win32_x64/node.exe"),
+                winNode);
+    }
+
+    @Test
+    public void driverZipUrlUsesOfficialCdn() {
+        assertEquals(
+                "https://playwright.azureedge.net/builds/driver/playwright-1.49.0-mac-arm64.zip",
+                PlaywrightNodeSupport.driverZipUrl("1.49.0", "mac-arm64", false).toString());
+        assertEquals(
+                "https://cdn.playwright.dev/builds/driver/playwright-1.49.0-win32_x64.zip",
+                PlaywrightNodeSupport.driverZipUrl("1.49.0", "win32_x64", true).toString());
+    }
+
+    @Test
+    public void sha256HexMatchesKnownDigest() {
+        assertEquals(
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                PlaywrightNodeSupport.sha256Hex(new byte[0]));
+        assertEquals(
+                "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+                PlaywrightNodeSupport.sha256Hex("hello".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    @Test
+    public void verifySha256RejectsMismatch() throws Exception {
+        try {
+            PlaywrightNodeSupport.verifySha256Hex("abc", "def");
+        } catch (java.io.IOException expected) {
+            return;
+        }
+        throw new AssertionError("expected rejection");
     }
 
     @Test
@@ -53,6 +85,16 @@ public class PlaywrightNodeSupportTest {
     public void rejectsVersionThatCouldEscapeTheDownloadPath() {
         try {
             PlaywrightNodeSupport.mavenDriverBundle("../secret");
+        } catch (IllegalArgumentException expected) {
+            return;
+        }
+        throw new AssertionError("expected rejection");
+    }
+
+    @Test
+    public void rejectsUnsafeDriverZipUrl() {
+        try {
+            PlaywrightNodeSupport.driverZipUrl("../secret", "mac", false);
         } catch (IllegalArgumentException expected) {
             return;
         }
